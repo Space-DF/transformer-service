@@ -1,0 +1,166 @@
+package services
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/Space-DF/transformer-service-go/internal/models"
+)
+
+// TransformService handles data transformation
+type TransformService struct{}
+
+// NewTransformService creates a new transform service
+func NewTransformService() *TransformService {
+	return &TransformService{}
+}
+
+// TransformDeviceData transforms device location data to the standardized output format
+func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLocationData, originalPayload map[string]interface{}) (*models.TransformedDeviceData, error) {
+	if deviceLocation == nil {
+		return nil, fmt.Errorf("device location data is nil")
+	}
+
+	// Determine location accuracy based on calculation method
+	accuracy := ts.determineLocationAccuracy(originalPayload)
+
+	// Extract additional metadata from original payload
+	metadata := ts.extractMetadata(originalPayload)
+
+	// Create transformed data structure
+	transformedData := &models.TransformedDeviceData{
+		DeviceEUI: deviceLocation.DevEUI,
+		Location: models.LocationCoordinates{
+			Latitude:  deviceLocation.Latitude,
+			Longitude: deviceLocation.Longitude,
+			Accuracy:  accuracy,
+		},
+		Timestamp:    time.Now().UTC().Format(time.RFC3339),
+		Organization: deviceLocation.Organization,
+		Metadata:     metadata,
+		Source:       "transformer-service-go",
+	}
+
+	return transformedData, nil
+}
+
+// determineLocationAccuracy analyzes the original payload to determine location accuracy
+func (ts *TransformService) determineLocationAccuracy(payload map[string]interface{}) string {
+	uplinkMessage, ok := payload["uplink_message"].(map[string]interface{})
+	if !ok {
+		return "unknown"
+	}
+
+	rxMetadata, ok := uplinkMessage["rx_metadata"].([]interface{})
+	if !ok {
+		return "unknown"
+	}
+
+	// Count gateways with valid location data
+	gatewayCount := 0
+	for _, gw := range rxMetadata {
+		gateway, ok := gw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		if location, exists := gateway["location"]; exists && location != nil {
+			gatewayCount++
+		}
+	}
+
+	// Determine accuracy based on number of gateways
+	switch gatewayCount {
+	case 0:
+		return "no-location"
+	case 1:
+		return "single-gateway"
+	case 2:
+		return "dual-gateway"
+	case 3:
+		return "triangulated"
+	default:
+		return "multi-gateway"
+	}
+}
+
+// extractMetadata extracts useful metadata from the original payload
+func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[string]interface{} {
+	metadata := make(map[string]interface{})
+
+	// Add received timestamp if available
+	if receivedAt, exists := payload["received_at"]; exists {
+		metadata["received_at"] = receivedAt
+	}
+
+	// Extract uplink message metadata
+	if uplinkMessage, ok := payload["uplink_message"].(map[string]interface{}); ok {
+		// Add frequency information
+		if settings, ok := uplinkMessage["settings"].(map[string]interface{}); ok {
+			if frequency, exists := settings["frequency"]; exists {
+				metadata["frequency"] = frequency
+			}
+		}
+
+		// Add gateway information
+		if rxMetadata, ok := uplinkMessage["rx_metadata"].([]interface{}); ok {
+			var gateways []map[string]interface{}
+			for _, gw := range rxMetadata {
+				if gateway, ok := gw.(map[string]interface{}); ok {
+					gatewayInfo := make(map[string]interface{})
+					
+					// Add gateway ID if available
+					if gatewayID, exists := gateway["gateway_ids"]; exists {
+						gatewayInfo["gateway_id"] = gatewayID
+					}
+					
+					// Add RSSI
+					if rssi, exists := gateway["rssi"]; exists {
+						gatewayInfo["rssi"] = rssi
+					}
+					
+					// Add SNR if available
+					if snr, exists := gateway["snr"]; exists {
+						gatewayInfo["snr"] = snr
+					}
+					
+					// Add location if available
+					if location, exists := gateway["location"]; exists {
+						gatewayInfo["location"] = location
+					}
+					
+					if len(gatewayInfo) > 0 {
+						gateways = append(gateways, gatewayInfo)
+					}
+				}
+			}
+			if len(gateways) > 0 {
+				metadata["gateways"] = gateways
+			}
+		}
+
+		// Add frame counter if available
+		if fCnt, exists := uplinkMessage["f_cnt"]; exists {
+			metadata["frame_counter"] = fCnt
+		}
+
+		// Add port information if available
+		if fPort, exists := uplinkMessage["f_port"]; exists {
+			metadata["port"] = fPort
+		}
+	}
+
+	// Add correlation IDs if available
+	if correlationIDs, exists := payload["correlation_ids"]; exists {
+		metadata["correlation_ids"] = correlationIDs
+	}
+
+	// Add application information if available
+	if endDeviceIDs, ok := payload["end_device_ids"].(map[string]interface{}); ok {
+		if applicationIDs, exists := endDeviceIDs["application_ids"]; exists {
+			metadata["application"] = applicationIDs
+		}
+	}
+
+	return metadata
+}

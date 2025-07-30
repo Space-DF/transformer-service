@@ -1,0 +1,12 @@
+# Server Configuration
+server:
+  log_level: "info"
+
+# MQTT Consumer Configuration (via RabbitMQ)
+mqtt:
+  broker_url: "amqp://admin:password@rabbitmq:5672/"
+  input_topic: "device/data"
+  output_topic: "transformed/device/location"
+  consumer_tag: "transformer-service"
+  prefetch_count: 10
+  auto_ack: false
