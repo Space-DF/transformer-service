@@ -20,7 +20,9 @@ type ServerConfig struct {
 
 type MQTTConfig struct {
 	BrokerURL     string `mapstructure:"broker_url" env:"MQTT_BROKER_URL"`
-	InputTopic    string `mapstructure:"input_topic" env:"MQTT_INPUT_TOPIC"`
+	Exchange      string `mapstructure:"exchange" env:"MQTT_EXCHANGE"`
+	Queue         string `mapstructure:"queue" env:"MQTT_QUEUE"`
+	RoutingKey    string `mapstructure:"routing_key" env:"MQTT_ROUTING_KEY"`
 	OutputTopic   string `mapstructure:"output_topic" env:"MQTT_OUTPUT_TOPIC"`
 	ConsumerTag   string `mapstructure:"consumer_tag" env:"MQTT_CONSUMER_TAG"`
 	PrefetchCount int    `mapstructure:"prefetch_count" env:"MQTT_PREFETCH_COUNT"`
@@ -57,7 +59,9 @@ func New() (Config, error) {
 func setDefaults(vp *viper.Viper) {
 	vp.SetDefault("server.log_level", "info")
 	vp.SetDefault("mqtt.broker_url", "amqp://admin:password@rabbitmq:5672/")
-	vp.SetDefault("mqtt.input_topic", "device/data")
+	vp.SetDefault("mqtt.exchange", "amq.topic")
+	vp.SetDefault("mqtt.queue", "transformer_device_queue")
+	vp.SetDefault("mqtt.routing_key", "device.data")
 	vp.SetDefault("mqtt.output_topic", "transformed/device/location")
 	vp.SetDefault("mqtt.consumer_tag", "transformer-service")
 	vp.SetDefault("mqtt.prefetch_count", 10)

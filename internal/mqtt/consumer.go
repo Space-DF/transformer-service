@@ -58,19 +58,33 @@ func (c *Consumer) Connect() error {
 	return nil
 }
 
-// Start begins consuming messages from the MQTT topic
+// Start begins consuming messages from RabbitMQ with routing
 func (c *Consumer) Start(ctx context.Context) error {
-	// Declare the input topic as a queue (RabbitMQ MQTT plugin creates topics as queues)
+	// Note: amq.topic is a built-in exchange, no need to declare it
+
+	// Declare the queue
 	inputQueue, err := c.channel.QueueDeclare(
-		c.config.InputTopic, // queue name (topic name in MQTT)
-		true,                // durable
-		false,               // delete when unused
-		false,               // exclusive
-		false,               // no-wait
-		nil,                 // arguments
+		c.config.Queue, // queue name
+		true,           // durable
+		false,          // delete when unused
+		false,          // exclusive
+		false,          // no-wait
+		nil,            // arguments
 	)
 	if err != nil {
-		return fmt.Errorf("failed to declare input queue: %w", err)
+		return fmt.Errorf("failed to declare queue: %w", err)
+	}
+
+	// Bind the queue to the exchange with routing key
+	err = c.channel.QueueBind(
+		inputQueue.Name,    // queue name
+		c.config.RoutingKey, // routing key
+		c.config.Exchange,  // exchange
+		false,              // no-wait
+		nil,                // arguments
+	)
+	if err != nil {
+		return fmt.Errorf("failed to bind queue: %w", err)
 	}
 
 	// Declare the output topic as a queue
@@ -100,7 +114,7 @@ func (c *Consumer) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to register consumer: %w", err)
 	}
 
-	log.Printf("Started consuming messages from topic: %s", c.config.InputTopic)
+	log.Printf("Started consuming messages from queue: %s with routing key: %s", c.config.Queue, c.config.RoutingKey)
 
 	// Process messages
 	go c.processMessages(ctx, messages)
