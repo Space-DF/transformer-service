@@ -3,15 +3,15 @@ package config
 import (
 	"log"
 	"strings"
-	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	Server ServerConfig `mapstructure:"server"`
-	MQTT   MQTTConfig   `mapstructure:"mqtt"`
+	Server    ServerConfig    `mapstructure:"server"`
+	MQTT      MQTTConfig      `mapstructure:"mqtt"`
+	RawDataLog RawDataLogConfig `mapstructure:"raw_data_log"`
 }
 
 type ServerConfig struct {
@@ -27,6 +27,13 @@ type MQTTConfig struct {
 	ConsumerTag   string `mapstructure:"consumer_tag" env:"MQTT_CONSUMER_TAG"`
 	PrefetchCount int    `mapstructure:"prefetch_count" env:"MQTT_PREFETCH_COUNT"`
 	AutoAck       bool   `mapstructure:"auto_ack" env:"MQTT_AUTO_ACK"`
+}
+
+type RawDataLogConfig struct {
+	LogDir        string `mapstructure:"log_dir" env:"RAW_DATA_LOG_DIR"`
+	EnableFileLog bool   `mapstructure:"enable_file_log" env:"RAW_DATA_ENABLE_FILE_LOG"`
+	EnableJSONLog bool   `mapstructure:"enable_json_log" env:"RAW_DATA_ENABLE_JSON_LOG"`
+	MaxFileSize   int64  `mapstructure:"max_file_size" env:"RAW_DATA_MAX_FILE_SIZE"`
 }
 
 func New() (Config, error) {
@@ -66,4 +73,8 @@ func setDefaults(vp *viper.Viper) {
 	vp.SetDefault("mqtt.consumer_tag", "transformer-service")
 	vp.SetDefault("mqtt.prefetch_count", 10)
 	vp.SetDefault("mqtt.auto_ack", false)
+	vp.SetDefault("raw_data_log.log_dir", "logs/raw_data")
+	vp.SetDefault("raw_data_log.enable_file_log", true)
+	vp.SetDefault("raw_data_log.enable_json_log", true)
+	vp.SetDefault("raw_data_log.max_file_size", 104857600) // 100MB
 }

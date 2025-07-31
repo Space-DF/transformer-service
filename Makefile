@@ -50,9 +50,10 @@ docker-build:
 docker-run:
 	docker run -p 8080:8080 transformer-service-go
 
-# Development run with hot reload (requires air)
+# Development run
 dev:
-	air
+	@echo "Running in development mode..."
+	$(GOCMD) run ./cmd/transformer serve
 
 # Format code
 fmt:

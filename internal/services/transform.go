@@ -46,14 +46,26 @@ func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLoc
 
 // determineLocationAccuracy analyzes the original payload to determine location accuracy
 func (ts *TransformService) determineLocationAccuracy(payload map[string]interface{}) string {
-	uplinkMessage, ok := payload["uplink_message"].(map[string]interface{})
-	if !ok {
-		return "unknown"
+	// Try to extract uplink message, if not found, use payload directly
+	var uplinkMessage map[string]interface{}
+	if msg, ok := payload["uplink_message"].(map[string]interface{}); ok {
+		uplinkMessage = msg
+	} else {
+		uplinkMessage = payload
 	}
 
-	rxMetadata, ok := uplinkMessage["rx_metadata"].([]interface{})
-	if !ok {
-		return "unknown"
+	// Try to find gateway metadata in multiple possible locations
+	var rxMetadata []interface{}
+	var ok bool
+	
+	if rxMetadata, ok = uplinkMessage["rx_metadata"].([]interface{}); !ok {
+		if rxMetadata, ok = uplinkMessage["gateways"].([]interface{}); !ok {
+			if rxMetadata, ok = uplinkMessage["gateway_info"].([]interface{}); !ok {
+				if rxMetadata, ok = uplinkMessage["rxInfo"].([]interface{}); !ok {
+					return "unknown"
+				}
+			}
+		}
 	}
 
 	// Count gateways with valid location data
@@ -93,8 +105,15 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 		metadata["received_at"] = receivedAt
 	}
 
-	// Extract uplink message metadata
-	if uplinkMessage, ok := payload["uplink_message"].(map[string]interface{}); ok {
+	// Extract uplink message metadata - handle both formats
+	var uplinkMessage map[string]interface{}
+	if msg, ok := payload["uplink_message"].(map[string]interface{}); ok {
+		uplinkMessage = msg
+	} else {
+		uplinkMessage = payload
+	}
+	
+	if len(uplinkMessage) > 0 {
 		// Add frequency information
 		if settings, ok := uplinkMessage["settings"].(map[string]interface{}); ok {
 			if frequency, exists := settings["frequency"]; exists {
@@ -102,8 +121,20 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 			}
 		}
 
-		// Add gateway information
-		if rxMetadata, ok := uplinkMessage["rx_metadata"].([]interface{}); ok {
+		// Add gateway information - try multiple possible locations
+		var rxMetadata []interface{}
+		var metadataOk bool
+		
+		if rxMetadata, metadataOk = uplinkMessage["rx_metadata"].([]interface{}); !metadataOk {
+			if rxMetadata, metadataOk = uplinkMessage["gateways"].([]interface{}); !metadataOk {
+				if rxMetadata, metadataOk = uplinkMessage["gateway_info"].([]interface{}); !metadataOk {
+					// Try LoRaWAN rxInfo format
+					rxMetadata, metadataOk = uplinkMessage["rxInfo"].([]interface{})
+				}
+			}
+		}
+		
+		if metadataOk {
 			var gateways []map[string]interface{}
 			for _, gw := range rxMetadata {
 				if gateway, ok := gw.(map[string]interface{}); ok {
@@ -111,6 +142,8 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 					
 					// Add gateway ID if available
 					if gatewayID, exists := gateway["gateway_ids"]; exists {
+						gatewayInfo["gateway_id"] = gatewayID
+					} else if gatewayID, exists := gateway["gatewayId"]; exists {
 						gatewayInfo["gateway_id"] = gatewayID
 					}
 					

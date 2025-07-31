@@ -25,38 +25,104 @@ func NewLocationService() *LocationService {
 
 // CalculateDeviceLocation calculates device location based on gateway data
 func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{}) (*models.DeviceLocationData, error) {
-	// Extract uplink message
-	uplinkMessage, ok := payload["uplink_message"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("uplink_message not found in payload")
+	// Try to extract uplink message from different possible locations
+	var uplinkMessage map[string]interface{}
+	
+	// First, try to get uplink_message from payload
+	if msg, ok := payload["uplink_message"].(map[string]interface{}); ok {
+		uplinkMessage = msg
+	} else if payloadData, ok := payload["payload"].(map[string]interface{}); ok {
+		// Try to get uplink_message from nested payload
+		if msg, ok := payloadData["uplink_message"].(map[string]interface{}); ok {
+			uplinkMessage = msg
+		} else {
+			// Use the payload data directly
+			uplinkMessage = payloadData
+		}
+	} else {
+		// Use the root payload directly
+		uplinkMessage = payload
 	}
 
-	// Extract gateways
-	rxMetadata, ok := uplinkMessage["rx_metadata"].([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("rx_metadata not found in uplink_message")
+	// Extract gateways - try multiple possible locations
+	var rxMetadata []interface{}
+	var ok bool
+	
+	// Try rx_metadata in uplink message
+	if rxMetadata, ok = uplinkMessage["rx_metadata"].([]interface{}); !ok {
+		// Try gateways field
+		if rxMetadata, ok = uplinkMessage["gateways"].([]interface{}); !ok {
+			// Try gateway_info or similar
+			if rxMetadata, ok = uplinkMessage["gateway_info"].([]interface{}); !ok {
+				// Try rxInfo field (LoRaWAN format)
+				if rxMetadata, ok = uplinkMessage["rxInfo"].([]interface{}); !ok {
+					return nil, fmt.Errorf("rx_metadata, gateways, gateway_info, or rxInfo not found in message. Available keys: %v payload.raw_data is encoded by base64", getMapKeys(uplinkMessage))
+				}
+			}
+		}
 	}
 
-	// Extract frequency
-	settings, ok := uplinkMessage["settings"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("settings not found in uplink_message")
+	// Extract frequency - try multiple possible locations
+	var frequency float64
+	var freqOk bool
+	
+	if settings, ok := uplinkMessage["settings"].(map[string]interface{}); ok {
+		if freq, ok := settings["frequency"].(float64); ok {
+			frequency = freq
+			freqOk = true
+		}
+	}
+	
+	// Try direct frequency field if not found in settings
+	if !freqOk {
+		if freq, ok := uplinkMessage["frequency"].(float64); ok {
+			frequency = freq
+			freqOk = true
+		}
+	}
+	
+	// Try txInfo for LoRaWAN format
+	if !freqOk {
+		if txInfo, ok := uplinkMessage["txInfo"].(map[string]interface{}); ok {
+			if freq, ok := txInfo["frequency"].(float64); ok {
+				frequency = freq
+				freqOk = true
+			}
+		}
+	}
+	
+	// Use default frequency if not found
+	if !freqOk {
+		frequency = 868000000.0 // Default LoRaWAN frequency (868 MHz)
 	}
 
-	frequency, ok := settings["frequency"].(float64)
-	if !ok {
-		return nil, fmt.Errorf("frequency not found in settings")
+	// Extract device EUI - try both payload and uplinkMessage
+	var devEUI string
+	if endDeviceIDs, ok := payload["end_device_ids"].(map[string]interface{}); ok {
+		if eui, ok := endDeviceIDs["dev_eui"].(string); ok {
+			devEUI = eui
+		}
 	}
-
-	// Extract device EUI
-	endDeviceIDs, ok := payload["end_device_ids"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("end_device_ids not found in payload")
-	}
-
-	devEUI, ok := endDeviceIDs["dev_eui"].(string)
-	if !ok {
-		return nil, fmt.Errorf("dev_eui not found in end_device_ids")
+	
+	// If not found in payload, try uplinkMessage or check for dev_eui directly
+	if devEUI == "" {
+		if eui, ok := uplinkMessage["dev_eui"].(string); ok {
+			devEUI = eui
+		} else if eui, ok := payload["dev_eui"].(string); ok {
+			devEUI = eui
+		} else if eui, ok := uplinkMessage["devEui"].(string); ok {
+			// LoRaWAN format uses devEui
+			devEUI = eui
+		} else if deviceInfo, ok := uplinkMessage["deviceInfo"].(map[string]interface{}); ok {
+			// Try deviceInfo.devEui
+			if eui, ok := deviceInfo["devEui"].(string); ok {
+				devEUI = eui
+			}
+		}
+		
+		if devEUI == "" {
+			return nil, fmt.Errorf("dev_eui/devEui not found in payload")
+		}
 	}
 
 	// Parse gateway locations
@@ -67,14 +133,37 @@ func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{
 			continue
 		}
 
-		locationData, ok := gateway["location"].(map[string]interface{})
-		if !ok {
-			continue
-		}
+		var lat, lon, rssi float64
+		var latOk, lonOk, rssiOk bool
 
-		lat, latOk := locationData["latitude"].(float64)
-		lon, lonOk := locationData["longitude"].(float64)
-		rssi, rssiOk := gateway["rssi"].(float64)
+		// Try standard format first
+		if locationData, ok := gateway["location"].(map[string]interface{}); ok {
+			lat, latOk = locationData["latitude"].(float64)
+			lon, lonOk = locationData["longitude"].(float64)
+			rssi, rssiOk = gateway["rssi"].(float64)
+		} else {
+			// Try LoRaWAN format - location might be directly in gateway object
+			lat, latOk = gateway["latitude"].(float64)
+			lon, lonOk = gateway["longitude"].(float64)
+			rssi, rssiOk = gateway["rssi"].(float64)
+			
+			// If not found, try alternative field names
+			if !latOk || !lonOk || !rssiOk {
+				// Check for altitude field that might contain lat/lon
+				if alt, ok := gateway["altitude"].(float64); ok && !latOk {
+					lat = alt
+					latOk = true
+				}
+				
+				// Try different RSSI field names
+				if !rssiOk {
+					if rssiVal, ok := gateway["loRaSNR"].(float64); ok {
+						rssi = rssiVal
+						rssiOk = true
+					}
+				}
+			}
+		}
 
 		if latOk && lonOk && rssiOk {
 			locations = append(locations, models.LocationPoint{
@@ -111,9 +200,10 @@ func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{
 	}
 
 	return &models.DeviceLocationData{
-		Latitude:  roundToDecimals(lat, 6),
-		Longitude: roundToDecimals(lon, 6),
-		DevEUI:    devEUI,
+		Latitude:     roundToDecimals(lat, 6),
+		Longitude:    roundToDecimals(lon, 6),
+		DevEUI:       devEUI,
+		Organization: "unknown", // This will be set by the consumer using device profile
 	}, nil
 }
 
@@ -178,7 +268,8 @@ func (ls *LocationService) calculateLocationTwoGateways(locations []models.Locat
 		y = (intersec1Y + intersec2Y) / 2
 	}
 
-	return ls.xyToLatLon(x, y, refLat, refLon)
+	lat, lon := ls.xyToLatLon(x, y, refLat, refLon)
+	return lat, lon, nil
 }
 
 // calculateLocationThreeGateways calculates location using three gateways
@@ -210,7 +301,8 @@ func (ls *LocationService) calculateLocationThreeGateways(locations []models.Loc
 		return 0, 0, fmt.Errorf("failed to solve linear system: %v", err)
 	}
 
-	return ls.xyToLatLon(x.AtVec(0), x.AtVec(1), refLat, refLon)
+	lat, lon := ls.xyToLatLon(x.AtVec(0), x.AtVec(1), refLat, refLon)
+	return lat, lon, nil
 }
 
 // calculateLocationMultipleGateways calculates location using multiple gateways (least squares)
@@ -241,11 +333,21 @@ func (ls *LocationService) calculateLocationMultipleGateways(locations []models.
 		return 0, 0, fmt.Errorf("failed to solve least squares: %v", err)
 	}
 
-	return ls.xyToLatLon(x.AtVec(0), x.AtVec(1), refLat, refLon)
+	lat, lon := ls.xyToLatLon(x.AtVec(0), x.AtVec(1), refLat, refLon)
+	return lat, lon, nil
 }
 
 // roundToDecimals rounds a float64 to specified decimal places
 func roundToDecimals(val float64, decimals int) float64 {
 	multiplier := math.Pow(10, float64(decimals))
 	return math.Round(val*multiplier) / multiplier
+}
+
+// getMapKeys returns the keys of a map for debugging
+func getMapKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }

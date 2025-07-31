@@ -12,6 +12,7 @@ import (
 
 	"github.com/Space-DF/transformer-service-go/internal/config"
 	"github.com/Space-DF/transformer-service-go/internal/mqtt"
+	"github.com/Space-DF/transformer-service-go/internal/services"
 )
 
 var serveCmd = &cobra.Command{
@@ -32,8 +33,31 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
+	// Create logger service
+	loggerConfig := services.LoggerConfig{
+		LogDir:        cfg.RawDataLog.LogDir,
+		EnableFileLog: cfg.RawDataLog.EnableFileLog,
+		EnableJSONLog: cfg.RawDataLog.EnableJSONLog,
+		MaxFileSize:   cfg.RawDataLog.MaxFileSize,
+	}
+	
+	loggerService, err := services.NewLoggerService(loggerConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create logger service: %w", err)
+	}
+	defer loggerService.Close()
+
+	// Create device profile service
+	deviceProfileService, err := services.NewDeviceProfileService("configs/device_profiles.json")
+	if err != nil {
+		log.Printf("Warning: Failed to load device profiles: %v. Proceeding without device profile mapping.", err)
+		deviceProfileService = nil
+	} else {
+		log.Printf("Device profiles loaded successfully")
+	}
+
 	// Create MQTT consumer
-	consumer := mqtt.NewConsumer(cfg.MQTT)
+	consumer := mqtt.NewConsumer(cfg.MQTT, loggerService, deviceProfileService)
 
 	// Connect to RabbitMQ
 	if err := consumer.Connect(); err != nil {
@@ -41,8 +65,9 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	log.Printf("Connected to RabbitMQ: %s", cfg.MQTT.BrokerURL)
-	log.Printf("Consuming from topic: %s", cfg.MQTT.InputTopic)
+	log.Printf("Consuming from queue: %s with routing key: %s", cfg.MQTT.Queue, cfg.MQTT.RoutingKey)
 	log.Printf("Publishing to topic: %s", cfg.MQTT.OutputTopic)
+	log.Printf("Raw data logging enabled - File: %t, JSON: %t, Dir: %s", cfg.RawDataLog.EnableFileLog, cfg.RawDataLog.EnableJSONLog, cfg.RawDataLog.LogDir)
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

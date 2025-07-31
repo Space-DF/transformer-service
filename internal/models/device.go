@@ -64,3 +64,58 @@ type LocationPoint struct {
 	Longitude float64
 	RSSI      int
 }
+
+// RawDataLog represents the structure for logging raw data for training
+type RawDataLog struct {
+	ID              string                 `json:"id"`
+	Timestamp       string                 `json:"timestamp"`
+	DeviceEUI       string                 `json:"device_eui,omitempty"`
+	DeviceID        string                 `json:"device_id,omitempty"`
+	DeviceName      string                 `json:"device_name,omitempty"`
+	EventType       string                 `json:"event_type,omitempty"`
+	RawData         string                 `json:"raw_data,omitempty"`
+	DecodedRawData  interface{}            `json:"decoded_raw_data,omitempty"`
+	OriginalPayload map[string]interface{} `json:"original_payload"`
+	ProcessingInfo  ProcessingInfo         `json:"processing_info"`
+}
+
+// ProcessingInfo contains information about how the data was processed
+type ProcessingInfo struct {
+	LocationCalculated bool        `json:"location_calculated"`
+	ErrorMessage       string      `json:"error_message,omitempty"`
+	GatewayCount       int         `json:"gateway_count"`
+	HasLocationData    bool        `json:"has_location_data"`
+	LocationResult     *LocationResult `json:"location_result,omitempty"`
+}
+
+// LocationResult contains the calculated location information for logging
+type LocationResult struct {
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+	Accuracy  string  `json:"accuracy"`
+}
+
+// DeviceProfile represents a device profile configuration
+type DeviceProfile struct {
+	Name                       string `json:"name"`
+	Description                string `json:"description"`
+	HasGPS                     bool   `json:"has_gps"`
+	ParserType                 string `json:"parser_type"`
+	LocationCalculationRequired bool   `json:"location_calculation_required"`
+	SupportedPorts             []int  `json:"supported_ports"`
+	PayloadFormat              string `json:"payload_format"`
+}
+
+// DeviceMapping represents a device EUI to profile mapping
+type DeviceMapping struct {
+	Profile      string `json:"profile"`
+	Organization string `json:"organization"`
+	DeviceName   string `json:"device_name"`
+	Description  string `json:"description"`
+}
+
+// DeviceProfiles represents the complete device profiles configuration
+type DeviceProfiles struct {
+	DeviceProfiles map[string]DeviceProfile `json:"device_profiles"`
+	DeviceMappings map[string]DeviceMapping `json:"device_mappings"`
+}
