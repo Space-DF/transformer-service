@@ -128,3 +128,12 @@ func (dps *DeviceProfileService) GetParserType(devEUI string) (string, error) {
 	}
 	return profile.ParserType, nil
 }
+
+// ShouldSkipDevice checks if a device should be skipped from processing
+func (dps *DeviceProfileService) ShouldSkipDevice(devEUI string) (bool, error) {
+	_, mapping, err := dps.GetDeviceProfile(devEUI)
+	if err != nil {
+		return false, err
+	}
+	return mapping.Skip, nil
+}

@@ -25,103 +25,70 @@ func NewLocationService() *LocationService {
 
 // CalculateDeviceLocation calculates device location based on gateway data
 func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{}) (*models.DeviceLocationData, error) {
-	// Try to extract uplink message from different possible locations
-	var uplinkMessage map[string]interface{}
+	var rxMetadata []interface{}
+	var frequency float64
+	var devEUI string
 	
-	// First, try to get uplink_message from payload
-	if msg, ok := payload["uplink_message"].(map[string]interface{}); ok {
-		uplinkMessage = msg
-	} else if payloadData, ok := payload["payload"].(map[string]interface{}); ok {
-		// Try to get uplink_message from nested payload
-		if msg, ok := payloadData["uplink_message"].(map[string]interface{}); ok {
-			uplinkMessage = msg
-		} else {
-			// Use the payload data directly
-			uplinkMessage = payloadData
+	// Check if this is TTN format (uplink_message) or ChirpStack format (direct payload)
+	if uplinkMessage, ok := payload["uplink_message"].(map[string]interface{}); ok {
+		// TTN format
+		var rxOk bool
+		rxMetadata, rxOk = uplinkMessage["rx_metadata"].([]interface{})
+		if !rxOk {
+			return nil, fmt.Errorf("rx_metadata not found in uplink_message")
+		}
+
+		settings, settingsOk := uplinkMessage["settings"].(map[string]interface{})
+		if !settingsOk {
+			return nil, fmt.Errorf("settings not found in uplink_message")
+		}
+
+		var freqOk bool
+		frequency, freqOk = settings["frequency"].(float64)
+		if !freqOk {
+			return nil, fmt.Errorf("frequency not found in settings")
+		}
+
+		endDeviceIDs, deviceOk := payload["end_device_ids"].(map[string]interface{})
+		if !deviceOk {
+			return nil, fmt.Errorf("end_device_ids not found in payload")
+		}
+
+		var euiOk bool
+		devEUI, euiOk = endDeviceIDs["dev_eui"].(string)
+		if !euiOk {
+			return nil, fmt.Errorf("dev_eui not found in end_device_ids")
 		}
 	} else {
-		// Use the root payload directly
-		uplinkMessage = payload
-	}
+		// ChirpStack format - check for rxInfo array
+		var rxOk bool
+		rxMetadata, rxOk = payload["rxInfo"].([]interface{})
+		if !rxOk {
+			return nil, fmt.Errorf("rxInfo not found in payload")
+		}
 
-	// Extract gateways - try multiple possible locations
-	var rxMetadata []interface{}
-	var ok bool
-	
-	// Try rx_metadata in uplink message
-	if rxMetadata, ok = uplinkMessage["rx_metadata"].([]interface{}); !ok {
-		// Try gateways field
-		if rxMetadata, ok = uplinkMessage["gateways"].([]interface{}); !ok {
-			// Try gateway_info or similar
-			if rxMetadata, ok = uplinkMessage["gateway_info"].([]interface{}); !ok {
-				// Try rxInfo field (LoRaWAN format)
-				if rxMetadata, ok = uplinkMessage["rxInfo"].([]interface{}); !ok {
-					return nil, fmt.Errorf("rx_metadata, gateways, gateway_info, or rxInfo not found in message. Available keys: %v payload.raw_data is encoded by base64", getMapKeys(uplinkMessage))
-				}
-			}
+		// Extract frequency from txInfo
+		txInfo, txOk := payload["txInfo"].(map[string]interface{})
+		if !txOk {
+			return nil, fmt.Errorf("txInfo not found in payload")
 		}
-	}
 
-	// Extract frequency - try multiple possible locations
-	var frequency float64
-	var freqOk bool
-	
-	if settings, ok := uplinkMessage["settings"].(map[string]interface{}); ok {
-		if freq, ok := settings["frequency"].(float64); ok {
-			frequency = freq
-			freqOk = true
+		var freqOk bool
+		frequency, freqOk = txInfo["frequency"].(float64)
+		if !freqOk {
+			return nil, fmt.Errorf("frequency not found in txInfo")
 		}
-	}
-	
-	// Try direct frequency field if not found in settings
-	if !freqOk {
-		if freq, ok := uplinkMessage["frequency"].(float64); ok {
-			frequency = freq
-			freqOk = true
-		}
-	}
-	
-	// Try txInfo for LoRaWAN format
-	if !freqOk {
-		if txInfo, ok := uplinkMessage["txInfo"].(map[string]interface{}); ok {
-			if freq, ok := txInfo["frequency"].(float64); ok {
-				frequency = freq
-				freqOk = true
-			}
-		}
-	}
-	
-	// Use default frequency if not found
-	if !freqOk {
-		frequency = 868000000.0 // Default LoRaWAN frequency (868 MHz)
-	}
 
-	// Extract device EUI - try both payload and uplinkMessage
-	var devEUI string
-	if endDeviceIDs, ok := payload["end_device_ids"].(map[string]interface{}); ok {
-		if eui, ok := endDeviceIDs["dev_eui"].(string); ok {
-			devEUI = eui
+		// Extract device EUI from deviceInfo
+		deviceInfo, deviceOk := payload["deviceInfo"].(map[string]interface{})
+		if !deviceOk {
+			return nil, fmt.Errorf("deviceInfo not found in payload")
 		}
-	}
-	
-	// If not found in payload, try uplinkMessage or check for dev_eui directly
-	if devEUI == "" {
-		if eui, ok := uplinkMessage["dev_eui"].(string); ok {
-			devEUI = eui
-		} else if eui, ok := payload["dev_eui"].(string); ok {
-			devEUI = eui
-		} else if eui, ok := uplinkMessage["devEui"].(string); ok {
-			// LoRaWAN format uses devEui
-			devEUI = eui
-		} else if deviceInfo, ok := uplinkMessage["deviceInfo"].(map[string]interface{}); ok {
-			// Try deviceInfo.devEui
-			if eui, ok := deviceInfo["devEui"].(string); ok {
-				devEUI = eui
-			}
-		}
-		
-		if devEUI == "" {
-			return nil, fmt.Errorf("dev_eui/devEui not found in payload")
+
+		var euiOk bool
+		devEUI, euiOk = deviceInfo["devEui"].(string)
+		if !euiOk {
+			return nil, fmt.Errorf("devEui not found in deviceInfo")
 		}
 	}
 
@@ -133,37 +100,14 @@ func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{
 			continue
 		}
 
-		var lat, lon, rssi float64
-		var latOk, lonOk, rssiOk bool
-
-		// Try standard format first
-		if locationData, ok := gateway["location"].(map[string]interface{}); ok {
-			lat, latOk = locationData["latitude"].(float64)
-			lon, lonOk = locationData["longitude"].(float64)
-			rssi, rssiOk = gateway["rssi"].(float64)
-		} else {
-			// Try LoRaWAN format - location might be directly in gateway object
-			lat, latOk = gateway["latitude"].(float64)
-			lon, lonOk = gateway["longitude"].(float64)
-			rssi, rssiOk = gateway["rssi"].(float64)
-			
-			// If not found, try alternative field names
-			if !latOk || !lonOk || !rssiOk {
-				// Check for altitude field that might contain lat/lon
-				if alt, ok := gateway["altitude"].(float64); ok && !latOk {
-					lat = alt
-					latOk = true
-				}
-				
-				// Try different RSSI field names
-				if !rssiOk {
-					if rssiVal, ok := gateway["loRaSNR"].(float64); ok {
-						rssi = rssiVal
-						rssiOk = true
-					}
-				}
-			}
+		locationData, ok := gateway["location"].(map[string]interface{})
+		if !ok {
+			continue
 		}
+
+		lat, latOk := locationData["latitude"].(float64)
+		lon, lonOk := locationData["longitude"].(float64)
+		rssi, rssiOk := gateway["rssi"].(float64)
 
 		if latOk && lonOk && rssiOk {
 			locations = append(locations, models.LocationPoint{
@@ -200,10 +144,9 @@ func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{
 	}
 
 	return &models.DeviceLocationData{
-		Latitude:     roundToDecimals(lat, 6),
-		Longitude:    roundToDecimals(lon, 6),
-		DevEUI:       devEUI,
-		Organization: "unknown", // This will be set by the consumer using device profile
+		Latitude:  roundToDecimals(lat, 6),
+		Longitude: roundToDecimals(lon, 6),
+		DevEUI:    devEUI,
 	}, nil
 }
 
@@ -264,8 +207,56 @@ func (ls *LocationService) calculateLocationTwoGateways(locations []models.Locat
 		intersec2X := x2 - h*(p2Y-p1Y)/D
 		intersec2Y := y2 + h*(p2X-p1X)/D
 
-		x = (intersec1X + intersec2X) / 2
-		y = (intersec1Y + intersec2Y) / 2
+		// Choose intersection point based on RSSI signal strength
+		rssiDiff := math.Abs(float64(locations[0].RSSI - locations[1].RSSI))
+		
+		if rssiDiff > 10.0 { // Significant signal difference (>10 dB)
+			// Choose point closer to the gateway with stronger signal
+			strongerGateway := 0
+			if locations[1].RSSI > locations[0].RSSI {
+				strongerGateway = 1
+			}
+			
+			// Calculate distances from each intersection to each gateway
+			dist1ToGw0 := math.Sqrt(math.Pow(intersec1X-p1X, 2) + math.Pow(intersec1Y-p1Y, 2))
+			dist1ToGw1 := math.Sqrt(math.Pow(intersec1X-p2X, 2) + math.Pow(intersec1Y-p2Y, 2))
+			dist2ToGw0 := math.Sqrt(math.Pow(intersec2X-p1X, 2) + math.Pow(intersec2Y-p1Y, 2))
+			dist2ToGw1 := math.Sqrt(math.Pow(intersec2X-p2X, 2) + math.Pow(intersec2Y-p2Y, 2))
+			
+			if strongerGateway == 0 {
+				// Choose intersection closer to gateway 0
+				if dist1ToGw0 < dist2ToGw0 {
+					x, y = intersec1X, intersec1Y
+				} else {
+					x, y = intersec2X, intersec2Y
+				}
+			} else {
+				// Choose intersection closer to gateway 1
+				if dist1ToGw1 < dist2ToGw1 {
+					x, y = intersec1X, intersec1Y
+				} else {
+					x, y = intersec2X, intersec2Y
+				}
+			}
+		} else if rssiDiff > 3.0 { // Moderate signal difference (3-10 dB)
+			// Use weighted positioning based on signal strength
+			weight1 := float64(locations[0].RSSI + 120) // Normalize RSSI to positive values
+			weight2 := float64(locations[1].RSSI + 120)
+			totalWeight := weight1 + weight2
+			
+			if totalWeight > 0 {
+				x = (intersec1X*weight1 + intersec2X*weight2) / totalWeight
+				y = (intersec1Y*weight1 + intersec2Y*weight2) / totalWeight
+			} else {
+				// Fallback to averaging
+				x = (intersec1X + intersec2X) / 2
+				y = (intersec1Y + intersec2Y) / 2
+			}
+		} else {
+			// Similar signal strengths - use traditional averaging
+			x = (intersec1X + intersec2X) / 2
+			y = (intersec1Y + intersec2Y) / 2
+		}
 	}
 
 	lat, lon := ls.xyToLatLon(x, y, refLat, refLon)
@@ -341,13 +332,4 @@ func (ls *LocationService) calculateLocationMultipleGateways(locations []models.
 func roundToDecimals(val float64, decimals int) float64 {
 	multiplier := math.Pow(10, float64(decimals))
 	return math.Round(val*multiplier) / multiplier
-}
-
-// getMapKeys returns the keys of a map for debugging
-func getMapKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }

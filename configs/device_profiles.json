@@ -17,6 +17,15 @@
       "location_calculation_required": false,
       "supported_ports": [2, 3],
       "payload_format": "hex"
+    },
+    "RAK4630": {
+      "name": "RAK4630",
+      "description": "RAK4630 LoRaWAN relay device",
+      "has_gps": true,
+      "parser_type": "rak4630",
+      "location_calculation_required": false,
+      "supported_ports": [1, 2, 3],
+      "payload_format": "hex"
     }
   },
   "device_mappings": {
@@ -31,6 +40,13 @@
       "organization": "DNIIT",
       "device_name": "RAK_Sticker_50E3",
       "description": "RAK2270 device for DNIIT organization"
+    },
+    "000d75e6564dc1f4": {
+      "profile": "RAK4630",
+      "organization": "DNIIT",
+      "device_name": "rak4630-rs3-C1F4",
+      "description": "RAK4630 relay device with GPS for DNIIT organization",
+      "skip": true
     }
   }
 }

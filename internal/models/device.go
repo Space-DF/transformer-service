@@ -112,6 +112,7 @@ type DeviceMapping struct {
 	Organization string `json:"organization"`
 	DeviceName   string `json:"device_name"`
 	Description  string `json:"description"`
+	Skip         bool   `json:"skip,omitempty"`
 }
 
 // DeviceProfiles represents the complete device profiles configuration

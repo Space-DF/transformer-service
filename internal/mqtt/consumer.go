@@ -273,6 +273,17 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 		}
 	}
 	
+	// Check if device should be skipped
+	if devEUI != "" && c.deviceProfileService != nil {
+		shouldSkip, skipErr := c.deviceProfileService.ShouldSkipDevice(devEUI)
+		if skipErr != nil {
+			log.Printf("Warning: Could not check skip status for device %s: %v", devEUI, skipErr)
+		} else if shouldSkip {
+			log.Printf("Skipping processing for device %s as per configuration", devEUI)
+			return nil
+		}
+	}
+	
 	// Check if device requires location calculation
 	var deviceLocation *models.DeviceLocationData
 	err := error(nil)
