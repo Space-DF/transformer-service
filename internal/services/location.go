@@ -207,56 +207,8 @@ func (ls *LocationService) calculateLocationTwoGateways(locations []models.Locat
 		intersec2X := x2 - h*(p2Y-p1Y)/D
 		intersec2Y := y2 + h*(p2X-p1X)/D
 
-		// Choose intersection point based on RSSI signal strength
-		rssiDiff := math.Abs(float64(locations[0].RSSI - locations[1].RSSI))
-		
-		if rssiDiff > 10.0 { // Significant signal difference (>10 dB)
-			// Choose point closer to the gateway with stronger signal
-			strongerGateway := 0
-			if locations[1].RSSI > locations[0].RSSI {
-				strongerGateway = 1
-			}
-			
-			// Calculate distances from each intersection to each gateway
-			dist1ToGw0 := math.Sqrt(math.Pow(intersec1X-p1X, 2) + math.Pow(intersec1Y-p1Y, 2))
-			dist1ToGw1 := math.Sqrt(math.Pow(intersec1X-p2X, 2) + math.Pow(intersec1Y-p2Y, 2))
-			dist2ToGw0 := math.Sqrt(math.Pow(intersec2X-p1X, 2) + math.Pow(intersec2Y-p1Y, 2))
-			dist2ToGw1 := math.Sqrt(math.Pow(intersec2X-p2X, 2) + math.Pow(intersec2Y-p2Y, 2))
-			
-			if strongerGateway == 0 {
-				// Choose intersection closer to gateway 0
-				if dist1ToGw0 < dist2ToGw0 {
-					x, y = intersec1X, intersec1Y
-				} else {
-					x, y = intersec2X, intersec2Y
-				}
-			} else {
-				// Choose intersection closer to gateway 1
-				if dist1ToGw1 < dist2ToGw1 {
-					x, y = intersec1X, intersec1Y
-				} else {
-					x, y = intersec2X, intersec2Y
-				}
-			}
-		} else if rssiDiff > 3.0 { // Moderate signal difference (3-10 dB)
-			// Use weighted positioning based on signal strength
-			weight1 := float64(locations[0].RSSI + 120) // Normalize RSSI to positive values
-			weight2 := float64(locations[1].RSSI + 120)
-			totalWeight := weight1 + weight2
-			
-			if totalWeight > 0 {
-				x = (intersec1X*weight1 + intersec2X*weight2) / totalWeight
-				y = (intersec1Y*weight1 + intersec2Y*weight2) / totalWeight
-			} else {
-				// Fallback to averaging
-				x = (intersec1X + intersec2X) / 2
-				y = (intersec1Y + intersec2Y) / 2
-			}
-		} else {
-			// Similar signal strengths - use traditional averaging
-			x = (intersec1X + intersec2X) / 2
-			y = (intersec1Y + intersec2Y) / 2
-		}
+		x = (intersec1X + intersec2X) / 2
+		y = (intersec1Y + intersec2Y) / 2
 	}
 
 	lat, lon := ls.xyToLatLon(x, y, refLat, refLon)
