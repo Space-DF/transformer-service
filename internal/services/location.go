@@ -5,7 +5,6 @@ import (
 	"math"
 
 	"github.com/Space-DF/transformer-service-go/internal/models"
-	"gonum.org/v1/gonum/mat"
 )
 
 const (
@@ -173,110 +172,190 @@ func (ls *LocationService) xyToLatLon(x, y, refLat, refLon float64) (float64, fl
 	return lat, lon
 }
 
-// calculateLocationTwoGateways calculates location using two gateways
+// calculateLocationTwoGateways calculates location using intersection zone of two circles
 func (ls *LocationService) calculateLocationTwoGateways(locations []models.LocationPoint, frequency float64) (float64, float64, error) {
 	refLat, refLon := locations[0].Latitude, locations[0].Longitude
 
+	// Convert gateway positions to XY coordinates
 	p1X, p1Y := ls.latLonToXY(locations[0].Latitude, locations[0].Longitude, refLat, refLon)
 	p2X, p2Y := ls.latLonToXY(locations[1].Latitude, locations[1].Longitude, refLat, refLon)
 
-	d1 := ls.findDistance(locations[0].RSSI, frequency)
-	d2 := ls.findDistance(locations[1].RSSI, frequency)
+	// Get initial distances from RSSI
+	distances := ls.expandRadiiUntilIntersection(locations, frequency, refLat, refLon)
+	d1, d2 := distances[0], distances[1]
 
-	D := math.Sqrt(math.Pow(p2X-p1X, 2) + math.Pow(p2Y-p1Y, 2))
-	a := (math.Pow(d1, 2) - math.Pow(d2, 2) + math.Pow(D, 2)) / (2 * D)
-	hSq := math.Pow(d1, 2) - math.Pow(a, 2)
-
-	var h float64
-	if math.Abs(hSq) < 1e-10 {
-		h = 0.0
-	} else {
-		h = math.Sqrt(math.Abs(hSq))
+	// Calculate intersection zone
+	zone := ls.calculateCircleIntersection(p1X, p1Y, d1, p2X, p2Y, d2)
+	
+	if !zone.Valid {
+		// Fallback: return weighted center based on signal strength
+		weight1 := math.Pow(10, float64(locations[0].RSSI)/20) // Convert dBm to linear scale
+		weight2 := math.Pow(10, float64(locations[1].RSSI)/20)
+		totalWeight := weight1 + weight2
+		
+		if totalWeight > 0 {
+			x := (p1X*weight1 + p2X*weight2) / totalWeight
+			y := (p1Y*weight1 + p2Y*weight2) / totalWeight
+			lat, lon := ls.xyToLatLon(x, y, refLat, refLon)
+			return lat, lon, nil
+		}
+		
+		// Final fallback: geometric center
+		x := (p1X + p2X) / 2
+		y := (p1Y + p2Y) / 2
+		lat, lon := ls.xyToLatLon(x, y, refLat, refLon)
+		return lat, lon, nil
 	}
 
-	x2 := p1X + a*(p2X-p1X)/D
-	y2 := p1Y + a*(p2Y-p1Y)/D
-
-	var x, y float64
-	if h == 0.0 {
-		x, y = x2, y2
-	} else {
-		intersec1X := x2 + h*(p2Y-p1Y)/D
-		intersec1Y := y2 - h*(p2X-p1X)/D
-
-		intersec2X := x2 - h*(p2Y-p1Y)/D
-		intersec2Y := y2 + h*(p2X-p1X)/D
-
-		x = (intersec1X + intersec2X) / 2
-		y = (intersec1Y + intersec2Y) / 2
-	}
-
-	lat, lon := ls.xyToLatLon(x, y, refLat, refLon)
+	// Return the centroid of the intersection zone
+	lat, lon := ls.xyToLatLon(zone.CentroidX, zone.CentroidY, refLat, refLon)
 	return lat, lon, nil
 }
 
-// calculateLocationThreeGateways calculates location using three gateways
+// calculateLocationThreeGateways calculates location using intersection zone of three circles
 func (ls *LocationService) calculateLocationThreeGateways(locations []models.LocationPoint, frequency float64) (float64, float64, error) {
 	refLat, refLon := locations[0].Latitude, locations[0].Longitude
 
+	// Convert gateway positions to XY coordinates
 	p1X, p1Y := ls.latLonToXY(locations[0].Latitude, locations[0].Longitude, refLat, refLon)
 	p2X, p2Y := ls.latLonToXY(locations[1].Latitude, locations[1].Longitude, refLat, refLon)
 	p3X, p3Y := ls.latLonToXY(locations[2].Latitude, locations[2].Longitude, refLat, refLon)
 
-	d1 := ls.findDistance(locations[0].RSSI, frequency)
-	d2 := ls.findDistance(locations[1].RSSI, frequency)
-	d3 := ls.findDistance(locations[2].RSSI, frequency)
+	// Get expanded distances to ensure intersection
+	distances := ls.expandRadiiUntilIntersection(locations, frequency, refLat, refLon)
+	d1, d2, d3 := distances[0], distances[1], distances[2]
 
-	// Set up matrix equation Ax = b
-	A := mat.NewDense(2, 2, []float64{
-		2*(p2X-p1X), 2*(p2Y-p1Y),
-		2*(p3X-p1X), 2*(p3Y-p1Y),
-	})
+	// Find pairwise intersections
+	zone12 := ls.calculateCircleIntersection(p1X, p1Y, d1, p2X, p2Y, d2)
+	zone13 := ls.calculateCircleIntersection(p1X, p1Y, d1, p3X, p3Y, d3)
+	zone23 := ls.calculateCircleIntersection(p2X, p2Y, d2, p3X, p3Y, d3)
 
-	b := mat.NewVecDense(2, []float64{
-		math.Pow(d1, 2) - math.Pow(d2, 2) - math.Pow(p1X, 2) + math.Pow(p2X, 2) - math.Pow(p1Y, 2) + math.Pow(p2Y, 2),
-		math.Pow(d1, 2) - math.Pow(d3, 2) - math.Pow(p1X, 2) + math.Pow(p3X, 2) - math.Pow(p1Y, 2) + math.Pow(p3Y, 2),
-	})
+	validZones := 0
+	centroidX, centroidY := 0.0, 0.0
 
-	var x mat.VecDense
-	err := x.SolveVec(A, b)
-	if err != nil {
-		return 0, 0, fmt.Errorf("failed to solve linear system: %v", err)
+	// Calculate weighted centroid of all valid intersection zones
+	if zone12.Valid {
+		centroidX += zone12.CentroidX * zone12.Area
+		centroidY += zone12.CentroidY * zone12.Area
+		validZones++
+	}
+	if zone13.Valid {
+		centroidX += zone13.CentroidX * zone13.Area
+		centroidY += zone13.CentroidY * zone13.Area
+		validZones++
+	}
+	if zone23.Valid {
+		centroidX += zone23.CentroidX * zone23.Area
+		centroidY += zone23.CentroidY * zone23.Area
+		validZones++
 	}
 
-	lat, lon := ls.xyToLatLon(x.AtVec(0), x.AtVec(1), refLat, refLon)
+	if validZones > 0 {
+		totalArea := 0.0
+		if zone12.Valid {
+			totalArea += zone12.Area
+		}
+		if zone13.Valid {
+			totalArea += zone13.Area
+		}
+		if zone23.Valid {
+			totalArea += zone23.Area
+		}
+
+		if totalArea > 0 {
+			centroidX /= totalArea
+			centroidY /= totalArea
+			lat, lon := ls.xyToLatLon(centroidX, centroidY, refLat, refLon)
+			return lat, lon, nil
+		}
+	}
+
+	// Fallback: weighted center based on signal strength
+	weight1 := math.Pow(10, float64(locations[0].RSSI)/20)
+	weight2 := math.Pow(10, float64(locations[1].RSSI)/20)
+	weight3 := math.Pow(10, float64(locations[2].RSSI)/20)
+	totalWeight := weight1 + weight2 + weight3
+
+	if totalWeight > 0 {
+		x := (p1X*weight1 + p2X*weight2 + p3X*weight3) / totalWeight
+		y := (p1Y*weight1 + p2Y*weight2 + p3Y*weight3) / totalWeight
+		lat, lon := ls.xyToLatLon(x, y, refLat, refLon)
+		return lat, lon, nil
+	}
+
+	// Final fallback: geometric center
+	x := (p1X + p2X + p3X) / 3
+	y := (p1Y + p2Y + p3Y) / 3
+	lat, lon := ls.xyToLatLon(x, y, refLat, refLon)
 	return lat, lon, nil
 }
 
-// calculateLocationMultipleGateways calculates location using multiple gateways (least squares)
+// calculateLocationMultipleGateways calculates location using intersection zones of multiple circles
 func (ls *LocationService) calculateLocationMultipleGateways(locations []models.LocationPoint, frequency float64) (float64, float64, error) {
 	refLat, refLon := locations[0].Latitude, locations[0].Longitude
-
 	n := len(locations)
-	A := mat.NewDense(n-1, 2, nil)
-	b := mat.NewVecDense(n-1, nil)
 
-	p1X, p1Y := ls.latLonToXY(locations[0].Latitude, locations[0].Longitude, refLat, refLon)
-	d1 := ls.findDistance(locations[0].RSSI, frequency)
-
-	for i := 1; i < n; i++ {
-		piX, piY := ls.latLonToXY(locations[i].Latitude, locations[i].Longitude, refLat, refLon)
-		di := ls.findDistance(locations[i].RSSI, frequency)
-
-		A.Set(i-1, 0, 2*(piX-p1X))
-		A.Set(i-1, 1, 2*(piY-p1Y))
-
-		bVal := math.Pow(d1, 2) - math.Pow(di, 2) - math.Pow(p1X, 2) + math.Pow(piX, 2) - math.Pow(p1Y, 2) + math.Pow(piY, 2)
-		b.SetVec(i-1, bVal)
+	// Convert all gateway positions to XY coordinates
+	positions := make([][2]float64, n)
+	for i, loc := range locations {
+		positions[i][0], positions[i][1] = ls.latLonToXY(loc.Latitude, loc.Longitude, refLat, refLon)
 	}
 
-	var x mat.VecDense
-	err := x.SolveVec(A, b)
-	if err != nil {
-		return 0, 0, fmt.Errorf("failed to solve least squares: %v", err)
+	// Get expanded distances to ensure intersections
+	distances := ls.expandRadiiUntilIntersection(locations, frequency, refLat, refLon)
+
+	// Find all pairwise intersections and calculate weighted centroid
+	var totalWeightedX, totalWeightedY, totalWeight float64
+
+	for i := 0; i < n-1; i++ {
+		for j := i + 1; j < n; j++ {
+			zone := ls.calculateCircleIntersection(
+				positions[i][0], positions[i][1], distances[i],
+				positions[j][0], positions[j][1], distances[j],
+			)
+
+			if zone.Valid && zone.Area > 0 {
+				// Weight by area - larger intersection areas have more confidence
+				weight := zone.Area
+				totalWeightedX += zone.CentroidX * weight
+				totalWeightedY += zone.CentroidY * weight
+				totalWeight += weight
+			}
+		}
 	}
 
-	lat, lon := ls.xyToLatLon(x.AtVec(0), x.AtVec(1), refLat, refLon)
+	if totalWeight > 0 {
+		centroidX := totalWeightedX / totalWeight
+		centroidY := totalWeightedY / totalWeight
+		lat, lon := ls.xyToLatLon(centroidX, centroidY, refLat, refLon)
+		return lat, lon, nil
+	}
+
+	// Fallback: weighted center based on signal strength
+	var weightedX, weightedY, signalWeight float64
+	for i, loc := range locations {
+		weight := math.Pow(10, float64(loc.RSSI)/20) // Convert dBm to linear scale
+		weightedX += positions[i][0] * weight
+		weightedY += positions[i][1] * weight
+		signalWeight += weight
+	}
+
+	if signalWeight > 0 {
+		x := weightedX / signalWeight
+		y := weightedY / signalWeight
+		lat, lon := ls.xyToLatLon(x, y, refLat, refLon)
+		return lat, lon, nil
+	}
+
+	// Final fallback: geometric center
+	var sumX, sumY float64
+	for i := range positions {
+		sumX += positions[i][0]
+		sumY += positions[i][1]
+	}
+	x := sumX / float64(n)
+	y := sumY / float64(n)
+	lat, lon := ls.xyToLatLon(x, y, refLat, refLon)
 	return lat, lon, nil
 }
 
@@ -284,4 +363,102 @@ func (ls *LocationService) calculateLocationMultipleGateways(locations []models.
 func roundToDecimals(val float64, decimals int) float64 {
 	multiplier := math.Pow(10, float64(decimals))
 	return math.Round(val*multiplier) / multiplier
+}
+
+// CircleIntersectionZone represents the intersection area between circles
+type CircleIntersectionZone struct {
+	CentroidX float64
+	CentroidY float64
+	Area      float64
+	Valid     bool
+}
+
+// calculateCircleIntersection checks if two circles intersect and returns intersection zone
+func (ls *LocationService) calculateCircleIntersection(x1, y1, r1, x2, y2, r2 float64) CircleIntersectionZone {
+	// Distance between circle centers
+	d := math.Sqrt(math.Pow(x2-x1, 2) + math.Pow(y2-y1, 2))
+	
+	// Check if circles intersect
+	if d > r1+r2 { // Too far apart
+		return CircleIntersectionZone{Valid: false}
+	}
+	if d < math.Abs(r1-r2) { // One circle inside the other
+		return CircleIntersectionZone{Valid: false}
+	}
+	if d == 0 && r1 == r2 { // Same circle
+		return CircleIntersectionZone{
+			CentroidX: x1,
+			CentroidY: y1,
+			Area:      math.Pi * r1 * r1,
+			Valid:     true,
+		}
+	}
+	
+	// Calculate intersection area using the lens formula
+	// Area = r1²*cos⁻¹((d²+r1²-r2²)/(2*d*r1)) + r2²*cos⁻¹((d²+r2²-r1²)/(2*d*r2)) - 0.5*√((-d+r1+r2)*(d+r1-r2)*(d-r1+r2)*(d+r1+r2))
+	
+	// Calculate the area of intersection
+	part1 := r1 * r1 * math.Acos((d*d+r1*r1-r2*r2)/(2*d*r1))
+	part2 := r2 * r2 * math.Acos((d*d+r2*r2-r1*r1)/(2*d*r2))
+	part3 := 0.5 * math.Sqrt((-d+r1+r2)*(d+r1-r2)*(d-r1+r2)*(d+r1+r2))
+	area := part1 + part2 - part3
+	
+	// Calculate centroid of intersection area
+	// For lens-shaped intersection, approximate centroid
+	a := (r1*r1 - r2*r2 + d*d) / (2 * d)
+	
+	// Intersection point on line between centers
+	px := x1 + a*(x2-x1)/d
+	py := y1 + a*(y2-y1)/d
+	
+	// The centroid is approximately at the intersection line point for lens-shaped areas
+	return CircleIntersectionZone{
+		CentroidX: px,
+		CentroidY: py,
+		Area:      area,
+		Valid:     true,
+	}
+}
+
+// expandRadiiUntilIntersection gradually increases radii until circles intersect
+func (ls *LocationService) expandRadiiUntilIntersection(locations []models.LocationPoint, frequency float64, refLat, refLon float64) []float64 {
+	distances := make([]float64, len(locations))
+	for i, loc := range locations {
+		distances[i] = ls.findDistance(loc.RSSI, frequency)
+	}
+	
+	expansionFactor := 1.0
+	maxExpansion := 3.0 // Don't expand more than 3x original radius
+	
+	for expansionFactor <= maxExpansion {
+		// Check if any pair of circles intersects
+		hasIntersection := false
+		for i := 0; i < len(locations) && !hasIntersection; i++ {
+			for j := i + 1; j < len(locations); j++ {
+				x1, y1 := ls.latLonToXY(locations[i].Latitude, locations[i].Longitude, refLat, refLon)
+				x2, y2 := ls.latLonToXY(locations[j].Latitude, locations[j].Longitude, refLat, refLon)
+				r1 := distances[i] * expansionFactor
+				r2 := distances[j] * expansionFactor
+				
+				zone := ls.calculateCircleIntersection(x1, y1, r1, x2, y2, r2)
+				if zone.Valid {
+					hasIntersection = true
+					break
+				}
+			}
+		}
+		
+		if hasIntersection {
+			break
+		}
+		
+		expansionFactor += 0.1 // Increase by 10% each iteration
+	}
+	
+	// Return expanded distances
+	for i := range distances {
+		distances[i] *= expansionFactor
+	}
+	
+	return distances
 }

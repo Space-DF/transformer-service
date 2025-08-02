@@ -194,6 +194,48 @@
         .rssi-strong { background: rgba(46, 204, 113, 0.9) !important; }
         .rssi-medium { background: rgba(243, 156, 18, 0.9) !important; }
         .rssi-weak { background: rgba(231, 76, 60, 0.9) !important; }
+        .decoded-log-section {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #eee;
+        }
+        .decoded-log-content {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #34495e;
+        }
+        .decoded-log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+        .decoded-log-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .copy-button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .copy-button:hover {
+            background-color: #2980b9;
+        }
     </style>
 </head>
 <body>
@@ -267,6 +309,16 @@
         </div>
         
         <div id="map"></div>
+        
+        <div class="decoded-log-section" id="decodedLogSection" style="display: none;">
+            <div class="decoded-log-header">
+                <div class="decoded-log-title">Decoded Log - Current Record</div>
+                <button class="copy-button" onclick="copyDecodedLog()">Copy to Clipboard</button>
+            </div>
+            <div class="decoded-log-content" id="decodedLogContent">
+                No record selected
+            </div>
+        </div>
         
         <div class="legend">
             <h4>Legend</h4>
@@ -467,7 +519,7 @@
                             ${accuracy} Gateway${accuracy > 1 ? 's' : ''}
                         </span><br>
                         Accuracy: ${result.accuracy}<br>
-                        Time: ${new Date(record.timestamp).toLocaleString()}
+                        Time: ${record.decoded_raw_data?.rxInfo?.[0]?.time ? new Date(record.decoded_raw_data.rxInfo[0].time).toLocaleString() : new Date(record.timestamp).toLocaleString()}
                     `);
                     
                     markers.push(marker);
@@ -552,8 +604,10 @@
             // Show row controls and reset verification mode
             if (data.length > 0) {
                 document.getElementById('rowControls').style.display = 'flex';
+                document.getElementById('decodedLogSection').style.display = 'block';
                 currentRowIndex = 0;
                 updateRowControls();
+                updateDecodedLog();
             }
             
             // Refresh map
@@ -717,7 +771,7 @@
                         ${accuracy} Gateway${accuracy > 1 ? 's' : ''}
                     </span><br>
                     Accuracy: ${result.accuracy}<br>
-                    Time: ${new Date(record.timestamp).toLocaleString()}
+                    Time: ${record.decoded_raw_data?.rxInfo?.[0]?.time ? new Date(record.decoded_raw_data.rxInfo[0].time).toLocaleString() : new Date(record.timestamp).toLocaleString()}
                 `);
                 
                 markers.push(marker);
@@ -795,6 +849,7 @@
             if (isValidRow(newIndex) || attempts === 1) {
                 currentRowIndex = newIndex;
                 updateRowControls();
+                updateDecodedLog();
                 clearMap(); // Clear previous row's data completely
                 showSingleRow(currentRowIndex); // Show ONLY new row's data
             }
@@ -830,8 +885,8 @@
             // Update current record info
             if (verificationMode && data.length > 0) {
                 const record = data[currentRowIndex];
-                document.getElementById('currentDevice').textContent = record.device_name || record.device_eui || 'Unknown';
-                document.getElementById('currentTime').textContent = new Date(record.timestamp).toLocaleString();
+                document.getElementById('currentDevice').textContent = record.decoded_raw_data?.deviceInfo?.deviceName || record.device_name || record.device_eui || 'Unknown';
+                document.getElementById('currentTime').textContent = record.decoded_raw_data?.time ? new Date(record.decoded_raw_data.time).toLocaleString() : (record.decoded_raw_data?.rxInfo?.[0]?.time ? new Date(record.decoded_raw_data.rxInfo[0].time).toLocaleString() : new Date(record.timestamp).toLocaleString());
                 
                 let gatewayCount = 0;
                 let rssiValues = [];
@@ -855,6 +910,37 @@
             } else {
                 document.getElementById('currentRecordInfo').style.display = 'none';
             }
+        }
+        
+        // Update decoded log display
+        function updateDecodedLog() {
+            if (data.length === 0 || currentRowIndex < 0 || currentRowIndex >= data.length) {
+                document.getElementById('decodedLogContent').textContent = 'No record selected';
+                return;
+            }
+            
+            const record = data[currentRowIndex];
+            const logContent = JSON.stringify(record, null, 2);
+            document.getElementById('decodedLogContent').textContent = logContent;
+        }
+        
+        // Copy decoded log to clipboard
+        function copyDecodedLog() {
+            const logContent = document.getElementById('decodedLogContent').textContent;
+            navigator.clipboard.writeText(logContent).then(() => {
+                const button = document.querySelector('.copy-button');
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.style.backgroundColor = '#27ae60';
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.backgroundColor = '#3498db';
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy to clipboard:', err);
+                alert('Failed to copy to clipboard');
+            });
         }
 
         // Load file
