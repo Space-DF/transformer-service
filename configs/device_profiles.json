@@ -45,8 +45,7 @@
       "profile": "RAK4630",
       "organization": "DNIIT",
       "device_name": "rak4630-rs3-C1F4",
-      "description": "RAK4630 relay device with GPS for DNIIT organization",
-      "skip": true
+      "description": "RAK4630 relay device with GPS for DNIIT organization"
     }
   }
 }

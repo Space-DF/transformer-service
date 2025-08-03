@@ -11,6 +11,7 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/Space-DF/transformer-service-go/internal/config"
 	"github.com/Space-DF/transformer-service-go/internal/models"
+	"github.com/Space-DF/transformer-service-go/internal/parsers"
 	"github.com/Space-DF/transformer-service-go/internal/services"
 )
 
@@ -305,15 +306,13 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 				}
 			}
 		} else {
-			// Device has GPS, extract coordinates from payload
-			log.Printf("Device %s has GPS capability, extracting coordinates from payload", devEUI)
-			// TODO: Implement GPS coordinate extraction from device payload
-			// For now, fall back to location calculation
-			deviceLocation, err = c.locationService.CalculateDeviceLocation(locationPayload)
-			if err == nil && deviceLocation != nil {
-				if _, mapping, mappingErr := c.deviceProfileService.GetDeviceProfile(devEUI); mappingErr == nil {
-					deviceLocation.Organization = mapping.Organization
-				}
+			// Device has GPS, extract coordinates using device-specific parser
+			log.Printf("Device %s has GPS capability, using device parser to extract GPS coordinates", devEUI)
+			if _, mapping, profileErr := c.deviceProfileService.GetDeviceProfile(devEUI); profileErr == nil {
+				deviceLocation, err = c.extractGPSFromDeviceParser(mapping.Profile, locationPayload, mapping.Organization)
+			} else {
+				log.Printf("Could not get device profile for %s: %v. Falling back to location calculation.", devEUI, profileErr)
+				deviceLocation, err = c.locationService.CalculateDeviceLocation(locationPayload)
 			}
 		}
 	} else {
@@ -518,4 +517,31 @@ func (c *Consumer) Stop() error {
 	}
 
 	return nil
+}
+
+// extractGPSFromDeviceParser extracts GPS coordinates using device-specific parser
+func (c *Consumer) extractGPSFromDeviceParser(profile string, payload map[string]interface{}, organization string) (*models.DeviceLocationData, error) {
+	switch profile {
+	case "RAK4630":
+		return c.extractGPSFromRAK4630(payload, organization)
+	default:
+		return nil, fmt.Errorf("GPS extraction not implemented for device profile: %s", profile)
+	}
+}
+
+// extractGPSFromRAK4630 extracts GPS coordinates from RAK4630 device using CBOR parsing
+func (c *Consumer) extractGPSFromRAK4630(payload map[string]interface{}, organization string) (*models.DeviceLocationData, error) {
+	// Create RAK4630 parser
+	rak4630Parser := parsers.NewRAK4630Parser()
+	
+	// Use RAK4630 parser to extract GPS data from payload
+	locationData, err := rak4630Parser.ParsePayload(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse RAK4630 GPS data: %w", err)
+	}
+	
+	// Set organization
+	locationData.Organization = organization
+	
+	return locationData, nil
 }
