@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Space-DF/transformer-service-go/internal/models"
+	"github.com/Space-DF/transformer-service/internal/models"
 )
 
 // DeviceProfileService handles device profile management

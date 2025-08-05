@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Space-DF/transformer-service-go/internal/models"
+	"github.com/Space-DF/transformer-service/internal/models"
 )
 
 // LoggerService handles raw data logging for training purposes

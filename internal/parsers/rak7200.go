@@ -3,7 +3,7 @@ package parsers
 import (
 	"fmt"
 
-	"github.com/Space-DF/transformer-service-go/internal/models"
+	"github.com/Space-DF/transformer-service/internal/models"
 )
 
 // RAK7200Parser handles parsing of RAK7200 device payloads with GPS

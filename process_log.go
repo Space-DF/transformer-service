@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Space-DF/transformer-service-go/internal/services"
+	"github.com/Space-DF/transformer-service/internal/services"
 )
 
 func main() {

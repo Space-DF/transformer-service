@@ -1,4 +1,4 @@
-# Transformer Service Go
+# Transformer Service
 
 A Go-based microservice that consumes LoRaWAN device data from MQTT topics via RabbitMQ, calculates device locations using RSSI-based trilateration algorithms, and publishes transformed data.
 
@@ -125,7 +125,7 @@ mqtt:
   },
   "timestamp": "2023-01-01T12:00:00Z",
   "organization": "example-org",
-  "source": "transformer-service-go",
+  "source": "transformer-service",
   "metadata": {
     "frequency": 923200000,
     "gateways": [

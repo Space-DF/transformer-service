@@ -3,7 +3,7 @@ package parsers
 import (
 	"fmt"
 
-	"github.com/Space-DF/transformer-service-go/internal/models"
+	"github.com/Space-DF/transformer-service/internal/models"
 )
 
 // RAK2270Parser handles parsing of RAK2270 device payloads

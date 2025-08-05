@@ -8,10 +8,10 @@ import (
 	"log"
 	"time"
 
-	"github.com/Space-DF/transformer-service-go/internal/config"
-	"github.com/Space-DF/transformer-service-go/internal/models"
-	"github.com/Space-DF/transformer-service-go/internal/parsers"
-	"github.com/Space-DF/transformer-service-go/internal/services"
+	"github.com/Space-DF/transformer-service/internal/config"
+	"github.com/Space-DF/transformer-service/internal/models"
+	"github.com/Space-DF/transformer-service/internal/parsers"
+	"github.com/Space-DF/transformer-service/internal/services"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 

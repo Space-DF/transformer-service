@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Space-DF/transformer-service-go/internal/models"
+	"github.com/Space-DF/transformer-service/internal/models"
 )
 
 // TransformService handles data transformation
@@ -42,7 +42,7 @@ func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLoc
 		Timestamp:    time.Now().UTC().Format(time.RFC3339),
 		Organization: deviceLocation.Organization,
 		Metadata:     metadata,
-		Source:       "transformer-service-go",
+		Source:       "transformer-service",
 	}
 
 	return transformedData, nil

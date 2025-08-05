@@ -44,11 +44,11 @@ run:
 
 # Docker build
 docker-build:
-	docker build -t transformer-service-go .
+	docker build -t transformer-service .
 
 # Docker run
 docker-run:
-	docker run -p 8080:8080 transformer-service-go
+	docker run -p 8080:8080 transformer-service
 
 # Development run
 dev:

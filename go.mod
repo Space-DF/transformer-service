@@ -1,4 +1,4 @@
-module github.com/Space-DF/transformer-service-go
+module github.com/Space-DF/transformer-service
 
 go 1.24.4
 

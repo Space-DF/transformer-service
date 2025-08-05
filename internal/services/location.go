@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/Space-DF/transformer-service-go/internal/models"
+	"github.com/Space-DF/transformer-service/internal/models"
 )
 
 const (

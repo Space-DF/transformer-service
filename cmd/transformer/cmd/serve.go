@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Space-DF/transformer-service-go/internal/config"
-	"github.com/Space-DF/transformer-service-go/internal/mqtt"
-	"github.com/Space-DF/transformer-service-go/internal/services"
+	"github.com/Space-DF/transformer-service/internal/config"
+	"github.com/Space-DF/transformer-service/internal/mqtt"
+	"github.com/Space-DF/transformer-service/internal/services"
 )
 
 var serveCmd = &cobra.Command{
