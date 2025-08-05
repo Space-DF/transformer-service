@@ -33,18 +33,21 @@
       "profile": "RAK2270",
       "organization": "DFORT",
       "device_name": "Test RAK2270 Device",
+      "device_id": "DEV_7892341056",
       "description": "Test device for development"
     },
     "ac1f09fffe1050e3": {
       "profile": "RAK2270",
       "organization": "DNIIT",
       "device_name": "RAK_Sticker_50E3",
+      "device_id": "DEV_4567823901",
       "description": "RAK2270 device for DNIIT organization"
     },
     "000d75e6564dc1f4": {
       "profile": "RAK4630",
       "organization": "DNIIT",
       "device_name": "rak4630-rs3-C1F4",
+      "device_id": "DEV_9123456780",
       "description": "RAK4630 relay device with GPS for DNIIT organization"
     }
   }

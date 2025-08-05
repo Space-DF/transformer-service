@@ -3,7 +3,7 @@ server:
   log_level: "info"
 
 # AMQP Consumer Configuration - Using existing amq.topic from MQTT
-mqtt:
+amqp:
   broker_url: "amqp://admin:password@rabbitmq:5672/"
   exchange: "amq.topic"
   queue: "transformer_device_queue"

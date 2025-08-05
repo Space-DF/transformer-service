@@ -10,7 +10,7 @@ import (
 
 type Config struct {
 	Server     ServerConfig     `mapstructure:"server"`
-	MQTT       MQTTConfig       `mapstructure:"mqtt"`
+	AMQP       AMQPConfig       `mapstructure:"amqp"`
 	RawDataLog RawDataLogConfig `mapstructure:"raw_data_log"`
 }
 
@@ -18,7 +18,7 @@ type ServerConfig struct {
 	LogLevel string `mapstructure:"log_level" env:"SERVER_LOG_LEVEL"`
 }
 
-type MQTTConfig struct {
+type AMQPConfig struct {
 	BrokerURL     string `mapstructure:"broker_url" env:"AMQP_BROKER_URL"`
 	Exchange      string `mapstructure:"exchange" env:"AMQP_EXCHANGE"`
 	Queue         string `mapstructure:"queue" env:"AMQP_QUEUE"`
@@ -62,14 +62,14 @@ func New() (Config, error) {
 
 	// Manually bind environment variables to ensure they're read
 	vp.BindEnv("server.log_level", "SERVER_LOG_LEVEL")
-	vp.BindEnv("mqtt.broker_url", "AMQP_BROKER_URL")
-	vp.BindEnv("mqtt.exchange", "AMQP_EXCHANGE")
-	vp.BindEnv("mqtt.queue", "AMQP_QUEUE")
-	vp.BindEnv("mqtt.routing_key", "AMQP_ROUTING_KEY")
-	vp.BindEnv("mqtt.output_topic", "AMQP_OUTPUT_TOPIC")
-	vp.BindEnv("mqtt.consumer_tag", "AMQP_CONSUMER_TAG")
-	vp.BindEnv("mqtt.prefetch_count", "AMQP_PREFETCH_COUNT")
-	vp.BindEnv("mqtt.auto_ack", "AMQP_AUTO_ACK")
+	vp.BindEnv("amqp.broker_url", "AMQP_BROKER_URL")
+	vp.BindEnv("amqp.exchange", "AMQP_EXCHANGE")
+	vp.BindEnv("amqp.queue", "AMQP_QUEUE")
+	vp.BindEnv("amqp.routing_key", "AMQP_ROUTING_KEY")
+	vp.BindEnv("amqp.output_topic", "AMQP_OUTPUT_TOPIC")
+	vp.BindEnv("amqp.consumer_tag", "AMQP_CONSUMER_TAG")
+	vp.BindEnv("amqp.prefetch_count", "AMQP_PREFETCH_COUNT")
+	vp.BindEnv("amqp.auto_ack", "AMQP_AUTO_ACK")
 	vp.BindEnv("raw_data_log.log_dir", "RAW_DATA_LOG_DIR")
 	vp.BindEnv("raw_data_log.enable_file_log", "RAW_DATA_ENABLE_FILE_LOG")
 	vp.BindEnv("raw_data_log.enable_json_log", "RAW_DATA_ENABLE_JSON_LOG")
@@ -80,14 +80,14 @@ func New() (Config, error) {
 
 func setDefaults(vp *viper.Viper) {
 	vp.SetDefault("server.log_level", "info")
-	vp.SetDefault("mqtt.broker_url", "amqp://admin:password@rabbitmq:5672/")
-	vp.SetDefault("mqtt.exchange", "amq.topic")
-	vp.SetDefault("mqtt.queue", "transformer_device_queue")
-	vp.SetDefault("mqtt.routing_key", "device.data")
-	vp.SetDefault("mqtt.output_topic", "transformed/device/location")
-	vp.SetDefault("mqtt.consumer_tag", "transformer-service")
-	vp.SetDefault("mqtt.prefetch_count", 10)
-	vp.SetDefault("mqtt.auto_ack", false)
+	vp.SetDefault("amqp.broker_url", "amqp://admin:password@rabbitmq:5672/")
+	vp.SetDefault("amqp.exchange", "amq.topic")
+	vp.SetDefault("amqp.queue", "transformer_device_queue")
+	vp.SetDefault("amqp.routing_key", "device.data")
+	vp.SetDefault("amqp.output_topic", "transformed/device/location")
+	vp.SetDefault("amqp.consumer_tag", "transformer-service")
+	vp.SetDefault("amqp.prefetch_count", 10)
+	vp.SetDefault("amqp.auto_ack", false)
 	vp.SetDefault("raw_data_log.log_dir", "logs/raw_data")
 	vp.SetDefault("raw_data_log.enable_file_log", true)
 	vp.SetDefault("raw_data_log.enable_json_log", true)

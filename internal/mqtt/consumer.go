@@ -17,7 +17,7 @@ import (
 
 // Consumer handles MQTT message consumption via AMQP
 type Consumer struct {
-	config               config.MQTTConfig
+	config               config.AMQPConfig
 	conn                 *amqp.Connection
 	channel              *amqp.Channel
 	locationService      *services.LocationService
@@ -28,11 +28,11 @@ type Consumer struct {
 }
 
 // NewConsumer creates a new MQTT consumer
-func NewConsumer(cfg config.MQTTConfig, loggerService *services.LoggerService, deviceProfileService *services.DeviceProfileService) *Consumer {
+func NewConsumer(cfg config.AMQPConfig, loggerService *services.LoggerService, deviceProfileService *services.DeviceProfileService) *Consumer {
 	return &Consumer{
 		config:               cfg,
 		locationService:      services.NewLocationService(),
-		transformService:     services.NewTransformService(),
+		transformService:     services.NewTransformService(deviceProfileService),
 		loggerService:        loggerService,
 		deviceProfileService: deviceProfileService,
 		done:                 make(chan bool),

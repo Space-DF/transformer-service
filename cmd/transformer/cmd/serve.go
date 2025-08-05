@@ -57,16 +57,16 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create MQTT consumer
-	consumer := mqtt.NewConsumer(cfg.MQTT, loggerService, deviceProfileService)
+	consumer := mqtt.NewConsumer(cfg.AMQP, loggerService, deviceProfileService)
 
 	// Connect to AMQP broker
 	if err := consumer.Connect(); err != nil {
 		return fmt.Errorf("failed to connect to AMQP broker: %w", err)
 	}
 
-	log.Printf("Connected to AMQP broker: %s", cfg.MQTT.BrokerURL)
-	log.Printf("Consuming from queue: %s with routing key: %s", cfg.MQTT.Queue, cfg.MQTT.RoutingKey)
-	log.Printf("Publishing to topic: %s", cfg.MQTT.OutputTopic)
+	log.Printf("Connected to AMQP broker: %s", cfg.AMQP.BrokerURL)
+	log.Printf("Consuming from queue: %s with routing key: %s", cfg.AMQP.Queue, cfg.AMQP.RoutingKey)
+	log.Printf("Publishing to topic: %s", cfg.AMQP.OutputTopic)
 	log.Printf("Raw data logging enabled - File: %t, JSON: %t, Dir: %s", cfg.RawDataLog.EnableFileLog, cfg.RawDataLog.EnableJSONLog, cfg.RawDataLog.LogDir)
 
 	// Create context for graceful shutdown

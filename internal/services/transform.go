@@ -8,11 +8,15 @@ import (
 )
 
 // TransformService handles data transformation
-type TransformService struct{}
+type TransformService struct{
+	deviceProfileService *DeviceProfileService
+}
 
 // NewTransformService creates a new transform service
-func NewTransformService() *TransformService {
-	return &TransformService{}
+func NewTransformService(deviceProfileService *DeviceProfileService) *TransformService {
+	return &TransformService{
+		deviceProfileService: deviceProfileService,
+	}
 }
 
 // TransformDeviceData transforms device location data to the standardized output format
@@ -27,8 +31,8 @@ func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLoc
 	// Extract additional metadata from original payload
 	metadata := ts.extractMetadata(originalPayload)
 
-	// Extract device ID from payload
-	deviceID := ts.extractDeviceID(originalPayload)
+	// Extract device ID from payload or device mappings
+	deviceID := ts.extractDeviceID(originalPayload, deviceLocation.DevEUI)
 
 	// Create transformed data structure
 	transformedData := &models.TransformedDeviceData{
@@ -202,9 +206,16 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 	return metadata
 }
 
-// extractDeviceID extracts device ID from the payload
-func (ts *TransformService) extractDeviceID(payload map[string]interface{}) string {
-	// Try direct device_id field in payload
+// extractDeviceID extracts device ID from device mappings first, then payload as fallback
+func (ts *TransformService) extractDeviceID(payload map[string]interface{}, devEUI string) string {
+	// Priority 1: Look up device mapping by DevEUI for hardcoded device name
+	if _, mapping, err := ts.deviceProfileService.GetDeviceProfile(devEUI); err == nil {
+		if mapping.DeviceName != "" {
+			return mapping.DeviceName
+		}
+	}
+	
+	// Priority 2: Try direct device_id field in payload as fallback
 	if deviceID, exists := payload["device_id"]; exists {
 		if strVal, ok := deviceID.(string); ok {
 			return strVal
