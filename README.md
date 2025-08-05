@@ -73,14 +73,58 @@ The service can be configured via:
 server:
   log_level: "info"
 
-mqtt:
+amqp:
   broker_url: "amqp://admin:password@rabbitmq:5672/"
-  input_topic: "device/data"
+  exchange: "device_exchange"
+  queue: "device_data"
+  routing_key: "device.data"
   output_topic: "transformed/device/location"
   consumer_tag: "transformer-service"
   prefetch_count: 10
   auto_ack: false
+
+raw_data_log:
+  log_dir: "logs/raw_data"
+  enable_file_log: false
+  enable_json_log: false
+  max_file_size: 104857600  # 100MB
 ```
+
+### Raw Data Logging
+
+The service supports logging raw data for training and debugging purposes. Configure via environment variables:
+
+```bash
+RAW_DATA_LOG_DIR="logs/raw_data"           # Directory for log files
+RAW_DATA_ENABLE_FILE_LOG=true              # Enable file logging
+RAW_DATA_ENABLE_JSON_LOG=false             # Enable JSON stdout logging
+RAW_DATA_MAX_FILE_SIZE=104857600           # 100MB file size limit
+```
+
+### Log Management with Logrotate
+
+To prevent raw logs from consuming too much disk space, use the included logrotate configuration:
+
+1. **Install logrotate configuration:**
+   ```bash
+   sudo cp logrotate.conf /etc/logrotate.d/transformer-raw-logs
+   ```
+
+2. **Test configuration:**
+   ```bash
+   sudo logrotate -d /etc/logrotate.d/transformer-raw-logs
+   ```
+
+3. **Manual rotation:**
+   ```bash
+   sudo logrotate -f /etc/logrotate.d/transformer-raw-logs
+   ```
+
+The logrotate configuration:
+- Rotates logs daily
+- Keeps 7 days of logs
+- Compresses old files (saves ~90% disk space)
+- Handles active log files safely with `copytruncate`
 
 ## Message Formats
 
