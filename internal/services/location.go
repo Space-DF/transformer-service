@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	EarthRadius = 6371000.0 // Earth radius in meters
-	DefaultTxPower = 14.0   // Default transmission power in dBm
-	DefaultPathLossExponent = 4.0 // Default path loss exponent
-	DefaultReferenceDistance = 1.0 // Default reference distance in meters
+	EarthRadius              = 6371000.0 // Earth radius in meters
+	DefaultTxPower           = 14.0      // Default transmission power in dBm
+	DefaultPathLossExponent  = 4.0       // Default path loss exponent
+	DefaultReferenceDistance = 1.0       // Default reference distance in meters
 )
 
 // LocationService handles device location calculations
@@ -27,7 +27,7 @@ func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{
 	var rxMetadata []interface{}
 	var frequency float64
 	var devEUI string
-	
+
 	// Check if this is TTN format (uplink_message) or ChirpStack format (direct payload)
 	if uplinkMessage, ok := payload["uplink_message"].(map[string]interface{}); ok {
 		// TTN format
@@ -160,8 +160,8 @@ func (ls *LocationService) findDistance(rssi int, frequency float64) float64 {
 
 // latLonToXY converts lat/lon to local XY coordinates
 func (ls *LocationService) latLonToXY(lat, lon, refLat, refLon float64) (float64, float64) {
-	x := EarthRadius * math.Pi/180 * (lon - refLon) * math.Cos(math.Pi/180*refLat)
-	y := EarthRadius * math.Pi/180 * (lat - refLat)
+	x := EarthRadius * math.Pi / 180 * (lon - refLon) * math.Cos(math.Pi/180*refLat)
+	y := EarthRadius * math.Pi / 180 * (lat - refLat)
 	return x, y
 }
 
@@ -186,20 +186,20 @@ func (ls *LocationService) calculateLocationTwoGateways(locations []models.Locat
 
 	// Calculate intersection zone
 	zone := ls.calculateCircleIntersection(p1X, p1Y, d1, p2X, p2Y, d2)
-	
+
 	if !zone.Valid {
 		// Fallback: return weighted center based on signal strength
 		weight1 := math.Pow(10, float64(locations[0].RSSI)/20) // Convert dBm to linear scale
 		weight2 := math.Pow(10, float64(locations[1].RSSI)/20)
 		totalWeight := weight1 + weight2
-		
+
 		if totalWeight > 0 {
 			x := (p1X*weight1 + p2X*weight2) / totalWeight
 			y := (p1Y*weight1 + p2Y*weight2) / totalWeight
 			lat, lon := ls.xyToLatLon(x, y, refLat, refLon)
 			return lat, lon, nil
 		}
-		
+
 		// Final fallback: geometric center
 		x := (p1X + p2X) / 2
 		y := (p1Y + p2Y) / 2
@@ -370,11 +370,11 @@ func roundToDecimals(val float64, decimals int) float64 {
 
 // CircleIntersectionZone represents the intersection area between circles
 type CircleIntersectionZone struct {
-	CentroidX     float64
-	CentroidY     float64
-	Area          float64
-	Valid         bool
-	Confidence    float64 // 0-1 score based on intersection quality
+	CentroidX          float64
+	CentroidY          float64
+	Area               float64
+	Valid              bool
+	Confidence         float64      // 0-1 score based on intersection quality
 	IntersectionPoints [][2]float64 // Actual intersection points for better centroid calculation
 }
 
@@ -382,7 +382,7 @@ type CircleIntersectionZone struct {
 func (ls *LocationService) calculateCircleIntersection(x1, y1, r1, x2, y2, r2 float64) CircleIntersectionZone {
 	// Distance between circle centers
 	d := math.Sqrt(math.Pow(x2-x1, 2) + math.Pow(y2-y1, 2))
-	
+
 	// Check if circles intersect
 	if d > r1+r2 { // Too far apart
 		return CircleIntersectionZone{Valid: false, Confidence: 0.0}
@@ -399,22 +399,22 @@ func (ls *LocationService) calculateCircleIntersection(x1, y1, r1, x2, y2, r2 fl
 			Confidence: 1.0,
 		}
 	}
-	
+
 	// Calculate actual intersection points for better accuracy
 	intersectionPoints := ls.calculateIntersectionPoints(x1, y1, r1, x2, y2, r2, d)
-	
+
 	// Calculate intersection area using the lens formula
 	part1 := r1 * r1 * math.Acos((d*d+r1*r1-r2*r2)/(2*d*r1))
 	part2 := r2 * r2 * math.Acos((d*d+r2*r2-r1*r1)/(2*d*r2))
 	part3 := 0.5 * math.Sqrt((-d+r1+r2)*(d+r1-r2)*(d-r1+r2)*(d+r1+r2))
 	area := part1 + part2 - part3
-	
+
 	// Calculate improved centroid using geometric properties
 	centroidX, centroidY := ls.calculateImprovedCentroid(x1, y1, r1, x2, y2, r2, d, intersectionPoints)
-	
+
 	// Calculate confidence based on intersection quality
 	confidence := ls.calculateIntersectionConfidence(d, r1, r2, area)
-	
+
 	return CircleIntersectionZone{
 		CentroidX:          centroidX,
 		CentroidY:          centroidY,
@@ -431,16 +431,16 @@ func (ls *LocationService) expandRadiiUntilIntersection(locations []models.Locat
 	for i, loc := range locations {
 		distances[i] = ls.findDistance(loc.RSSI, frequency)
 	}
-	
+
 	// Smart expansion: calculate minimum expansion needed for each pair
 	minExpansionNeeded := 1.0
-	
+
 	for i := 0; i < len(locations)-1; i++ {
 		for j := i + 1; j < len(locations); j++ {
 			x1, y1 := ls.latLonToXY(locations[i].Latitude, locations[i].Longitude, refLat, refLon)
 			x2, y2 := ls.latLonToXY(locations[j].Latitude, locations[j].Longitude, refLat, refLon)
 			d := math.Sqrt(math.Pow(x2-x1, 2) + math.Pow(y2-y1, 2))
-			
+
 			// Calculate minimum expansion factor needed for intersection
 			currentSum := distances[i] + distances[j]
 			if d > currentSum {
@@ -451,29 +451,29 @@ func (ls *LocationService) expandRadiiUntilIntersection(locations []models.Locat
 			}
 		}
 	}
-	
+
 	// Cap expansion to reasonable limits
 	maxExpansion := 3.0
 	if minExpansionNeeded > maxExpansion {
 		minExpansionNeeded = maxExpansion
 	}
-	
+
 	// Apply intelligent expansion: stronger signals get less expansion
 	for i := range distances {
 		// Weaker signals (lower RSSI) get more expansion as they're less reliable
 		signalStrength := math.Abs(float64(locations[i].RSSI))
 		adaptiveFactor := minExpansionNeeded
-		
+
 		// Stronger signals (RSSI > -70) get less expansion
 		if signalStrength < 70 {
 			adaptiveFactor *= 0.8
 		} else if signalStrength > 100 {
 			adaptiveFactor *= 1.2 // Weaker signals get more expansion
 		}
-		
+
 		distances[i] *= adaptiveFactor
 	}
-	
+
 	return distances
 }
 
@@ -482,11 +482,11 @@ func (ls *LocationService) calculateIntersectionPoints(x1, y1, r1, x2, y2, r2, d
 	// Calculate intersection points using geometry
 	a := (r1*r1 - r2*r2 + d*d) / (2 * d)
 	h := math.Sqrt(r1*r1 - a*a)
-	
+
 	// Point on line between centers
 	px := x1 + a*(x2-x1)/d
 	py := y1 + a*(y2-y1)/d
-	
+
 	// Two intersection points
 	point1 := [2]float64{
 		px + h*(y2-y1)/d,
@@ -496,7 +496,7 @@ func (ls *LocationService) calculateIntersectionPoints(x1, y1, r1, x2, y2, r2, d
 		px - h*(y2-y1)/d,
 		py + h*(x2-x1)/d,
 	}
-	
+
 	return [][2]float64{point1, point2}
 }
 
@@ -509,22 +509,22 @@ func (ls *LocationService) calculateImprovedCentroid(x1, y1, r1, x2, y2, r2, d f
 		py := y1 + a*(y2-y1)/d
 		return px, py
 	}
-	
+
 	// For lens-shaped intersection, the centroid is weighted towards the center of the lens
 	// Use the midpoint of intersection points as a better approximation
 	p1, p2 := intersectionPoints[0], intersectionPoints[1]
 	midX := (p1[0] + p2[0]) / 2
 	midY := (p1[1] + p2[1]) / 2
-	
+
 	// Weight towards the line connecting circle centers for better accuracy
 	a := (r1*r1 - r2*r2 + d*d) / (2 * d)
 	centerLineX := x1 + a*(x2-x1)/d
 	centerLineY := y1 + a*(y2-y1)/d
-	
+
 	// Weighted average: 70% intersection midpoint, 30% center line point
 	centroidX := 0.7*midX + 0.3*centerLineX
 	centroidY := 0.7*midY + 0.3*centerLineY
-	
+
 	return centroidX, centroidY
 }
 
@@ -532,25 +532,25 @@ func (ls *LocationService) calculateImprovedCentroid(x1, y1, r1, x2, y2, r2, d f
 func (ls *LocationService) calculateIntersectionConfidence(d, r1, r2, area float64) float64 {
 	// Factors affecting confidence:
 	// 1. Overlap ratio - larger overlap = higher confidence
-	// 2. Circle size similarity - similar sizes = higher confidence  
+	// 2. Circle size similarity - similar sizes = higher confidence
 	// 3. Intersection geometry - avoid tangential intersections
-	
+
 	maxArea := math.Min(math.Pi*r1*r1, math.Pi*r2*r2)
 	overlapRatio := area / maxArea
-	
+
 	// Size similarity factor (1.0 when radii are equal, lower when very different)
 	sizeFactor := 1.0 - math.Abs(r1-r2)/math.Max(r1, r2)
-	
+
 	// Distance factor - penalize near-tangential intersections
 	optimalDistance := (r1 + r2) * 0.7 // Optimal overlap
 	distanceFactor := 1.0 - math.Abs(d-optimalDistance)/(r1+r2)
 	if distanceFactor < 0 {
 		distanceFactor = 0
 	}
-	
+
 	// Combined confidence (weighted average)
 	confidence := 0.5*overlapRatio + 0.3*sizeFactor + 0.2*distanceFactor
-	
+
 	// Clamp between 0 and 1
 	if confidence < 0 {
 		confidence = 0
@@ -558,7 +558,7 @@ func (ls *LocationService) calculateIntersectionConfidence(d, r1, r2, area float
 	if confidence > 1 {
 		confidence = 1
 	}
-	
+
 	return confidence
 }
 
@@ -566,7 +566,7 @@ func (ls *LocationService) calculateIntersectionConfidence(d, r1, r2, area float
 func (ls *LocationService) findDistanceImproved(rssi int, frequency float64, environment string) float64 {
 	freqMHz := frequency / 1e6
 	plD0 := 32.45 + 20*math.Log10(freqMHz)
-	
+
 	// Adjust path loss exponent based on environment
 	pathLossExponent := DefaultPathLossExponent
 	switch environment {
@@ -579,11 +579,11 @@ func (ls *LocationService) findDistanceImproved(rssi int, frequency float64, env
 	default:
 		pathLossExponent = DefaultPathLossExponent
 	}
-	
+
 	pl := DefaultTxPower - float64(rssi)
 	logD := (pl - plD0) / (10 * pathLossExponent)
 	distance := DefaultReferenceDistance * math.Pow(10, logD)
-	
+
 	// Add uncertainty bounds - return base distance for now
 	return distance
 }

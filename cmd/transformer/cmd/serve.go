@@ -40,7 +40,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		EnableJSONLog: cfg.RawDataLog.EnableJSONLog,
 		MaxFileSize:   cfg.RawDataLog.MaxFileSize,
 	}
-	
+
 	loggerService, err := services.NewLoggerService(loggerConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create logger service: %w", err)

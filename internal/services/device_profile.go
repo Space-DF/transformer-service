@@ -17,11 +17,11 @@ type DeviceProfileService struct {
 // NewDeviceProfileService creates a new device profile service
 func NewDeviceProfileService(configPath string) (*DeviceProfileService, error) {
 	service := &DeviceProfileService{}
-	
+
 	if err := service.LoadProfiles(configPath); err != nil {
 		return nil, fmt.Errorf("failed to load device profiles: %w", err)
 	}
-	
+
 	return service, nil
 }
 

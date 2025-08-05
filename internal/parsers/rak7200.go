@@ -40,20 +40,20 @@ func (p *RAK7200Parser) extractDevEUI(payload map[string]interface{}) string {
 			return devEUI
 		}
 	}
-	
+
 	if devEUI, ok := payload["dev_eui"].(string); ok {
 		return devEUI
 	}
-	
+
 	if devEUI, ok := payload["devEui"].(string); ok {
 		return devEUI
 	}
-	
+
 	if deviceInfo, ok := payload["deviceInfo"].(map[string]interface{}); ok {
 		if devEUI, ok := deviceInfo["devEui"].(string); ok {
 			return devEUI
 		}
 	}
-	
+
 	return ""
 }

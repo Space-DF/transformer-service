@@ -33,18 +33,18 @@ func main() {
 
 	// Statistics tracking
 	var stats struct {
-		total          int
-		singleGateway  int
-		multiGateway   int
-		errors         int
-		locationMatch  int
-		locationDiff   int
+		total         int
+		singleGateway int
+		multiGateway  int
+		errors        int
+		locationMatch int
+		locationDiff  int
 	}
 
 	for scanner.Scan() {
 		lineNum++
 		line := scanner.Text()
-		
+
 		var logEntry map[string]interface{}
 		if err := json.Unmarshal([]byte(line), &logEntry); err != nil {
 			fmt.Printf("Line %d: Error parsing JSON: %v\n", lineNum, err)
@@ -107,11 +107,11 @@ func main() {
 			if locationResult, ok := processingInfo["location_result"].(map[string]interface{}); ok {
 				originalLat, _ := locationResult["latitude"].(float64)
 				originalLon, _ := locationResult["longitude"].(float64)
-				
+
 				// Check if locations match (within small tolerance)
 				latDiff := math.Abs(locationData.Latitude - originalLat)
 				lonDiff := math.Abs(locationData.Longitude - originalLon)
-				
+
 				if latDiff < 0.000001 && lonDiff < 0.000001 {
 					stats.locationMatch++
 				} else {
@@ -144,7 +144,7 @@ func main() {
 	fmt.Printf("Processing errors: %d\n", stats.errors)
 	fmt.Printf("Location matches: %d\n", stats.locationMatch)
 	fmt.Printf("Location differences: %d\n", stats.locationDiff)
-	
+
 	if stats.total > 0 {
 		successRate := float64(stats.locationMatch) / float64(stats.total-stats.errors) * 100
 		fmt.Printf("Algorithm accuracy: %.2f%%\n", successRate)

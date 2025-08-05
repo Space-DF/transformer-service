@@ -8,41 +8,41 @@ import (
 	"log"
 	"time"
 
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/Space-DF/transformer-service-go/internal/config"
 	"github.com/Space-DF/transformer-service-go/internal/models"
 	"github.com/Space-DF/transformer-service-go/internal/parsers"
 	"github.com/Space-DF/transformer-service-go/internal/services"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // Consumer handles MQTT message consumption via AMQP
 type Consumer struct {
-	config          config.MQTTConfig
-	conn            *amqp.Connection
-	channel         *amqp.Channel
-	locationService *services.LocationService
-	transformService *services.TransformService
-	loggerService   *services.LoggerService
+	config               config.MQTTConfig
+	conn                 *amqp.Connection
+	channel              *amqp.Channel
+	locationService      *services.LocationService
+	transformService     *services.TransformService
+	loggerService        *services.LoggerService
 	deviceProfileService *services.DeviceProfileService
-	done            chan bool
+	done                 chan bool
 }
 
 // NewConsumer creates a new MQTT consumer
 func NewConsumer(cfg config.MQTTConfig, loggerService *services.LoggerService, deviceProfileService *services.DeviceProfileService) *Consumer {
 	return &Consumer{
-		config:           cfg,
-		locationService:  services.NewLocationService(),
-		transformService: services.NewTransformService(),
-		loggerService:    loggerService,
+		config:               cfg,
+		locationService:      services.NewLocationService(),
+		transformService:     services.NewTransformService(),
+		loggerService:        loggerService,
 		deviceProfileService: deviceProfileService,
-		done:             make(chan bool),
+		done:                 make(chan bool),
 	}
 }
 
 // Connect establishes connection to AMQP broker
 func (c *Consumer) Connect() error {
 	var err error
-	
+
 	// Connect to AMQP broker
 	c.conn, err = amqp.Dial(c.config.BrokerURL)
 	if err != nil {
@@ -83,11 +83,11 @@ func (c *Consumer) Start(ctx context.Context) error {
 
 	// Bind the queue to the exchange with routing key
 	err = c.channel.QueueBind(
-		inputQueue.Name,    // queue name
+		inputQueue.Name,     // queue name
 		c.config.RoutingKey, // routing key
-		c.config.Exchange,  // exchange
-		false,              // no-wait
-		nil,                // arguments
+		c.config.Exchange,   // exchange
+		false,               // no-wait
+		nil,                 // arguments
 	)
 	if err != nil {
 		return fmt.Errorf("failed to bind queue: %w", err)
@@ -108,7 +108,7 @@ func (c *Consumer) Start(ctx context.Context) error {
 
 	// Start consuming messages
 	messages, err := c.channel.Consume(
-		inputQueue.Name,    // queue
+		inputQueue.Name,      // queue
 		c.config.ConsumerTag, // consumer
 		c.config.AutoAck,     // auto-ack
 		false,                // exclusive
@@ -155,7 +155,7 @@ func (c *Consumer) processMessages(ctx context.Context, messages <-chan amqp.Del
 				// 	msg.Nack(false, true)
 				// }
 			}
-			
+
 			// Always acknowledge message to remove it from queue if not auto-ack
 			if !c.config.AutoAck {
 				msg.Ack(false)
@@ -174,41 +174,25 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 		return fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 
-	// Debug: Print raw payload structure to understand the format
-	log.Printf("Payload keys: %v", getKeys(rawPayload))
-	
-	// Log the complete raw payload structure for debugging
-	rawPayloadJSON, _ := json.MarshalIndent(rawPayload, "", "  ")
-	log.Printf("Complete raw payload:\n%s", string(rawPayloadJSON))
-
 	// Check if there's a base64 encoded payload that needs to be decoded
 	var payload map[string]interface{}
 	var encodedPayload string
 	var found bool
-	var foundLocation string
-	
+
 	// Check for payload key (JSON stringified)
 	if payloadStr, ok := rawPayload["payload"].(string); ok {
 		encodedPayload = payloadStr
 		found = true
-		foundLocation = "payload"
 	}
-	
+
 	if found {
 		// First try to parse as JSON string directly
 		var jsonPayload map[string]interface{}
 		if err := json.Unmarshal([]byte(encodedPayload), &jsonPayload); err == nil {
-			log.Printf("Successfully parsed JSON string payload from %s field", foundLocation)
-			log.Printf("JSON payload keys: %v", getKeys(jsonPayload))
-			
-			// Log the complete JSON payload structure
-			jsonPayloadJSON, _ := json.MarshalIndent(jsonPayload, "", "  ")
-			log.Printf("Complete JSON payload:\n%s", string(jsonPayloadJSON))
-			
+
 			payload = jsonPayload
 		} else {
 			// If JSON parsing fails, use raw payload
-			log.Printf("Failed to parse JSON string payload from %s field, using raw payload", foundLocation)
 			payload = rawPayload
 		}
 	} else {
@@ -219,31 +203,22 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 	// Debug: Print final payload structure and decode raw_data if found
 	var locationPayload map[string]interface{}
 	locationPayload = payload // Default to original payload
-	
+
 	if rawData, ok := payload["raw_data"]; ok {
-		if rawDataMap, ok := rawData.(map[string]interface{}); ok {
-			log.Printf("Found raw_data at root level: %v", getKeys(rawDataMap))
+		if _, ok := rawData.(map[string]interface{}); ok {
+			// rawDataMap found
 		} else if rawDataStr, ok := rawData.(string); ok {
-			log.Printf("Found raw_data at root level (string), attempting base64 decode")
-			if decodedData, err := base64.StdEncoding.DecodeString(rawDataStr); err != nil {
-				log.Printf("Failed to decode raw_data: %v", err)
-			} else {
-				log.Printf("Successfully decoded raw_data: %x (hex)", decodedData)
+			if decodedData, err := base64.StdEncoding.DecodeString(rawDataStr); err == nil {
 				// Try to parse as JSON
-				jsonStr := string(decodedData)
-				log.Printf("Decoded raw_data as string: %s", jsonStr)
 				var jsonData interface{}
-				if err := json.Unmarshal(decodedData, &jsonData); err != nil {
-					log.Printf("Failed to parse decoded raw_data as JSON: %v", err)
-					payload["decoded_raw_data"] = decodedData
-				} else {
-					log.Printf("Successfully parsed decoded raw_data as JSON")
+				if err := json.Unmarshal(decodedData, &jsonData); err == nil {
 					payload["decoded_raw_data"] = jsonData
 					// Use decoded JSON data for location calculation if it's a map
 					if jsonMap, ok := jsonData.(map[string]interface{}); ok {
-						log.Printf("Using decoded JSON data for location calculation")
 						locationPayload = jsonMap
 					}
+				} else {
+					payload["decoded_raw_data"] = decodedData
 				}
 			}
 		}
@@ -256,7 +231,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 			devEUI = eui
 		}
 	}
-	
+
 	// If not found in payload, try locationPayload or check for dev_eui directly
 	if devEUI == "" {
 		if eui, ok := locationPayload["dev_eui"].(string); ok {
@@ -273,7 +248,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 			}
 		}
 	}
-	
+
 	// Check if device should be skipped
 	if devEUI != "" && c.deviceProfileService != nil {
 		shouldSkip, skipErr := c.deviceProfileService.ShouldSkipDevice(devEUI)
@@ -284,18 +259,18 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 			return nil
 		}
 	}
-	
+
 	// Check if device requires location calculation
 	var deviceLocation *models.DeviceLocationData
-	err := error(nil)
-	
+	var err error
+
 	if devEUI != "" && c.deviceProfileService != nil {
 		requiresCalculation, profileErr := c.deviceProfileService.RequiresLocationCalculation(devEUI)
 		if profileErr != nil {
 			log.Printf("Warning: Could not get device profile for %s: %v. Proceeding with location calculation.", devEUI, profileErr)
 			requiresCalculation = true // Default to requiring calculation
 		}
-		
+
 		if requiresCalculation {
 			// Calculate device location using decoded data if available, otherwise original payload
 			deviceLocation, err = c.locationService.CalculateDeviceLocation(locationPayload)
@@ -320,24 +295,24 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 		log.Printf("No device profile service available or devEUI not found, proceeding with location calculation")
 		deviceLocation, err = c.locationService.CalculateDeviceLocation(locationPayload)
 	}
-	
+
 	// Prepare processing info for logging
 	processingInfo := models.ProcessingInfo{
 		LocationCalculated: err == nil,
 		HasLocationData:    c.hasLocationData(locationPayload),
 		GatewayCount:       c.countGateways(locationPayload),
 	}
-	
+
 	if err != nil {
 		processingInfo.ErrorMessage = err.Error()
-		
+
 		// Log the raw data even if location calculation fails
 		if c.loggerService != nil {
 			if logErr := c.loggerService.LogRawData(payload, locationPayload, processingInfo); logErr != nil {
 				log.Printf("Failed to log raw data: %v", logErr)
 			}
 		}
-		
+
 		return fmt.Errorf("failed to calculate device location: %w", err)
 	}
 
@@ -378,10 +353,10 @@ func (c *Consumer) publishTransformedData(data *models.TransformedDeviceData) er
 	}
 
 	err = c.channel.Publish(
-		"",                    // exchange (use default for MQTT topics)
-		c.config.OutputTopic,  // routing key (topic name)
-		false,                 // mandatory
-		false,                 // immediate
+		"",                   // exchange (use default for MQTT topics)
+		c.config.OutputTopic, // routing key (topic name)
+		false,                // mandatory
+		false,                // immediate
 		amqp.Publishing{
 			ContentType:  "application/json",
 			Body:         body,
@@ -411,7 +386,7 @@ func getKeys(m map[string]interface{}) []string {
 func (c *Consumer) hasLocationData(payload map[string]interface{}) bool {
 	// Try to extract uplink message from different possible locations
 	var uplinkMessage map[string]interface{}
-	
+
 	if msg, ok := payload["uplink_message"].(map[string]interface{}); ok {
 		uplinkMessage = msg
 	} else if payloadData, ok := payload["payload"].(map[string]interface{}); ok {
@@ -427,7 +402,7 @@ func (c *Consumer) hasLocationData(payload map[string]interface{}) bool {
 	// Check for gateway metadata in multiple possible locations
 	var rxMetadata []interface{}
 	var ok bool
-	
+
 	if rxMetadata, ok = uplinkMessage["rx_metadata"].([]interface{}); ok {
 		return len(rxMetadata) > 0
 	}
@@ -440,7 +415,7 @@ func (c *Consumer) hasLocationData(payload map[string]interface{}) bool {
 	if rxMetadata, ok = uplinkMessage["rxInfo"].([]interface{}); ok {
 		return len(rxMetadata) > 0
 	}
-	
+
 	return false
 }
 
@@ -448,7 +423,7 @@ func (c *Consumer) hasLocationData(payload map[string]interface{}) bool {
 func (c *Consumer) countGateways(payload map[string]interface{}) int {
 	// Try to extract uplink message from different possible locations
 	var uplinkMessage map[string]interface{}
-	
+
 	if msg, ok := payload["uplink_message"].(map[string]interface{}); ok {
 		uplinkMessage = msg
 	} else if payloadData, ok := payload["payload"].(map[string]interface{}); ok {
@@ -464,7 +439,7 @@ func (c *Consumer) countGateways(payload map[string]interface{}) int {
 	// Check for gateway metadata in multiple possible locations
 	var rxMetadata []interface{}
 	var ok bool
-	
+
 	if rxMetadata, ok = uplinkMessage["rx_metadata"].([]interface{}); !ok {
 		if rxMetadata, ok = uplinkMessage["gateways"].([]interface{}); !ok {
 			if rxMetadata, ok = uplinkMessage["gateway_info"].([]interface{}); !ok {
@@ -472,7 +447,7 @@ func (c *Consumer) countGateways(payload map[string]interface{}) int {
 			}
 		}
 	}
-	
+
 	if !ok {
 		return 0
 	}
@@ -533,15 +508,15 @@ func (c *Consumer) extractGPSFromDeviceParser(profile string, payload map[string
 func (c *Consumer) extractGPSFromRAK4630(payload map[string]interface{}, organization string) (*models.DeviceLocationData, error) {
 	// Create RAK4630 parser
 	rak4630Parser := parsers.NewRAK4630Parser()
-	
+
 	// Use RAK4630 parser to extract GPS data from payload
 	locationData, err := rak4630Parser.ParsePayload(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse RAK4630 GPS data: %w", err)
 	}
-	
+
 	// Set organization
 	locationData.Organization = organization
-	
+
 	return locationData, nil
 }

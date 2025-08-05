@@ -17,7 +17,7 @@ type RAK4630Parser struct{}
 // SensorFrame represents the CBOR sensor frame structure from firmware
 type SensorFrame struct {
 	ID     int    `cbor:"id"`
-	Type   int    `cbor:"type"`  
+	Type   int    `cbor:"type"`
 	Fmt    string `cbor:"fmt"`
 	Sensor string `cbor:"sensor"`
 }
@@ -67,20 +67,15 @@ func (p *RAK4630Parser) parseFromCBORData(payload map[string]interface{}) (*mode
 	var dataStr string
 	var ok bool
 
-	fmt.Printf("[DEBUG RAK4630] parseFromCBORData: Payload keys: %v\n", getPayloadKeys(payload))
-
 	if decodedData, exists := payload["decoded_raw_data"].(map[string]interface{}); exists {
-		fmt.Printf("[DEBUG RAK4630] Found decoded_raw_data, keys: %v\n", getPayloadKeys(decodedData))
 		if dataStr, ok = decodedData["data"].(string); !ok {
 			return nil, fmt.Errorf("data field not found in decoded_raw_data")
 		}
-		fmt.Printf("[DEBUG RAK4630] Found data field in decoded_raw_data: %s\n", dataStr)
 	} else {
 		// Try direct access to data field
 		if dataStr, ok = payload["data"].(string); !ok {
 			return nil, fmt.Errorf("data field not found in payload")
 		}
-		fmt.Printf("[DEBUG RAK4630] Found data field in payload: %s\n", dataStr)
 	}
 
 	// Decode base64 data
@@ -88,25 +83,18 @@ func (p *RAK4630Parser) parseFromCBORData(payload map[string]interface{}) (*mode
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode base64 data: %w", err)
 	}
-	fmt.Printf("[DEBUG RAK4630] Decoded base64 data length: %d bytes, hex: %x\n", len(cborData), cborData)
 
 	// Parse CBOR data
 	var frame SensorFrame
 	if err := cbor.Unmarshal(cborData, &frame); err != nil {
-		fmt.Printf("[DEBUG RAK4630] Failed to parse CBOR data: %v\n", err)
 		return nil, fmt.Errorf("failed to parse CBOR data: %w", err)
 	}
-	fmt.Printf("[DEBUG RAK4630] Successfully parsed CBOR frame: ID=%d, Type=%d, Fmt=%s, Sensor=%s\n", 
-		frame.ID, frame.Type, frame.Fmt, frame.Sensor)
 
 	// Extract sensor data and look for GPS coordinates
 	location, err := p.parseSensorData(frame)
 	if err != nil {
-		fmt.Printf("[DEBUG RAK4630] Failed to parse sensor data: %v\n", err)
 		return nil, fmt.Errorf("failed to parse sensor data: %w", err)
 	}
-	fmt.Printf("[DEBUG RAK4630] Successfully parsed GPS coordinates: lat=%f, lon=%f\n", 
-		location.Latitude, location.Longitude)
 
 	return location, nil
 }
@@ -116,7 +104,7 @@ func (p *RAK4630Parser) parseSensorData(frame SensorFrame) (*models.DeviceLocati
 	// Parse sensor string which contains comma-separated values
 	// Format example: "40.81,43.22,100.24,50,40.86,2.20,-9.41,-3.15,-0.03,-0.02,0.03,36.30,969.90,5.70,16.05,108.22,0.25,2000,279,03,80,100,4.053392"
 	// GPS coordinates are at positions 14 (lat) and 15 (lon)
-	
+
 	sensorData := frame.Sensor
 	if sensorData == "" {
 		return nil, fmt.Errorf("sensor data is empty")
@@ -129,8 +117,7 @@ func (p *RAK4630Parser) parseSensorData(frame SensorFrame) (*models.DeviceLocati
 
 	// Split by comma
 	values := strings.Split(sensorData, ",")
-	fmt.Printf("[DEBUG RAK4630] Sensor data split into %d values: %v\n", len(values), values)
-	
+
 	if len(values) < 16 {
 		return nil, fmt.Errorf("insufficient sensor data values: %d (expected at least 16 for GPS)", len(values))
 	}
@@ -138,8 +125,6 @@ func (p *RAK4630Parser) parseSensorData(frame SensorFrame) (*models.DeviceLocati
 	// GPS coordinates are at positions 14 (lat) and 15 (lon)
 	latStr := strings.TrimSpace(values[14])
 	lonStr := strings.TrimSpace(values[15])
-	
-	fmt.Printf("[DEBUG RAK4630] Extracting GPS from positions 14,15: lat=%s, lon=%s\n", latStr, lonStr)
 
 	lat, err1 := strconv.ParseFloat(latStr, 64)
 	lon, err2 := strconv.ParseFloat(lonStr, 64)
@@ -153,8 +138,6 @@ func (p *RAK4630Parser) parseSensorData(frame SensorFrame) (*models.DeviceLocati
 		return nil, fmt.Errorf("sensor data does not contain valid GPS coordinates: %w", err)
 	}
 
-	fmt.Printf("[DEBUG RAK4630] Successfully extracted GPS coordinates: lat=%f, lon=%f\n", lat, lon)
-
 	return &models.DeviceLocationData{
 		Latitude:  lat,
 		Longitude: lon,
@@ -165,7 +148,7 @@ func (p *RAK4630Parser) parseSensorData(frame SensorFrame) (*models.DeviceLocati
 func (p *RAK4630Parser) parseFromFrmPayload(payload map[string]interface{}) (*models.DeviceLocationData, error) {
 	var frmPayload string
 	var ok bool
-	
+
 	// Look for frm_payload in uplink_message
 	if uplinkMsg, exists := payload["uplink_message"].(map[string]interface{}); exists {
 		if frmPayload, ok = uplinkMsg["frm_payload"].(string); !ok {
@@ -270,7 +253,7 @@ func (p *RAK4630Parser) parseGPSCoordinates(payloadBytes []byte) (float64, float
 	// RAK4630 GPS format (may need adjustment based on actual format):
 	// Bytes 0-3: Latitude (32-bit signed integer, divide by 10000000 for decimal degrees)
 	// Bytes 4-7: Longitude (32-bit signed integer, divide by 10000000 for decimal degrees)
-	
+
 	latInt := int32(payloadBytes[0]) | int32(payloadBytes[1])<<8 | int32(payloadBytes[2])<<16 | int32(payloadBytes[3])<<24
 	lonInt := int32(payloadBytes[4]) | int32(payloadBytes[5])<<8 | int32(payloadBytes[6])<<16 | int32(payloadBytes[7])<<24
 
@@ -307,21 +290,21 @@ func (p *RAK4630Parser) extractDevEUI(payload map[string]interface{}) string {
 			return devEUI
 		}
 	}
-	
+
 	if devEUI, ok := payload["dev_eui"].(string); ok {
 		return devEUI
 	}
-	
+
 	if devEUI, ok := payload["devEui"].(string); ok {
 		return devEUI
 	}
-	
+
 	if deviceInfo, ok := payload["deviceInfo"].(map[string]interface{}); ok {
 		if devEUI, ok := deviceInfo["devEui"].(string); ok {
 			return devEUI
 		}
 	}
-	
+
 	return ""
 }
 
@@ -337,35 +320,35 @@ func getPayloadKeys(m map[string]interface{}) []string {
 // ParseTextCoordinates parses coordinates from text format (utility method)
 func (p *RAK4630Parser) ParseTextCoordinates(text string) (float64, float64, error) {
 	text = strings.TrimSpace(text)
-	
+
 	if strings.Contains(text, ",") {
 		parts := strings.Split(text, ",")
 		if len(parts) != 2 {
 			return 0, 0, fmt.Errorf("invalid coordinate format: %s", text)
 		}
-		
+
 		latStr := strings.TrimSpace(parts[0])
 		lonStr := strings.TrimSpace(parts[1])
-		
+
 		latStr = strings.TrimPrefix(latStr, "lat:")
 		lonStr = strings.TrimPrefix(lonStr, "lon:")
-		
+
 		lat, err := strconv.ParseFloat(latStr, 64)
 		if err != nil {
 			return 0, 0, fmt.Errorf("invalid latitude: %s", latStr)
 		}
-		
+
 		lon, err := strconv.ParseFloat(lonStr, 64)
 		if err != nil {
 			return 0, 0, fmt.Errorf("invalid longitude: %s", lonStr)
 		}
-		
+
 		if err := p.validateCoordinates(lat, lon); err != nil {
 			return 0, 0, err
 		}
-		
+
 		return lat, lon, nil
 	}
-	
+
 	return 0, 0, fmt.Errorf("unsupported coordinate text format: %s", text)
 }

@@ -7,8 +7,8 @@ type ReceiveDataRequest struct {
 
 // UplinkMessage represents the uplink message structure from LoRaWAN
 type UplinkMessage struct {
-	RxMetadata []Gateway             `json:"rx_metadata"`
-	Settings   UplinkSettings        `json:"settings"`
+	RxMetadata []Gateway      `json:"rx_metadata"`
+	Settings   UplinkSettings `json:"settings"`
 }
 
 // Gateway represents a LoRaWAN gateway
@@ -44,6 +44,7 @@ type DeviceLocationData struct {
 // TransformedDeviceData represents the final transformed output
 type TransformedDeviceData struct {
 	DeviceEUI    string                 `json:"device_eui"`
+	DeviceID     string                 `json:"device_id"`
 	Location     LocationCoordinates    `json:"location"`
 	Timestamp    string                 `json:"timestamp"`
 	Organization string                 `json:"organization"`
@@ -81,10 +82,10 @@ type RawDataLog struct {
 
 // ProcessingInfo contains information about how the data was processed
 type ProcessingInfo struct {
-	LocationCalculated bool        `json:"location_calculated"`
-	ErrorMessage       string      `json:"error_message,omitempty"`
-	GatewayCount       int         `json:"gateway_count"`
-	HasLocationData    bool        `json:"has_location_data"`
+	LocationCalculated bool            `json:"location_calculated"`
+	ErrorMessage       string          `json:"error_message,omitempty"`
+	GatewayCount       int             `json:"gateway_count"`
+	HasLocationData    bool            `json:"has_location_data"`
 	LocationResult     *LocationResult `json:"location_result,omitempty"`
 }
 
@@ -97,13 +98,13 @@ type LocationResult struct {
 
 // DeviceProfile represents a device profile configuration
 type DeviceProfile struct {
-	Name                       string `json:"name"`
-	Description                string `json:"description"`
-	HasGPS                     bool   `json:"has_gps"`
-	ParserType                 string `json:"parser_type"`
+	Name                        string `json:"name"`
+	Description                 string `json:"description"`
+	HasGPS                      bool   `json:"has_gps"`
+	ParserType                  string `json:"parser_type"`
 	LocationCalculationRequired bool   `json:"location_calculation_required"`
-	SupportedPorts             []int  `json:"supported_ports"`
-	PayloadFormat              string `json:"payload_format"`
+	SupportedPorts              []int  `json:"supported_ports"`
+	PayloadFormat               string `json:"payload_format"`
 }
 
 // DeviceMapping represents a device EUI to profile mapping

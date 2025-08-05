@@ -63,7 +63,7 @@ func (ls *LoggerService) LogRawData(
 	decodedRawData interface{},
 	processingInfo models.ProcessingInfo,
 ) error {
-	
+
 	// Extract device information
 	deviceEUI := extractDeviceEUI(decodedRawData)
 	deviceID := extractStringFromPayload(originalPayload, "device_id")
@@ -108,7 +108,7 @@ func (ls *LoggerService) logToJSON(entry models.RawDataLog) error {
 	if err != nil {
 		return err
 	}
-	
+
 	fmt.Printf("RAW_DATA_LOG: %s\n", string(jsonData))
 	return nil
 }
@@ -137,7 +137,7 @@ func (ls *LoggerService) logToFile(entry models.RawDataLog) error {
 	}
 
 	ls.currentFileSize += int64(n)
-	
+
 	// Sync to ensure data is written to disk
 	if err := ls.currentLogFile.Sync(); err != nil {
 		return err
@@ -182,12 +182,12 @@ func extractDeviceEUI(decodedData interface{}) string {
 				return devEui
 			}
 		}
-		
+
 		// Try direct devEui field
 		if devEui, exists := dataMap["devEui"].(string); exists {
 			return devEui
 		}
-		
+
 		// Try dev_eui field
 		if devEui, exists := dataMap["dev_eui"].(string); exists {
 			return devEui

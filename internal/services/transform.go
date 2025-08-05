@@ -27,9 +27,13 @@ func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLoc
 	// Extract additional metadata from original payload
 	metadata := ts.extractMetadata(originalPayload)
 
+	// Extract device ID from payload
+	deviceID := ts.extractDeviceID(originalPayload)
+
 	// Create transformed data structure
 	transformedData := &models.TransformedDeviceData{
 		DeviceEUI: deviceLocation.DevEUI,
+		DeviceID:  deviceID,
 		Location: models.LocationCoordinates{
 			Latitude:  deviceLocation.Latitude,
 			Longitude: deviceLocation.Longitude,
@@ -57,7 +61,7 @@ func (ts *TransformService) determineLocationAccuracy(payload map[string]interfa
 	// Try to find gateway metadata in multiple possible locations
 	var rxMetadata []interface{}
 	var ok bool
-	
+
 	if rxMetadata, ok = uplinkMessage["rx_metadata"].([]interface{}); !ok {
 		if rxMetadata, ok = uplinkMessage["gateways"].([]interface{}); !ok {
 			if rxMetadata, ok = uplinkMessage["gateway_info"].([]interface{}); !ok {
@@ -112,7 +116,7 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 	} else {
 		uplinkMessage = payload
 	}
-	
+
 	if len(uplinkMessage) > 0 {
 		// Add frequency information
 		if settings, ok := uplinkMessage["settings"].(map[string]interface{}); ok {
@@ -124,7 +128,7 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 		// Add gateway information - try multiple possible locations
 		var rxMetadata []interface{}
 		var metadataOk bool
-		
+
 		if rxMetadata, metadataOk = uplinkMessage["rx_metadata"].([]interface{}); !metadataOk {
 			if rxMetadata, metadataOk = uplinkMessage["gateways"].([]interface{}); !metadataOk {
 				if rxMetadata, metadataOk = uplinkMessage["gateway_info"].([]interface{}); !metadataOk {
@@ -133,35 +137,35 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 				}
 			}
 		}
-		
+
 		if metadataOk {
 			var gateways []map[string]interface{}
 			for _, gw := range rxMetadata {
 				if gateway, ok := gw.(map[string]interface{}); ok {
 					gatewayInfo := make(map[string]interface{})
-					
+
 					// Add gateway ID if available
 					if gatewayID, exists := gateway["gateway_ids"]; exists {
 						gatewayInfo["gateway_id"] = gatewayID
 					} else if gatewayID, exists := gateway["gatewayId"]; exists {
 						gatewayInfo["gateway_id"] = gatewayID
 					}
-					
+
 					// Add RSSI
 					if rssi, exists := gateway["rssi"]; exists {
 						gatewayInfo["rssi"] = rssi
 					}
-					
+
 					// Add SNR if available
 					if snr, exists := gateway["snr"]; exists {
 						gatewayInfo["snr"] = snr
 					}
-					
+
 					// Add location if available
 					if location, exists := gateway["location"]; exists {
 						gatewayInfo["location"] = location
 					}
-					
+
 					if len(gatewayInfo) > 0 {
 						gateways = append(gateways, gatewayInfo)
 					}
@@ -196,4 +200,17 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 	}
 
 	return metadata
+}
+
+// extractDeviceID extracts device ID from the payload
+func (ts *TransformService) extractDeviceID(payload map[string]interface{}) string {
+	// Try direct device_id field in payload
+	if deviceID, exists := payload["device_id"]; exists {
+		if strVal, ok := deviceID.(string); ok {
+			return strVal
+		}
+	}
+	
+	// If no device_id found, return "unknown"
+	return "unknown"
 }

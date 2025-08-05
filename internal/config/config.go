@@ -9,8 +9,8 @@ import (
 )
 
 type Config struct {
-	Server    ServerConfig    `mapstructure:"server"`
-	MQTT      MQTTConfig      `mapstructure:"mqtt"`
+	Server     ServerConfig     `mapstructure:"server"`
+	MQTT       MQTTConfig       `mapstructure:"mqtt"`
 	RawDataLog RawDataLogConfig `mapstructure:"raw_data_log"`
 }
 
