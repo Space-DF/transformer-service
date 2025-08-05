@@ -286,6 +286,10 @@ func (p *RAK4630Parser) parseGPSCoordinates(payloadBytes []byte) (float64, float
 
 // validateCoordinates validates GPS coordinates
 func (p *RAK4630Parser) validateCoordinates(latitude, longitude float64) error {
+	// Skip coordinates when both are 0.00 (indicates no GPS fix)
+	if latitude == 0.0 && longitude == 0.0 {
+		return fmt.Errorf("GPS coordinates are 0,0 - no GPS fix available")
+	}
 	if latitude < -90 || latitude > 90 {
 		return fmt.Errorf("invalid latitude: %f", latitude)
 	}

@@ -15,7 +15,7 @@ import (
 	"github.com/Space-DF/transformer-service-go/internal/services"
 )
 
-// Consumer handles MQTT message consumption via RabbitMQ
+// Consumer handles MQTT message consumption via AMQP
 type Consumer struct {
 	config          config.MQTTConfig
 	conn            *amqp.Connection
@@ -39,14 +39,14 @@ func NewConsumer(cfg config.MQTTConfig, loggerService *services.LoggerService, d
 	}
 }
 
-// Connect establishes connection to RabbitMQ
+// Connect establishes connection to AMQP broker
 func (c *Consumer) Connect() error {
 	var err error
 	
-	// Connect to RabbitMQ
+	// Connect to AMQP broker
 	c.conn, err = amqp.Dial(c.config.BrokerURL)
 	if err != nil {
-		return fmt.Errorf("failed to connect to RabbitMQ: %w", err)
+		return fmt.Errorf("failed to connect to AMQP broker: %w", err)
 	}
 
 	// Create a channel
@@ -64,7 +64,7 @@ func (c *Consumer) Connect() error {
 	return nil
 }
 
-// Start begins consuming messages from RabbitMQ with routing
+// Start begins consuming messages from AMQP broker with routing
 func (c *Consumer) Start(ctx context.Context) error {
 	// Note: amq.topic is a built-in exchange, no need to declare it
 

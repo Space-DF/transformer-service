@@ -18,7 +18,7 @@ import (
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the transformer service MQTT consumer",
-	Long:  `Starts the transformer service MQTT consumer to process LoRaWAN device data from RabbitMQ.`,
+	Long:  `Starts the transformer service MQTT consumer to process LoRaWAN device data from AMQP broker.`,
 	RunE:  runServe,
 }
 
@@ -59,12 +59,12 @@ func runServe(cmd *cobra.Command, args []string) error {
 	// Create MQTT consumer
 	consumer := mqtt.NewConsumer(cfg.MQTT, loggerService, deviceProfileService)
 
-	// Connect to RabbitMQ
+	// Connect to AMQP broker
 	if err := consumer.Connect(); err != nil {
-		return fmt.Errorf("failed to connect to RabbitMQ: %w", err)
+		return fmt.Errorf("failed to connect to AMQP broker: %w", err)
 	}
 
-	log.Printf("Connected to RabbitMQ: %s", cfg.MQTT.BrokerURL)
+	log.Printf("Connected to AMQP broker: %s", cfg.MQTT.BrokerURL)
 	log.Printf("Consuming from queue: %s with routing key: %s", cfg.MQTT.Queue, cfg.MQTT.RoutingKey)
 	log.Printf("Publishing to topic: %s", cfg.MQTT.OutputTopic)
 	log.Printf("Raw data logging enabled - File: %t, JSON: %t, Dir: %s", cfg.RawDataLog.EnableFileLog, cfg.RawDataLog.EnableJSONLog, cfg.RawDataLog.LogDir)

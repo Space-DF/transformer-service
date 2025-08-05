@@ -2,7 +2,7 @@
 server:
   log_level: "info"
 
-# RabbitMQ Consumer Configuration - Using existing amq.topic from MQTT
+# AMQP Consumer Configuration - Using existing amq.topic from MQTT
 mqtt:
   broker_url: "amqp://admin:password@rabbitmq:5672/"
   exchange: "amq.topic"
