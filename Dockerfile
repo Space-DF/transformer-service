@@ -22,8 +22,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/transf
 # Final stage
 FROM alpine:latest
 
-# Install ca-certificates for HTTPS requests
-RUN apk --no-cache add ca-certificates
+# Install ca-certificates for HTTPS requests and procps for health check
+RUN apk --no-cache add ca-certificates procps
 
 WORKDIR /root/
 
@@ -32,6 +32,10 @@ COPY --from=builder /app/main .
 COPY --from=builder /app/configs ./configs
 
 # No port exposure needed for MQTT consumer
+
+# Health check - verify main process is running
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD ps aux | grep -q '[m]ain serve' || exit 1
 
 # Command to run
 CMD ["./main", "serve"]
