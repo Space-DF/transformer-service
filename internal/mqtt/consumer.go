@@ -308,6 +308,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 
 		// Log the raw data even if location calculation fails
 		if c.loggerService != nil {
+			log.Printf("[LogRawData] Called (error path) for device: %s, location calculated: %v, error: %v", devEUI, processingInfo.LocationCalculated, processingInfo.ErrorMessage)
 			if logErr := c.loggerService.LogRawData(payload, locationPayload, processingInfo); logErr != nil {
 				log.Printf("Failed to log raw data: %v", logErr)
 			}
@@ -336,6 +337,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 
 	// Log successful processing
 	if c.loggerService != nil {
+		log.Printf("[LogRawData] Called (success path) for device: %s, location calculated: %v", devEUI, processingInfo.LocationCalculated)
 		if logErr := c.loggerService.LogRawData(payload, locationPayload, processingInfo); logErr != nil {
 			log.Printf("Failed to log raw data: %v", logErr)
 		}

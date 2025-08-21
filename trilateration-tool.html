@@ -244,10 +244,43 @@
             <h1>Trilateration Visualization Tool</h1>
             <p>Upload JSONL files to visualize gateway locations, RSSI circles, and trilateration results</p>
         </div>
-        
+        <div style="padding:16px;background:#fffbe6;border-left:4px solid #3498db;margin-bottom:8px;">
+            <b>How to use:</b>
+            <ul style="margin-top:8px;font-size:14px;">
+                <li>
+                    <b>Auto-loads latest log:</b> If running in a server environment that exposes <code>/logs/raw_data/</code>, this tool will automatically load the latest JSONL log file on page load.<br>
+                    <span style="font-size:12px;">(Requires backend to serve <code>/logs/raw_data/</code> and allow CORS. Otherwise, use manual upload.)</span>
+                </li>
+                <li>
+                    <b>Manual upload:</b> If auto-load fails, you can still upload a JSONL file from <code>transformer-service/logs/raw_data</code> (e.g., <code>raw_data_YYYYMMDD_HHMMSS.jsonl</code>).
+                </li>
+                <li>After loading, the tool will parse and display all records, gateways, and trilateration results.</li>
+            </ul>
+        </div>
         <div class="controls">
+            <div class="control-group" id="autoLogLoaderGroup">
+                <label for="logFileSelect"><b>Auto-load Log File:</b></label>
+                <select id="logFileSelect" style="min-width:220px"></select>
+                <button onclick="reloadLogList()" class="file-upload" style="padding:6px 14px;font-size:14px;">Reload Logs</button>
+                <span id="autoLoadStatus" style="margin-left:10px;font-size:13px;color:#888;"></span>
+                <span style="margin-left:25px;">
+                    <label for="autoReloadInterval" style="font-weight:normal;">Auto reload (seconds):</label>
+                    <select id="autoReloadInterval" style="width:60px;">
+                        <option value="0">Off</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                        <option value="15">15</option>
+                        <option value="30">30</option>
+                        <option value="45">45</option>
+                        <option value="60">60</option>
+                    </select>
+                    <span id="autoReloadCountdown" style="margin-left:8px;color:#888;font-weight:bold;display:none;">(0s)</span>
+                </span>
+            </div>
             <div class="control-group">
-                <label for="fileInput">JSONL File:</label>
+                <label for="fileInput">JSONL Log File (from <code>transformer-service/logs/raw_data</code>):</label>
                 <input type="file" id="fileInput" accept=".jsonl,.json" class="file-upload">
                 <button onclick="loadFile()" class="file-upload">Load File</button>
             </div>
@@ -349,6 +382,191 @@
         let markers = [];
         let currentRowIndex = 0;
         let verificationMode = false;
+
+        // --- Auto-load log file support ---
+        const LOGS_API_PATH = "/logs/raw_data/";
+        let availableLogFiles = [];
+        let autoLogLoaded = false;
+
+        // --- Auto-reload support ---
+        let autoReloadTimer = null;
+        let autoReloadCountdownTimer = null;
+        let autoReloadIntervalSec = 0;
+        let autoReloadCountdown = 0;
+
+        function updateAutoReloadCountdownDisplay() {
+            const countdownSpan = document.getElementById("autoReloadCountdown");
+            if (!countdownSpan) return;
+            if (autoReloadIntervalSec > 0) {
+                countdownSpan.style.display = "inline";
+                countdownSpan.textContent = `(${autoReloadCountdown}s)`;
+            } else {
+                countdownSpan.style.display = "none";
+            }
+        }
+
+        function setAutoReloadInterval(newIntervalSec) {
+            if (autoReloadTimer) {
+                clearInterval(autoReloadTimer);
+                autoReloadTimer = null;
+            }
+            if (autoReloadCountdownTimer) {
+                clearInterval(autoReloadCountdownTimer);
+                autoReloadCountdownTimer = null;
+            }
+            autoReloadIntervalSec = Number(newIntervalSec);
+            autoReloadCountdown = autoReloadIntervalSec;
+            updateAutoReloadCountdownDisplay();
+            if (autoReloadIntervalSec > 0) {
+                // Main reload timer
+                autoReloadTimer = setInterval(() => {
+                    autoReloadCountdown = autoReloadIntervalSec;
+                    autoLoadLogFile();
+                }, autoReloadIntervalSec * 1000);
+                // Countdown timer
+                autoReloadCountdownTimer = setInterval(() => {
+                    if (autoReloadCountdown > 0) {
+                        autoReloadCountdown--;
+                        updateAutoReloadCountdownDisplay();
+                    }
+                }, 1000);
+            }
+        }
+
+        // Reset countdown after each reload
+        async function autoLoadLogFile() {
+            autoReloadCountdown = autoReloadIntervalSec;
+            updateAutoReloadCountdownDisplay();
+            const select = document.getElementById("logFileSelect");
+            const status = document.getElementById("autoLoadStatus");
+            const file = select.value;
+            if (!file) {
+                status.textContent = "No log file selected.";
+                autoLogLoaded = false;
+                return;
+            }
+            status.textContent = "Loading " + file + "...";
+            try {
+                const resp = await fetch(LOGS_API_PATH + file);
+                if (!resp.ok) throw new Error("HTTP " + resp.status);
+                const logdata = await resp.text();
+                processData(logdata);
+                showSuccess(`Auto-loaded ${file} (${data.length} records)`);
+                autoLogLoaded = true;
+            } catch (e) {
+                showError("Failed to load log file: " + e.message);
+                status.textContent = "Failed to load log file.";
+                autoLogLoaded = false;
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const intervalSel = document.getElementById("autoReloadInterval");
+            if (intervalSel) {
+                intervalSel.addEventListener("change", function() {
+                    setAutoReloadInterval(this.value);
+                });
+            }
+        });
+
+        // Try to fetch available JSONL files from logs directory
+        async function fetchLogFilesList() {
+            // Try to get file list as JSON (requires backend support, e.g. NGINX autoindex JSON, or custom endpoint)
+            // Fallback: try to parse HTML directory listing for .jsonl files
+            try {
+                // Try JSON endpoint first
+                const resp = await fetch(LOGS_API_PATH, { method: "GET" });
+                if (resp.headers.get("Content-Type")?.includes("application/json")) {
+                    const files = await resp.json();
+                    // Expecting array of filenames or objects with 'name'
+                    return files.map(f => typeof f === "string" ? f : f.name).filter(f => f.endsWith(".jsonl"));
+                } else {
+                    // Try to parse HTML directory listing
+                    const html = await resp.text();
+                    const re = /href="([^"]+\.jsonl)"/g;
+                    let match, files = [];
+                    while ((match = re.exec(html))) files.push(match[1]);
+                    return files;
+                }
+            } catch (err) {
+                return [];
+            }
+        }
+
+        // Populate dropdown and auto-load latest log file
+        async function loadAutoLogFileList() {
+            const select = document.getElementById("logFileSelect");
+            const status = document.getElementById("autoLoadStatus");
+            select.innerHTML = "";
+            status.textContent = "Loading log files...";
+            availableLogFiles = await fetchLogFilesList();
+            if (availableLogFiles.length === 0) {
+                status.textContent = "No log files found or server not reachable.";
+                select.innerHTML = '<option value="">(none)</option>';
+                autoLogLoaded = false;
+                return;
+            }
+            // Sort files by name descending (assuming name pattern includes datetime)
+            availableLogFiles.sort().reverse();
+            for (const f of availableLogFiles) {
+                const opt = document.createElement("option");
+                opt.value = f;
+                opt.textContent = f;
+                select.appendChild(opt);
+            }
+            status.textContent = "Select log to load or pick another.";
+            // Auto-select first (latest) and load
+            select.selectedIndex = 0;
+            await autoLoadLogFile();
+        }
+
+        // Load selected log file via fetch
+        async function autoLoadLogFile() {
+            const select = document.getElementById("logFileSelect");
+            const status = document.getElementById("autoLoadStatus");
+            const file = select.value;
+            if (!file) {
+                status.textContent = "No log file selected.";
+                autoLogLoaded = false;
+                return;
+            }
+            status.textContent = "Loading " + file + "...";
+            try {
+                const resp = await fetch(LOGS_API_PATH + file);
+                if (!resp.ok) throw new Error("HTTP " + resp.status);
+                const logdata = await resp.text();
+                processData(logdata);
+                showSuccess(`Auto-loaded ${file} (${data.length} records)`);
+                autoLogLoaded = true;
+            } catch (e) {
+                showError("Failed to load log file: " + e.message);
+                status.textContent = "Failed to load log file.";
+                autoLogLoaded = false;
+            }
+        }
+
+        // Allow user to reload log file list
+        async function reloadLogList() {
+            await loadAutoLogFileList();
+        }
+
+        // On dropdown change, auto-load the selected log file
+        document.addEventListener("DOMContentLoaded", function() {
+            const select = document.getElementById("logFileSelect");
+            if (select) {
+                select.addEventListener("change", autoLoadLogFile);
+            }
+        });
+
+        // On page load, try to auto-load logs
+        document.addEventListener("DOMContentLoaded", function() {
+            // Hide auto-loader group if running from file://
+            if (location.protocol === "file:") {
+                document.getElementById("autoLogLoaderGroup").style.display = "none";
+            } else {
+                loadAutoLogFileList();
+            }
+        });
 
         // Initialize map
         function initMap() {
