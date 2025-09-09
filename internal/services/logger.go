@@ -49,7 +49,7 @@ func NewLoggerService(config LoggerConfig) (*LoggerService, error) {
 
 	// Create log directory if file logging is enabled
 	if ls.enableFileLog {
-		if err := os.MkdirAll(ls.logDir, 0755); err != nil {
+		if err := os.MkdirAll(ls.logDir, 0750); err != nil {
 			return nil, fmt.Errorf("failed to create log directory: %w", err)
 		}
 	}
@@ -150,15 +150,18 @@ func (ls *LoggerService) logToFile(entry models.RawDataLog) error {
 func (ls *LoggerService) rotateLogFile() error {
 	// Close current file if exists
 	if ls.currentLogFile != nil {
-		ls.currentLogFile.Close()
+		_ = ls.currentLogFile.Close()
 	}
 
 	// Create new log file with timestamp
 	timestamp := time.Now().UTC().Format("20060102_150405")
 	filename := fmt.Sprintf("raw_data_%s.jsonl", timestamp)
-	filepath := filepath.Join(ls.logDir, filename)
+	filePath := filepath.Join(ls.logDir, filename)
+	
+	// Clean the file path to prevent path traversal attacks
+	cleanPath := filepath.Clean(filePath)
 
-	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	file, err := os.OpenFile(cleanPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return err
 	}
@@ -210,7 +213,7 @@ func extractStringFromPayload(payload map[string]interface{}, key string) string
 // generateID generates a simple random ID
 func generateID() string {
 	bytes := make([]byte, 16)
-	rand.Read(bytes)
+	_, _ = rand.Read(bytes)
 	return hex.EncodeToString(bytes)
 }
 
