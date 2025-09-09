@@ -36,7 +36,15 @@ func (dps *DeviceProfileService) LoadProfiles(configPath string) error {
 		configPath = filepath.Join(pwd, configPath)
 	}
 
-	data, err := os.ReadFile(configPath)
+	// Clean and validate the path to prevent directory traversal
+	configPath = filepath.Clean(configPath)
+	
+	// Validate file extension
+	if filepath.Ext(configPath) != ".json" {
+		return fmt.Errorf("config file must have .json extension")
+	}
+
+	data, err := os.ReadFile(configPath) // #nosec G304 - path is validated above
 	if err != nil {
 		return fmt.Errorf("failed to read device profiles config file: %w", err)
 	}

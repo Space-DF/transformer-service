@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Space-DF/transformer-service/internal/services"
@@ -16,12 +17,19 @@ func main() {
 	if len(os.Args) < 2 {
 		log.Fatal("Usage: go run process_log.go <log_file_path>")
 	}
-
 	logFile := os.Args[1]
-	file, err := os.Open(logFile)
+	
+	// Validate and clean the file path to prevent directory traversal
+	cleanPath := filepath.Clean(logFile)
+	if strings.Contains(cleanPath, "..") {
+		log.Fatal("Invalid file path: directory traversal not allowed")
+	}
+	
+	file, err := os.Open(cleanPath)
 	if err != nil {
 		log.Fatalf("Error opening log file: %v", err)
 	}
+	
 	defer file.Close()
 
 	locationService := services.NewLocationService()

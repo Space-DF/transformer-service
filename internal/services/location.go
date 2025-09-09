@@ -563,27 +563,27 @@ func (ls *LocationService) calculateIntersectionConfidence(d, r1, r2, area float
 }
 
 // findDistanceImproved calculates distance with environmental factors consideration
-func (ls *LocationService) findDistanceImproved(rssi int, frequency float64, environment string) float64 {
-	freqMHz := frequency / 1e6
-	plD0 := 32.45 + 20*math.Log10(freqMHz)
+// func (ls *LocationService) findDistanceImproved(rssi int, frequency float64, environment string) float64 {
+// 	freqMHz := frequency / 1e6
+// 	plD0 := 32.45 + 20*math.Log10(freqMHz)
 
-	// Adjust path loss exponent based on environment
-	pathLossExponent := DefaultPathLossExponent
-	switch environment {
-	case "urban":
-		pathLossExponent = 4.5 // Higher path loss in urban areas
-	case "suburban":
-		pathLossExponent = 3.5
-	case "rural":
-		pathLossExponent = 2.5 // Lower path loss in open areas
-	default:
-		pathLossExponent = DefaultPathLossExponent
-	}
+// 	// Adjust path loss exponent based on environment
+// 	pathLossExponent := DefaultPathLossExponent
+// 	switch environment {
+// 	case "urban":
+// 		pathLossExponent = 4.5 // Higher path loss in urban areas
+// 	case "suburban":
+// 		pathLossExponent = 3.5
+// 	case "rural":
+// 		pathLossExponent = 2.5 // Lower path loss in open areas
+// 	default:
+// 		pathLossExponent = DefaultPathLossExponent
+// 	}
 
-	pl := DefaultTxPower - float64(rssi)
-	logD := (pl - plD0) / (10 * pathLossExponent)
-	distance := DefaultReferenceDistance * math.Pow(10, logD)
+// 	pl := DefaultTxPower - float64(rssi)
+// 	logD := (pl - plD0) / (10 * pathLossExponent)
+// 	distance := DefaultReferenceDistance * math.Pow(10, logD)
 
-	// Add uncertainty bounds - return base distance for now
-	return distance
-}
+// 	// Add uncertainty bounds - return base distance for now
+// 	return distance
+// }
