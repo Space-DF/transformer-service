@@ -222,6 +222,26 @@ Where:
 - `make lint`: Lint code (requires golangci-lint)
 - `make security`: Security scan (requires gosec)
 
+## Testing
+
+### Unit Tests
+```bash
+make test
+```
+
+### Local Linting & Security Checks
+- Tooling (once):
+  ```bash
+  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0
+  go install github.com/securego/gosec/v2/cmd/gosec@master
+  ```
+- Transformer service:
+  ```bash
+  cd transformer-service (optional)
+  golangci-lint run
+  gosec ./...
+  ```
+
 ### Project Structure
 
 ```
