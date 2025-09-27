@@ -4,15 +4,19 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/Space-DF/transformer-service/internal/config"
 	"github.com/Space-DF/transformer-service/internal/mqtt"
 	"github.com/Space-DF/transformer-service/internal/services"
+	"github.com/Space-DF/transformer-service/internal/telemetry"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 var serveCmd = &cobra.Command{
@@ -27,6 +31,10 @@ func init() {
 }
 
 func runServe(cmd *cobra.Command, args []string) error {
+	// Initialize OpenTelemetry tracing
+	cleanup := telemetry.InitTracing("transformer-service")
+	defer cleanup()
+	
 	// Load configuration
 	cfg, err := config.New()
 	if err != nil {
@@ -69,6 +77,35 @@ func runServe(cmd *cobra.Command, args []string) error {
 	log.Printf("Publishing to topic: %s", cfg.AMQP.OutputTopic)
 	log.Printf("Raw data logging enabled - File: %t, JSON: %t, Dir: %s", cfg.RawDataLog.EnableFileLog, cfg.RawDataLog.EnableJSONLog, cfg.RawDataLog.LogDir)
 
+	// Setup HTTP server for health check endpoint
+	mux := http.NewServeMux()
+	
+	// Health check endpoint
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status": "healthy", "service": "transformer-service", "timestamp": "%s"}`, time.Now().Format(time.RFC3339))
+	})
+
+	// Wrap the handler with OpenTelemetry middleware
+	handler := otelhttp.NewHandler(mux, "transformer-service")
+
+	// Create HTTP server
+	server := &http.Server{
+		Addr:         ":8080",
+		Handler:      handler,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+
+	// Start HTTP server in goroutine
+	go func() {
+		log.Printf("HTTP server starting on %s", server.Addr)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("HTTP server error: %v", err)
+		}
+	}()
+
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -89,6 +126,13 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	// Cancel context to stop consumer
 	cancel()
+
+	// Stop HTTP server
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("HTTP server shutdown error: %v", err)
+	}
 
 	// Stop consumer
 	if err := consumer.Stop(); err != nil {
