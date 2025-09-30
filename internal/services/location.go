@@ -59,23 +59,35 @@ func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{
 			return nil, fmt.Errorf("dev_eui not found in end_device_ids")
 		}
 	} else {
-		// ChirpStack format - check for rxInfo array
+		// ChirpStack/custom format - check for rxInfo in multiple locations
 		var rxOk bool
+		
+		// First try top-level rxInfo
 		rxMetadata, rxOk = payload["rxInfo"].([]interface{})
+		
+		// If not found, try uplinkEvent.rxInfo
+		if !rxOk {
+			if uplinkEvent, uplinkOk := payload["uplinkEvent"].(map[string]interface{}); uplinkOk {
+				rxMetadata, rxOk = uplinkEvent["rxInfo"].([]interface{})
+			}
+		}
+		
 		if !rxOk {
 			return nil, fmt.Errorf("rxInfo not found in payload")
 		}
 
-		// Extract frequency from txInfo
-		txInfo, txOk := payload["txInfo"].(map[string]interface{})
-		if !txOk {
-			return nil, fmt.Errorf("txInfo not found in payload")
-		}
-
-		var freqOk bool
-		frequency, freqOk = txInfo["frequency"].(float64)
-		if !freqOk {
-			return nil, fmt.Errorf("frequency not found in txInfo")
+		// Extract frequency from txInfo (optional for some formats)
+		frequency = 868.0 // Default frequency if not found
+		if txInfo, txOk := payload["txInfo"].(map[string]interface{}); txOk {
+			if freq, freqOk := txInfo["frequency"].(float64); freqOk {
+				frequency = freq
+			}
+		} else if uplinkEvent, uplinkOk := payload["uplinkEvent"].(map[string]interface{}); uplinkOk {
+			if txInfo, txOk := uplinkEvent["txInfo"].(map[string]interface{}); txOk {
+				if freq, freqOk := txInfo["frequency"].(float64); freqOk {
+					frequency = freq
+				}
+			}
 		}
 
 		// Extract device EUI from deviceInfo

@@ -7,7 +7,7 @@ amqp:
   broker_url: "amqp://admin:password@rabbitmq:5672/"
   exchange: "amq.topic"
   queue: "transformer_device_queue"
-  routing_key: "device.data"
+  routing_key: "*device.data"
   output_topic: "transformed/device/location"
   consumer_tag: "transformer-service"
   prefetch_count: 10
