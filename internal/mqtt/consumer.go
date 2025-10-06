@@ -175,44 +175,14 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 		return fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 
-	// // Extract tenant from routing key
+	// Extract tenant from routing key
 	// tenant := c.extractTenantFromPayload(rawPayload, msg.RoutingKey)
 	// tenant := "52f14cd4-c6f1-4fbd-8f87-4025e1d49242"
 	// log.Printf("Extracted tenant: %s", tenant)
 
-	var tenant string
-
-	// Check if decoded_raw_data exists directly in rawPayload
-	if decodedData, ok := rawPayload["decoded_raw_data"].(map[string]interface{}); ok {
-		if deviceInfo, ok := decodedData["deviceInfo"].(map[string]interface{}); ok {
-			if tenantID, ok := deviceInfo["tenantId"].(string); ok {
-				tenant = tenantID
-				log.Printf("Found tenant in deviceInfo: %s", tenant)
-			}
-		}
-	}
-	
-	// If not found, try the payload field as fallback
-	if tenant == "" {
-		if payloadStr, ok := rawPayload["payload"].(string); ok {
-			var actualPayload map[string]interface{}
-			if err := json.Unmarshal([]byte(payloadStr), &actualPayload); err == nil {
-				if decodedData, ok := actualPayload["decoded_raw_data"].(map[string]interface{}); ok {
-					if deviceInfo, ok := decodedData["deviceInfo"].(map[string]interface{}); ok {
-						if tenantID, ok := deviceInfo["tenantId"].(string); ok {
-							tenant = tenantID
-							log.Printf("Found tenant in payload deviceInfo: %s", tenant)
-						}
-					}
-				}
-			}
-		}
-	}
-	
-	if tenant == "" {
-		tenant = "default-tenant"
-		log.Printf("Using default tenant")
-	}
+	// Replace this hardcoded section (around lines 150-180):
+	// Extract tenant from the payload data
+	tenant := c.extractTenantFromPayload(rawPayload, msg.RoutingKey)
 	log.Printf("Extracted tenant: %s", tenant)
 
 	// Check if there's a base64 encoded payload that needs to be decoded
@@ -396,12 +366,12 @@ func (c *Consumer) publishTransformedData(data *models.TransformedDeviceData, te
 	}
 
 	// Create tenant-specific output topic
-	tenantOutputTopic := fmt.Sprintf("%s.transformed.device.location", tenant)
+	tenantOutputTopic := fmt.Sprintf("tenant.%s.transformed.device.location", tenant)
 	log.Printf("Publishing to tenant-specific topic: %s", tenantOutputTopic)
 	
 
 	err = c.channel.Publish(
-		"",                   // exchange (use default for MQTT topics)
+		c.config.Exchange,     // exchange (use amq.topic)
 		tenantOutputTopic, // routing key (topic name)
 		false,                // mandatory
 		false,                // immediate
@@ -577,31 +547,51 @@ func (c *Consumer) extractGPSFromRAK4630(payload map[string]interface{}, organiz
 
 // extractTenantFromPayload extracts tenant from payload metadata 
 func (c *Consumer) extractTenantFromPayload(payload map[string]interface{}, routingKey string) string {
-	// Check metadata first (from MPA service)
-	if metadata, ok := payload["metadata"].(map[string]interface{}); ok {
-		if tenantID, ok := metadata["tenant_id"].(string); ok && tenantID != "" {
-			log.Printf("Found tenant in metadata: %s", tenantID)
-			return tenantID
-		}
-	}
-	
-	// Check decoded_raw_data (from original payload)
-	if decodedData, ok := payload["decoded_raw_data"].(map[string]interface{}); ok {
-		if deviceInfo, ok := decodedData["deviceInfo"].(map[string]interface{}); ok {
-			if tenantID, ok := deviceInfo["tenantId"].(string); ok && tenantID != "" {
-				log.Printf("Found tenant in deviceInfo: %s", tenantID)
-				return tenantID
-			}
-		}
-	}
-	
-	// Fallback to routing key extraction
-	parts := strings.Split(routingKey, ".")
-	if len(parts) > 0 && parts[0] != "" {
-		log.Printf("Using tenant from routing key: %s", parts[0])
-		return parts[0]
-	}
-	
-	log.Printf("No tenant found, using default")
-	return "default-tenant"
+    // Check metadata first (from MPA service)
+    if metadata, ok := payload["metadata"].(map[string]interface{}); ok {
+        if tenantID, ok := metadata["tenant_id"].(string); ok && tenantID != "" {
+            return tenantID
+        }
+    }
+    
+    // Check payload field (this is where the actual data is!)
+    if payloadData, ok := payload["payload"].(string); ok {
+        var jsonPayload map[string]interface{}
+        if err := json.Unmarshal([]byte(payloadData), &jsonPayload); err == nil {
+            // Check metadata in the parsed payload (this is where the tenant ID is!)
+            if metadata, ok := jsonPayload["metadata"].(map[string]interface{}); ok {
+                if tenantID, ok := metadata["tenant_id"].(string); ok && tenantID != "" {
+                    return tenantID
+                }
+            }
+            
+            // Check decoded_raw_data in the parsed payload
+            if decodedData, ok := jsonPayload["decoded_raw_data"].(map[string]interface{}); ok {
+                if deviceInfo, ok := decodedData["deviceInfo"].(map[string]interface{}); ok {
+                    if tenantID, ok := deviceInfo["tenantId"].(string); ok && tenantID != "" {
+                        return tenantID
+                    }
+                }
+            }
+            
+            // Check original_payload in the parsed payload
+            if originalPayload, ok := jsonPayload["original_payload"].(map[string]interface{}); ok {
+                if decodedData, ok := originalPayload["decoded_raw_data"].(map[string]interface{}); ok {
+                    if deviceInfo, ok := decodedData["deviceInfo"].(map[string]interface{}); ok {
+                        if tenantID, ok := deviceInfo["tenantId"].(string); ok && tenantID != "" {
+                            return tenantID
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Fallback to routing key extraction
+    parts := strings.Split(routingKey, ".")
+    if len(parts) > 0 && parts[0] != "" {
+        return parts[0]
+    }
+    
+    return "default-tenant"
 }
