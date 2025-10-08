@@ -84,7 +84,9 @@ func runServe(cmd *cobra.Command, args []string) error {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"status": "healthy", "service": "transformer-service", "timestamp": "%s"}`, time.Now().Format(time.RFC3339))
+		if _, err := fmt.Fprintf(w, `{"status": "healthy", "service": "transformer-service", "timestamp": "%s"}`, time.Now().Format(time.RFC3339)); err != nil {
+			log.Printf("Error writing health check response: %v", err)
+		}
 	})
 
 	// Wrap the handler with OpenTelemetry middleware
