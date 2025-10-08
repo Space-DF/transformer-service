@@ -149,6 +149,13 @@ func (c *Consumer) processMessages(ctx context.Context, messages <-chan amqp.Del
 				return
 			}
 
+			// Extract org_slug from routing key for multi-tenant validation
+			routingOrgSlug := c.extractOrgSlugFromRoutingKey(msg.RoutingKey)
+			if routingOrgSlug != "" {
+				log.Printf("Message received via routing key: %s → Extracted org_slug: %s", 
+					msg.RoutingKey, routingOrgSlug)
+			}
+
 			if err := c.handleMessage(msg); err != nil {
 				log.Printf("Error processing message: %v", err)
 				// Reject message and requeue if not auto-ack
@@ -594,4 +601,12 @@ func (c *Consumer) extractTenantFromPayload(payload map[string]interface{}, rout
     }
     
     return "default-tenant"
+}
+
+func (c *Consumer) extractOrgSlugFromRoutingKey(routingKey string) string {
+    parts := strings.Split(routingKey, ".")
+    if len(parts) >= 2 && parts[1] != "" {
+        return parts[1] // Return org-acme from tenant.org-acme.device.data
+    }
+    return ""
 }
