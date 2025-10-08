@@ -309,13 +309,13 @@ func (p *RAK4630Parser) extractDevEUI(payload map[string]interface{}) string {
 }
 
 // getPayloadKeys returns the keys of a map for debugging
-func getPayloadKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
+// func getPayloadKeys(m map[string]interface{}) []string {
+// 	keys := make([]string, 0, len(m))
+// 	for k := range m {
+// 		keys = append(keys, k)
+// 	}
+// 	return keys
+// }
 
 // ParseTextCoordinates parses coordinates from text format (utility method)
 func (p *RAK4630Parser) ParseTextCoordinates(text string) (float64, float64, error) {

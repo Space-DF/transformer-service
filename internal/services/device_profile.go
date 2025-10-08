@@ -36,11 +36,9 @@ func (dps *DeviceProfileService) LoadProfiles(configPath string) error {
 		configPath = filepath.Join(pwd, configPath)
 	}
 
-	
 	// Clean and validate the path to prevent directory traversal
-
 	configPath = filepath.Clean(configPath)
-
+	
 	// Validate file extension
 	if filepath.Ext(configPath) != ".json" {
 		return fmt.Errorf("config file must have .json extension")

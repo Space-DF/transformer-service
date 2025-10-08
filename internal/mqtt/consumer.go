@@ -166,7 +166,7 @@ func (c *Consumer) processMessages(ctx context.Context, messages <-chan amqp.Del
 
 			// Always acknowledge message to remove it from queue if not auto-ack
 			if !c.config.AutoAck {
-				msg.Ack(false)
+				_ = msg.Ack(false)
 			}
 		}
 	}
@@ -399,13 +399,13 @@ func (c *Consumer) publishTransformedData(data *models.TransformedDeviceData, te
 }
 
 // getKeys returns the keys of a map for debugging
-func getKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
+// func getKeys(m map[string]interface{}) []string {
+// 	keys := make([]string, 0, len(m))
+// 	for k := range m {
+// 		keys = append(keys, k)
+// 	}
+// 	return keys
+// }
 
 // hasLocationData checks if the payload contains location data
 func (c *Consumer) hasLocationData(payload map[string]interface{}) bool {
