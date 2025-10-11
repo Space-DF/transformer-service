@@ -36,7 +36,7 @@ func NewConsumer(cfg config.AMQPConfig, loggerService *services.LoggerService, d
 		transformService:     services.NewTransformService(deviceProfileService),
 		loggerService:        loggerService,
 		deviceProfileService: deviceProfileService,
-		done:                 make(chan bool),
+		done:                 make(chan bool, 1),
 	}
 }
 
@@ -183,13 +183,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 	}
 
 	// Extract tenant from routing key
-	// tenant := c.extractTenantFromPayload(rawPayload, msg.RoutingKey)
-	// tenant := "52f14cd4-c6f1-4fbd-8f87-4025e1d49242"
-	// log.Printf("Extracted tenant: %s", tenant)
-
-	// Replace this hardcoded section (around lines 150-180):
-	// Extract tenant from the payload data
-	tenant := c.extractTenantFromPayload(rawPayload, msg.RoutingKey)
+	tenant := c.extractOrgSlugFromRoutingKey(msg.RoutingKey)
 	log.Printf("Extracted tenant: %s", tenant)
 
 	// Check if there's a base64 encoded payload that needs to be decoded
@@ -550,57 +544,6 @@ func (c *Consumer) extractGPSFromRAK4630(payload map[string]interface{}, organiz
 	locationData.Organization = organization
 
 	return locationData, nil
-}
-
-// extractTenantFromPayload extracts tenant from payload metadata 
-func (c *Consumer) extractTenantFromPayload(payload map[string]interface{}, routingKey string) string {
-    // Check metadata first (from MPA service)
-    if metadata, ok := payload["metadata"].(map[string]interface{}); ok {
-        if tenantID, ok := metadata["tenant_id"].(string); ok && tenantID != "" {
-            return tenantID
-        }
-    }
-    
-    // Check payload field (this is where the actual data is!)
-    if payloadData, ok := payload["payload"].(string); ok {
-        var jsonPayload map[string]interface{}
-        if err := json.Unmarshal([]byte(payloadData), &jsonPayload); err == nil {
-            // Check metadata in the parsed payload (this is where the tenant ID is!)
-            if metadata, ok := jsonPayload["metadata"].(map[string]interface{}); ok {
-                if tenantID, ok := metadata["tenant_id"].(string); ok && tenantID != "" {
-                    return tenantID
-                }
-            }
-            
-            // Check decoded_raw_data in the parsed payload
-            if decodedData, ok := jsonPayload["decoded_raw_data"].(map[string]interface{}); ok {
-                if deviceInfo, ok := decodedData["deviceInfo"].(map[string]interface{}); ok {
-                    if tenantID, ok := deviceInfo["tenantId"].(string); ok && tenantID != "" {
-                        return tenantID
-                    }
-                }
-            }
-            
-            // Check original_payload in the parsed payload
-            if originalPayload, ok := jsonPayload["original_payload"].(map[string]interface{}); ok {
-                if decodedData, ok := originalPayload["decoded_raw_data"].(map[string]interface{}); ok {
-                    if deviceInfo, ok := decodedData["deviceInfo"].(map[string]interface{}); ok {
-                        if tenantID, ok := deviceInfo["tenantId"].(string); ok && tenantID != "" {
-                            return tenantID
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    // Fallback to routing key extraction
-    parts := strings.Split(routingKey, ".")
-    if len(parts) > 0 && parts[0] != "" {
-        return parts[0]
-    }
-    
-    return "default-tenant"
 }
 
 func (c *Consumer) extractOrgSlugFromRoutingKey(routingKey string) string {

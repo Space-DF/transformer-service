@@ -83,7 +83,7 @@ func setDefaults(vp *viper.Viper) {
 	vp.SetDefault("amqp.broker_url", "amqp://admin:password@rabbitmq:5672/")
 	vp.SetDefault("amqp.exchange", "amq.topic")
 	vp.SetDefault("amqp.queue", "transformer_device_queue")
-	vp.SetDefault("amqp.routing_key", "*.device.data")
+	vp.SetDefault("amqp.routing_key", "tenant.*.device.data")
 	vp.SetDefault("amqp.output_topic", "transformed/device/location")
 	vp.SetDefault("amqp.consumer_tag", "transformer-service")
 	vp.SetDefault("amqp.prefetch_count", 10)
