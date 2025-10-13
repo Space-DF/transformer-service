@@ -112,17 +112,26 @@ func runServe(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Create error channel for consumer
+	consumerErr := make(chan error, 1)
+
 	// Start consumer in a goroutine
 	go func() {
 		if err := consumer.Start(ctx); err != nil {
-			log.Fatalf("Consumer failed: %v", err)
+			consumerErr <- err
 		}
 	}()
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	
+	select {
+	case <-quit:
+		log.Println("Received shutdown signal")
+	case err := <-consumerErr:
+		log.Printf("Consumer failed: %v", err)
+	}
 
 	log.Println("Shutting down transformer service...")
 

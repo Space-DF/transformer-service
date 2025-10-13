@@ -4,11 +4,11 @@ server:
 
 # AMQP Consumer Configuration - Using existing amq.topic from MQTT
 amqp:
-  broker_url: "amqp://default:password@rabbitmq:5672/"
+  broker_url: "amqp://default:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/"
   exchange: "amq.topic"
   queue: "transformer_device_queue"
   routing_key: "tenant.*.device.data"
   output_topic: "tenant.*.transformed.device.location"
-  consumer_tag: "transformer-service"
+  consumer_tag: "transformer-service-go"
   prefetch_count: 10
   auto_ack: false
