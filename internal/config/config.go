@@ -85,7 +85,7 @@ func setDefaults(vp *viper.Viper) {
 	vp.SetDefault("amqp.queue", "transformer_device_queue")
 	vp.SetDefault("amqp.routing_key", "tenant.*.device.data")
 	vp.SetDefault("amqp.output_topic", "tenant.*.transformed.device.location")
-	vp.SetDefault("amqp.consumer_tag", "transformer-service-go")
+	vp.SetDefault("amqp.consumer_tag", "transformer-service")
 	vp.SetDefault("amqp.prefetch_count", 10)
 	vp.SetDefault("amqp.auto_ack", false)
 	vp.SetDefault("raw_data_log.log_dir", "logs/raw_data")

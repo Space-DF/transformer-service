@@ -9,6 +9,6 @@ amqp:
   queue: "transformer_device_queue"
   routing_key: "tenant.*.device.data"
   output_topic: "tenant.*.transformed.device.location"
-  consumer_tag: "transformer-service-go"
+  consumer_tag: "transformer-service"
   prefetch_count: 10
   auto_ack: false
