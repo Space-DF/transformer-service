@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Space-DF/transformer-service/internal/models"
 )
@@ -27,17 +28,24 @@ func NewDeviceProfileService(configPath string) (*DeviceProfileService, error) {
 
 // LoadProfiles loads device profiles from a JSON configuration file
 func (dps *DeviceProfileService) LoadProfiles(configPath string) error {
+	pwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %w", err)
+	}
+
 	// If configPath is relative, make it absolute from project root
 	if !filepath.IsAbs(configPath) {
-		pwd, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("failed to get working directory: %w", err)
-		}
 		configPath = filepath.Join(pwd, configPath)
 	}
 
 	// Clean and validate the path to prevent directory traversal
 	configPath = filepath.Clean(configPath)
+
+	// Validate that the path stays within the project directory
+	allowedDir := filepath.Clean(pwd)
+	if !strings.HasPrefix(configPath, allowedDir+string(filepath.Separator)) && configPath != allowedDir {
+		return fmt.Errorf("config file path is outside allowed directory")
+	}
 	
 	// Validate file extension
 	if filepath.Ext(configPath) != ".json" {

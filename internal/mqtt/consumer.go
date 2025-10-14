@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/Space-DF/transformer-service/internal/config"
@@ -35,7 +36,7 @@ func NewConsumer(cfg config.AMQPConfig, loggerService *services.LoggerService, d
 		transformService:     services.NewTransformService(deviceProfileService),
 		loggerService:        loggerService,
 		deviceProfileService: deviceProfileService,
-		done:                 make(chan bool),
+		done:                 make(chan bool, 1),
 	}
 }
 
@@ -148,6 +149,13 @@ func (c *Consumer) processMessages(ctx context.Context, messages <-chan amqp.Del
 				return
 			}
 
+			// Extract org_slug from routing key for multi-tenant validation
+			routingOrgSlug := c.extractOrgSlugFromRoutingKey(msg.RoutingKey)
+			if routingOrgSlug != "" {
+				log.Printf("Message received via routing key: %s → Extracted org_slug: %s", 
+					msg.RoutingKey, routingOrgSlug)
+			}
+
 			if err := c.handleMessage(msg); err != nil {
 				log.Printf("Error processing message: %v", err)
 				// Reject message and requeue if not auto-ack
@@ -173,6 +181,10 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 	if err := json.Unmarshal(msg.Body, &rawPayload); err != nil {
 		return fmt.Errorf("failed to unmarshal message: %w", err)
 	}
+
+	// Extract tenant from routing key
+	tenant := c.extractOrgSlugFromRoutingKey(msg.RoutingKey)
+	log.Printf("Extracted tenant: %s", tenant)
 
 	// Check if there's a base64 encoded payload that needs to be decoded
 	var payload map[string]interface{}
@@ -331,7 +343,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 	}
 
 	// Publish transformed data to output topic
-	if err := c.publishTransformedData(transformedData); err != nil {
+	if err := c.publishTransformedData(transformedData, tenant); err != nil {
 		return fmt.Errorf("failed to publish transformed data: %w", err)
 	}
 
@@ -348,15 +360,20 @@ func (c *Consumer) handleMessage(msg amqp.Delivery) error {
 }
 
 // publishTransformedData publishes the transformed data to the output topic
-func (c *Consumer) publishTransformedData(data *models.TransformedDeviceData) error {
+func (c *Consumer) publishTransformedData(data *models.TransformedDeviceData, tenant string) error {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal transformed data: %w", err)
 	}
 
+	// Create tenant-specific output topic
+	tenantOutputTopic := fmt.Sprintf("tenant.%s.transformed.device.location", tenant)
+	log.Printf("Publishing to tenant-specific topic: %s", tenantOutputTopic)
+	
+
 	err = c.channel.Publish(
-		"",                   // exchange (use default for MQTT topics)
-		c.config.OutputTopic, // routing key (topic name)
+		c.config.Exchange,     // exchange (use amq.topic)
+		tenantOutputTopic, // routing key (topic name)
 		false,                // mandatory
 		false,                // immediate
 		amqp.Publishing{
@@ -371,7 +388,7 @@ func (c *Consumer) publishTransformedData(data *models.TransformedDeviceData) er
 		return fmt.Errorf("failed to publish message: %w", err)
 	}
 
-	log.Printf("Published transformed data to topic: %s", c.config.OutputTopic)
+	log.Printf("Published transformed data to topic: %s", tenantOutputTopic)
 	return nil
 }
 
@@ -397,6 +414,9 @@ func (c *Consumer) hasLocationData(payload map[string]interface{}) bool {
 		} else {
 			uplinkMessage = payloadData
 		}
+	} else if uplinkEvent, ok := payload["uplinkEvent"].(map[string]interface{}); ok {
+		// Check uplinkEvent for rxInfo (custom format)
+		uplinkMessage = uplinkEvent
 	} else {
 		uplinkMessage = payload
 	}
@@ -434,6 +454,9 @@ func (c *Consumer) countGateways(payload map[string]interface{}) int {
 		} else {
 			uplinkMessage = payloadData
 		}
+	} else if uplinkEvent, ok := payload["uplinkEvent"].(map[string]interface{}); ok {
+		// Check uplinkEvent for rxInfo (custom format)
+		uplinkMessage = uplinkEvent
 	} else {
 		uplinkMessage = payload
 	}
@@ -521,4 +544,12 @@ func (c *Consumer) extractGPSFromRAK4630(payload map[string]interface{}, organiz
 	locationData.Organization = organization
 
 	return locationData, nil
+}
+
+func (c *Consumer) extractOrgSlugFromRoutingKey(routingKey string) string {
+    parts := strings.Split(routingKey, ".")
+    if len(parts) >= 2 && parts[1] != "" {
+        return parts[1] // Return org-acme from tenant.org-acme.device.data
+    }
+    return ""
 }
