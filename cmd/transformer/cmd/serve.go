@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/lib/pq" // PostgreSQL driver
 	"github.com/spf13/cobra"
 
 	"github.com/Space-DF/transformer-service/internal/config"
@@ -66,21 +64,8 @@ func runServe(cmd *cobra.Command, args []string) error {
 		log.Printf("Device profiles loaded successfully")
 	}
 
-	// Connect to PostgreSQL database for organization discovery
-	db, err := sql.Open("postgres", cfg.Database.URL)
-	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
-	}
-	defer db.Close()
-
-	// Test database connection
-	if err := db.Ping(); err != nil {
-		return fmt.Errorf("failed to ping database: %w", err)
-	}
-	log.Println("Connected to PostgreSQL for organization discovery")
-
-	// Create MQTT consumer with database connection and org events config
-	consumer := mqtt.NewConsumer(cfg.AMQP, cfg.OrgEvents, db, loggerService, deviceProfileService)
+	// Create MQTT consumer with event-driven organization discovery (NO database!)
+	consumer := mqtt.NewConsumer(cfg.AMQP, cfg.OrgEvents, loggerService, deviceProfileService)
 
 	// Connect to AMQP broker
 	if err := consumer.Connect(); err != nil {

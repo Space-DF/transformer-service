@@ -17,7 +17,3 @@ org_events:
   queue: "transformer.org.events.queue"  # Transformer's queue for org events
   routing_key: "org.#"  # Listen to all org events
   consumer_tag: "transformer-org-events"
-  
-# Database Configuration - I'm leaving it empty for now
-database:
-  url: ""

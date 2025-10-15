@@ -2,7 +2,6 @@ package mqtt
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -31,7 +30,6 @@ type Consumer struct {
 	conn                 *amqp.Connection
 	channel              *amqp.Channel
 	orgEventsChannel     *amqp.Channel
-	db                   *sql.DB // PostgreSQL connection for org discovery
 	locationService      *services.LocationService
 	transformService     *services.TransformService
 	loggerService        *services.LoggerService
@@ -45,11 +43,10 @@ type Consumer struct {
 }
 
 // NewConsumer creates a new MQTT consumer
-func NewConsumer(cfg config.AMQPConfig, orgEventsCfg config.OrgEventsConfig, db *sql.DB, loggerService *services.LoggerService, deviceProfileService *services.DeviceProfileService) *Consumer {
+func NewConsumer(cfg config.AMQPConfig, orgEventsCfg config.OrgEventsConfig, loggerService *services.LoggerService, deviceProfileService *services.DeviceProfileService) *Consumer {
 	return &Consumer{
 		config:               cfg,
 		orgEventsConfig:      orgEventsCfg,
-		db:                   db,
 		locationService:      services.NewLocationService(),
 		transformService:     services.NewTransformService(deviceProfileService),
 		loggerService:        loggerService,
@@ -96,17 +93,22 @@ func (c *Consumer) Start(ctx context.Context) error {
     c.isRunning = true
     c.queueMutex.Unlock()
 
-    log.Println("Starting transformer service with event-driven org discovery...")
+    log.Println("Starting transformer service with pure event-driven architecture...")
+    log.Println("Waiting for organization events to discover active tenants...")
 
-    // Initial discovery: Query database for all active organizations
-    if err := c.discoverAndSubscribeToOrganizations(ctx); err != nil {
-        return fmt.Errorf("failed initial org discovery: %w", err)
-    }
 
 		// Start listening to organization events in a separate goroutine
     go func() {
         if err := c.listenToOrgEvents(ctx); err != nil {
             log.Printf("Org events listener error: %v", err)
+        }
+    }()
+
+    // Send bootstrap discovery request after a small delay (let listener setup first)
+    go func() {
+        time.Sleep(2 * time.Second)
+        if err := c.sendDiscoveryRequest(ctx); err != nil {
+            log.Printf("Failed to send discovery request: %v", err)
         }
     }()
 
@@ -123,54 +125,41 @@ func (c *Consumer) Start(ctx context.Context) error {
     return nil
 }
 
+// sendDiscoveryRequest sends a request to console service to get all active orgs
+func (c *Consumer) sendDiscoveryRequest(ctx context.Context) error {
+    log.Println("Sending discovery request to console service for existing organizations...")
 
-// discoverAndSubscribeToOrganizations queries PostgreSQL for active orgs and subscribes
-func (c *Consumer) discoverAndSubscribeToOrganizations(ctx context.Context) error {
-    log.Println("Querying database for active organizations...")
+    request := models.OrgDiscoveryRequest{
+        EventType:   models.OrgDiscoveryReq,
+        EventID:     fmt.Sprintf("discovery-%d", time.Now().Unix()),
+        Timestamp:   time.Now(),
+        ServiceName: "transformer-service",
+        ReplyTo:     c.orgEventsConfig.Queue, // We'll receive response on our org events queue
+    }
 
-    // Query PostgreSQL for active organizations
-    rows, err := c.db.QueryContext(ctx, `
-        SELECT slug_name
-        FROM public.organization_organization 
-        WHERE is_active = true
-    `)
+    body, err := json.Marshal(request)
     if err != nil {
-        return fmt.Errorf("failed to query organizations: %w", err)
-    }
-    defer rows.Close()
-
-    var discoveredOrgs []string
-
-    for rows.Next() {
-        var orgSlug string
-        if err := rows.Scan(&orgSlug); err != nil {
-            log.Printf("Failed to scan org: %v", err)
-            continue
-        }
-        discoveredOrgs = append(discoveredOrgs, orgSlug)
+        return fmt.Errorf("failed to marshal discovery request: %w", err)
     }
 
-    if err := rows.Err(); err != nil {
-        return fmt.Errorf("error iterating org rows: %w", err)
+    err = c.orgEventsChannel.PublishWithContext(
+        ctx,
+        c.orgEventsConfig.Exchange,    // "org.events"
+        "org.discovery.request",        // routing key
+        false,                          // mandatory
+        false,                          // immediate
+        amqp.Publishing{
+            ContentType: "application/json",
+            Body:        body,
+            Timestamp:   time.Now(),
+        },
+    )
+
+    if err != nil {
+        return fmt.Errorf("failed to publish discovery request: %w", err)
     }
 
-    log.Printf("Found %d active organizations in database", len(discoveredOrgs))
-
-    // Subscribe to each organization's queue
-    for _, orgSlug := range discoveredOrgs {
-        // Check if already subscribed
-        if _, exists := c.activeConsumers.Load(orgSlug); exists {
-            log.Printf("Already subscribed to org: %s", orgSlug)
-            continue
-        }
-
-        // Subscribe to this organization's pre-existing queue
-        if err := c.subscribeToOrganization(ctx, orgSlug); err != nil {
-            log.Printf("Failed to subscribe to org '%s': %v", orgSlug, err)
-            continue
-        }
-    }
-
+    log.Println("Discovery request sent successfully")
     return nil
 }
 
@@ -339,6 +328,33 @@ func (c *Consumer) listenToOrgEvents(ctx context.Context) error {
 
 // handleOrgEvent processes organization lifecycle events
 func (c *Consumer) handleOrgEvent(ctx context.Context, msg amqp.Delivery) error {
+    log.Printf("Received org event with routing key: %s", msg.RoutingKey)
+
+    // Handle discovery response (contains all active orgs)
+    if msg.RoutingKey == "org.discovery.response" {
+        var response models.OrgDiscoveryResponse
+        if err := json.Unmarshal(msg.Body, &response); err != nil {
+            return fmt.Errorf("failed to unmarshal discovery response: %w", err)
+        }
+
+        log.Printf("Received discovery response with %d active organizations", response.TotalCount)
+
+        // Subscribe to each active organization
+        for _, org := range response.Organizations {
+            if org.IsActive {
+                log.Printf("Bootstrapping subscription for org: %s", org.Slug)
+                if err := c.subscribeToOrganization(ctx, org.Slug); err != nil {
+                    log.Printf("Failed to subscribe to org '%s': %v", org.Slug, err)
+                    continue
+                }
+            }
+        }
+
+        log.Printf("Bootstrap complete: subscribed to %d organizations", response.TotalCount)
+        return nil
+    }
+
+    // Handle regular org lifecycle events
     var event models.OrgEvent
 
     if err := json.Unmarshal(msg.Body, &event); err != nil {
@@ -348,6 +364,7 @@ func (c *Consumer) handleOrgEvent(ctx context.Context, msg amqp.Delivery) error 
     log.Printf("Processing org event: %s for org: %s", event.EventType, event.Organization.Slug)
 
     switch event.EventType {
+
     case models.OrgCreated:
         // New org created - subscribe to its queue
         return c.subscribeToOrganization(ctx, event.Organization.Slug)
@@ -613,10 +630,10 @@ func (c *Consumer) publishTransformedData(data *models.TransformedDeviceData, te
 	tenantOutputTopic := fmt.Sprintf("tenant.%s.transformed.device.location", tenant)
 	log.Printf("Publishing to tenant-specific topic: %s", tenantOutputTopic)
 	err = c.channel.Publish(
-		`${orgSlug}.exchange`,    // exchange (use amq.topic)
-		tenantOutputTopic, 	  // routing key (topic name)
-		false,                // mandatory
-		false,                // immediate
+		fmt.Sprintf("%s.exchange", tenant),    // exchange (use amq.topic)
+		tenantOutputTopic, 	  								 // routing key (topic name)
+		false,                                 // mandatory
+		false,                                 // immediate
 		amqp.Publishing{
 			ContentType:  "application/json",
 			Body:         body,
