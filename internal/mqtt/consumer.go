@@ -188,9 +188,12 @@ func (c *Consumer) subscribeToOrganization(parentCtx context.Context, orgSlug st
         queueName, queueInfo.Messages, queueInfo.Consumers)
 
     // Start consuming from the existing queue
+    // Generate a unique consumer tag with timestamp to avoid conflicts after restart
+    consumerTag := fmt.Sprintf("%s-consumer-%d", orgSlug, time.Now().Unix())
+    
     messages, err := c.channel.Consume(
         queueName,                           // queue name (already exists!)
-        fmt.Sprintf("%s-consumer", orgSlug), // consumer tag
+        consumerTag,                         // unique consumer tag
         c.config.AutoAck,                    // auto-ack
         false,                               // exclusive
         false,                               // no-local
@@ -400,14 +403,16 @@ func (c *Consumer) processTenantMessages(ctx context.Context, orgSlug string, me
 
             if err := c.handleMessage(msg, orgSlug); err != nil {
                 log.Printf("[%s] Error processing message: %v", orgSlug, err)
-                if !c.config.AutoAck {
-                    _ = msg.Nack(false, true) // Requeue on error
-                }
-            } else {
-                if !c.config.AutoAck {
-                    _ = msg.Ack(false)
-                }
+                // if !c.config.AutoAck {
+                //    _ = msg.Nack(false, true) // Requeue on error
+                // }
+            } 
+            
+            // Always acknowledge message to remove it from queue if not auto-ack
+            if !c.config.AutoAck {
+                _ = msg.Ack(false)
             }
+            
         }
     }
 }
@@ -627,7 +632,7 @@ func (c *Consumer) publishTransformedData(data *models.TransformedDeviceData, te
 	}
 
 	// Create tenant-specific output topic
-	tenantOutputTopic := fmt.Sprintf("tenant.%s.transformed.device.location", tenant)
+	tenantOutputTopic := fmt.Sprintf("%s.transformed.device.location", tenant)
 	log.Printf("Publishing to tenant-specific topic: %s", tenantOutputTopic)
 	err = c.channel.Publish(
 		fmt.Sprintf("%s.exchange", tenant),    // exchange (use amq.topic)
