@@ -16,6 +16,12 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+// Tenant logging helper for clean, filterable logs
+func logTenant(tenant, emoji, format string, args ...interface{}) {
+	message := fmt.Sprintf(format, args...)
+	log.Printf("[TENANT:%s] %s %s", tenant, emoji, message)
+}
+
 // TenantConsumer represents a consumer for a specific tenant
 type TenantConsumer struct {
 	OrgSlug   string
@@ -167,16 +173,45 @@ func (c *Consumer) sendDiscoveryRequest(ctx context.Context) error {
 func (c *Consumer) subscribeToOrganization(parentCtx context.Context, orgSlug string) error {
     // Queue name format: {org_slug}.transformer.queue
     // This queue will be created by console/device service!
+		defaultExchange := "amq.topic"
     queueName := fmt.Sprintf("%s.transformer.queue", orgSlug)
 
     log.Printf("Attempting to consume from pre-existing queue: %s", queueName)
 
-		// We just verify it exists by inspecting it
-		queueInfo, err := c.channel.QueueDeclarePassive(
+		exchangeName := fmt.Sprintf("%s.exchange", orgSlug)
+		// Declare exchange for this tenant
+		err := c.channel.ExchangeDeclare(
+			exchangeName,
+			"topic",
+			true,  // durable
+			false, // auto-delete
+			false, // internal
+			false, // no-wait
+			nil,
+		)
+		if err != nil {
+			c.channel.Close()
+			return fmt.Errorf("failed to declare exchange for org %s: %w", orgSlug, err)
+		}
+
+		routingKey := fmt.Sprintf("tenant.%s.device.data", orgSlug)
+		err = c.channel.ExchangeBind(
+			exchangeName,
+			routingKey,
+			defaultExchange,  // durable
+			false, // no-wait
+			nil,
+		)
+		if err != nil {
+			c.channel.Close()
+			return fmt.Errorf("failed to bind exchange to exchange %s: %w", orgSlug, err)
+		}
+
+		queueInfo, err := c.channel.QueueDeclare(
 			queueName, // name
-			true,      // durable
+			true,      // durablePublishes back to specific exchange
 			false,     // delete when unused
-			false,     // exclusive
+			false,     // exclusivePublishes back to specific exchange
 			false,     // no-wait
 			nil,       // arguments
 		)
@@ -186,10 +221,22 @@ func (c *Consumer) subscribeToOrganization(parentCtx context.Context, orgSlug st
 
     log.Printf("Queue exists: %s (messages: %d, consumers: %d)", 
         queueName, queueInfo.Messages, queueInfo.Consumers)
-
+		
+		// Bind queue to exchange
+		err = c.channel.QueueBind(
+			queueName,
+			routingKey,
+			exchangeName,
+			false,
+			nil,
+		)
+		if err != nil {
+			c.channel.Close()
+			return fmt.Errorf("failed to bind queue for org %s: %w", orgSlug, err)
+		}
     // Start consuming from the existing queue
     // Generate a unique consumer tag with timestamp to avoid conflicts after restart
-    consumerTag := fmt.Sprintf("%s-consumer-%d", orgSlug, time.Now().Unix())
+    consumerTag := fmt.Sprintf("%s-transformer-%d", orgSlug, time.Now().Unix())
     
     messages, err := c.channel.Consume(
         queueName,                           // queue name (already exists!)
@@ -385,24 +432,24 @@ func (c *Consumer) handleOrgEvent(ctx context.Context, msg amqp.Delivery) error 
 
 // processTenantMessages processes messages for a specific tenant
 func (c *Consumer) processTenantMessages(ctx context.Context, orgSlug string, messages <-chan amqp.Delivery) {
-    log.Printf("Processing messages for org: %s", orgSlug)
+    logTenant(orgSlug, "🔄", "Processing messages for org: %s", orgSlug)
 
     for {
         select {
         case <-ctx.Done():
-            log.Printf("Stopping message processing for org: %s", orgSlug)
+            logTenant(orgSlug, "⏹️", "Stopping message processing for org: %s", orgSlug)
             return
 
         case msg, ok := <-messages:
             if !ok {
-                log.Printf("Message channel closed for org: %s", orgSlug)
+                logTenant(orgSlug, "📪", "Message channel closed for org: %s", orgSlug)
                 return
             }
 
-            log.Printf("[%s] Received message from routing key: %s", orgSlug, msg.RoutingKey)
+            logTenant(orgSlug, "📨", "Received message from routing key: %s", msg.RoutingKey)
 
             if err := c.handleMessage(msg, orgSlug); err != nil {
-                log.Printf("[%s] Error processing message: %v", orgSlug, err)
+                logTenant(orgSlug, "❌", "Error processing message: %v", err)
                 // if !c.config.AutoAck {
                 //    _ = msg.Nack(false, true) // Requeue on error
                 // }
@@ -439,17 +486,17 @@ func (c *Consumer) Stop() error {
 
 // handleMessage processes a single MQTT message
 func (c *Consumer) handleMessage(msg amqp.Delivery, orgSlug string) error {
-	log.Printf("[%s] Processing message from topic: %s", orgSlug, msg.RoutingKey)
+	logTenant(orgSlug, "⚙️", "Processing message from topic: %s", msg.RoutingKey)
 
 	// Parse the incoming message
 	var rawPayload map[string]interface{}
 	if err := json.Unmarshal(msg.Body, &rawPayload); err != nil {
+		logTenant(orgSlug, "❌", "Failed to unmarshal message: %v", err)
 		return fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 
 	// Use the orgSlug passed as parameter (we already know it from the queue name)
 	tenant := orgSlug
-	log.Printf("[%s] Processing for tenant: %s", orgSlug, tenant)
 
 	// Check if there's a base64 encoded payload that needs to be decoded
 	var payload map[string]interface{}
@@ -530,9 +577,9 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, orgSlug string) error {
 	if devEUI != "" && c.deviceProfileService != nil {
 		shouldSkip, skipErr := c.deviceProfileService.ShouldSkipDevice(devEUI)
 		if skipErr != nil {
-			log.Printf("Warning: Could not check skip status for device %s: %v", devEUI, skipErr)
+			logTenant(orgSlug, "⚠️", "Could not check skip status for device %s: %v", devEUI, skipErr)
 		} else if shouldSkip {
-			log.Printf("Skipping processing for device %s as per configuration", devEUI)
+			logTenant(orgSlug, "⏭️", "Skipping device %s as per configuration", devEUI)
 			return nil
 		}
 	}
@@ -544,11 +591,12 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, orgSlug string) error {
 	if devEUI != "" && c.deviceProfileService != nil {
 		requiresCalculation, profileErr := c.deviceProfileService.RequiresLocationCalculation(devEUI)
 		if profileErr != nil {
-			log.Printf("Warning: Could not get device profile for %s: %v. Proceeding with location calculation.", devEUI, profileErr)
+			logTenant(orgSlug, "⚠️", "Could not get device profile for %s: %v. Proceeding with location calculation.", devEUI, profileErr)
 			requiresCalculation = true // Default to requiring calculation
 		}
 
 		if requiresCalculation {
+			logTenant(orgSlug, "📍", "Calculating location for device %s using trilateration", devEUI)
 			// Calculate device location using decoded data if available, otherwise original payload
 			deviceLocation, err = c.locationService.CalculateDeviceLocation(locationPayload)
 			if err == nil && deviceLocation != nil {
@@ -559,17 +607,17 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, orgSlug string) error {
 			}
 		} else {
 			// Device has GPS, extract coordinates using device-specific parser
-			log.Printf("Device %s has GPS capability, using device parser to extract GPS coordinates", devEUI)
+			logTenant(orgSlug, "🛰️", "Device %s has GPS capability, extracting GPS coordinates", devEUI)
 			if _, mapping, profileErr := c.deviceProfileService.GetDeviceProfile(devEUI); profileErr == nil {
 				deviceLocation, err = c.extractGPSFromDeviceParser(mapping.Profile, locationPayload, mapping.Organization)
 			} else {
-				log.Printf("Could not get device profile for %s: %v. Falling back to location calculation.", devEUI, profileErr)
+				logTenant(orgSlug, "⚠️", "Could not get device profile for %s: %v. Falling back to location calculation.", devEUI, profileErr)
 				deviceLocation, err = c.locationService.CalculateDeviceLocation(locationPayload)
 			}
 		}
 	} else {
 		// No device profile service or devEUI, fall back to standard calculation
-		log.Printf("No device profile service available or devEUI not found, proceeding with location calculation")
+		logTenant(orgSlug, "⚠️", "No device profile service or devEUI, proceeding with location calculation")
 		deviceLocation, err = c.locationService.CalculateDeviceLocation(locationPayload)
 	}
 
@@ -585,9 +633,9 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, orgSlug string) error {
 
 		// Log the raw data even if location calculation fails
 		if c.loggerService != nil {
-			log.Printf("[LogRawData] Called (error path) for device: %s, location calculated: %v, error: %v", devEUI, processingInfo.LocationCalculated, processingInfo.ErrorMessage)
+			logTenant(orgSlug, "📝", "Logging raw data for device: %s (error path), location calculated: %v, error: %v", devEUI, processingInfo.LocationCalculated, processingInfo.ErrorMessage)
 			if logErr := c.loggerService.LogRawData(payload, locationPayload, processingInfo); logErr != nil {
-				log.Printf("Failed to log raw data: %v", logErr)
+				logTenant(orgSlug, "❌", "Failed to log raw data: %v", logErr)
 			}
 		}
 
@@ -608,19 +656,20 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, orgSlug string) error {
 	}
 
 	// Publish transformed data to output topic
+	logTenant(orgSlug, "📤", "Publishing transformed data for device %s", deviceLocation.DevEUI)
 	if err := c.publishTransformedData(transformedData, tenant); err != nil {
 		return fmt.Errorf("failed to publish transformed data: %w", err)
 	}
 
 	// Log successful processing
 	if c.loggerService != nil {
-		log.Printf("[LogRawData] Called (success path) for device: %s, location calculated: %v", devEUI, processingInfo.LocationCalculated)
+		logTenant(orgSlug, "📝", "Logging raw data for device: %s, location calculated: %v", devEUI, processingInfo.LocationCalculated)
 		if logErr := c.loggerService.LogRawData(payload, locationPayload, processingInfo); logErr != nil {
-			log.Printf("Failed to log raw data: %v", logErr)
+			logTenant(orgSlug, "❌", "Failed to log raw data: %v", logErr)
 		}
 	}
 
-	log.Printf("Successfully processed device: %s", deviceLocation.DevEUI)
+	logTenant(orgSlug, "✅", "Successfully processed device: %s", deviceLocation.DevEUI)
 	return nil
 }
 
@@ -632,8 +681,8 @@ func (c *Consumer) publishTransformedData(data *models.TransformedDeviceData, te
 	}
 
 	// Create tenant-specific output topic
-	tenantOutputTopic := fmt.Sprintf("%s.transformed.device.location", tenant)
-	log.Printf("Publishing to tenant-specific topic: %s", tenantOutputTopic)
+	tenantOutputTopic := fmt.Sprintf("tenant.%s.transformed.device.location", tenant)
+	logTenant(tenant, "📡", "Publishing to topic: %s", tenantOutputTopic)
 	err = c.channel.Publish(
 		fmt.Sprintf("%s.exchange", tenant),    // exchange (use amq.topic)
 		tenantOutputTopic, 	  								 // routing key (topic name)
@@ -651,7 +700,7 @@ func (c *Consumer) publishTransformedData(data *models.TransformedDeviceData, te
 		return fmt.Errorf("failed to publish message: %w", err)
 	}
 
-	log.Printf("Published transformed data to topic: %s", tenantOutputTopic)
+	logTenant(tenant, "✅", "Published transformed data to topic: %s", tenantOutputTopic)
 	return nil
 }
 
