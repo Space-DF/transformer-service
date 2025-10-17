@@ -64,8 +64,8 @@ func runServe(cmd *cobra.Command, args []string) error {
 		log.Printf("Device profiles loaded successfully")
 	}
 
-	// Create MQTT consumer
-	consumer := mqtt.NewConsumer(cfg.AMQP, loggerService, deviceProfileService)
+	// Create MQTT consumer with event-driven organization discovery (NO database!)
+	consumer := mqtt.NewConsumer(cfg.AMQP, cfg.OrgEvents, loggerService, deviceProfileService)
 
 	// Connect to AMQP broker
 	if err := consumer.Connect(); err != nil {
