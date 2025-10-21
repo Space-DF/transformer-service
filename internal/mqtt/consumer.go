@@ -43,9 +43,9 @@ type Consumer struct {
 	done                 chan bool
 
 	// Dynamic queue management
-	activeConsumers      sync.Map // map[string]*TenantConsumer
-	queueMutex           sync.RWMutex
-	isRunning            bool
+	activeConsumers sync.Map // map[string]*TenantConsumer
+	queueMutex      sync.RWMutex
+	isRunning       bool
 }
 
 // NewConsumer creates a new MQTT consumer
@@ -86,7 +86,7 @@ func (c *Consumer) Connect() error {
 	// Create separate channel for org events
 	c.orgEventsChannel, err = c.conn.Channel()
 	if err != nil {
-			return fmt.Errorf("failed to open org events channel: %w", err)
+		return fmt.Errorf("failed to open org events channel: %w", err)
 	}
 
 	return nil
@@ -95,393 +95,353 @@ func (c *Consumer) Connect() error {
 // Start begins consuming messages from AMQP broker with routing
 func (c *Consumer) Start(ctx context.Context) error {
 	// Note: amq.topic is a built-in exchange, no need to declare it
-    c.queueMutex.Lock()
-    c.isRunning = true
-    c.queueMutex.Unlock()
+	c.queueMutex.Lock()
+	c.isRunning = true
+	c.queueMutex.Unlock()
 
-    log.Println("Starting transformer service with pure event-driven architecture...")
-    log.Println("Waiting for organization events to discover active tenants...")
+	log.Println("Starting transformer service with pure event-driven architecture...")
+	log.Println("Waiting for organization events to discover active tenants...")
 
+	// Start listening to organization events in a separate goroutine
+	go func() {
+		if err := c.listenToOrgEvents(ctx); err != nil {
+			log.Printf("Org events listener error: %v", err)
+		}
+	}()
 
-		// Start listening to organization events in a separate goroutine
-    go func() {
-        if err := c.listenToOrgEvents(ctx); err != nil {
-            log.Printf("Org events listener error: %v", err)
-        }
-    }()
+	// Send bootstrap discovery request after a small delay (let listener setup first)
+	go func() {
+		time.Sleep(2 * time.Second)
+		if err := c.sendDiscoveryRequest(ctx); err != nil {
+			log.Printf("Failed to send discovery request: %v", err)
+		}
+	}()
 
-    // Send bootstrap discovery request after a small delay (let listener setup first)
-    go func() {
-        time.Sleep(2 * time.Second)
-        if err := c.sendDiscoveryRequest(ctx); err != nil {
-            log.Printf("Failed to send discovery request: %v", err)
-        }
-    }()
+	// Wait for context cancellation or done signal
+	select {
+	case <-ctx.Done():
+		log.Println("Context cancelled, stopping consumer")
+		c.stopAllConsumers()
+	case <-c.done:
+		log.Println("Consumer stopped")
+		c.stopAllConsumers()
+	}
 
-    // Wait for context cancellation or done signal
-    select {
-    case <-ctx.Done():
-        log.Println("Context cancelled, stopping consumer")
-        c.stopAllConsumers()
-    case <-c.done:
-        log.Println("Consumer stopped")
-        c.stopAllConsumers()
-    }
-
-    return nil
+	return nil
 }
 
 // sendDiscoveryRequest sends a request to console service to get all active orgs
 func (c *Consumer) sendDiscoveryRequest(ctx context.Context) error {
-    log.Println("Sending discovery request to console service for existing organizations...")
+	log.Println("Sending discovery request to console service for existing organizations...")
 
-    request := models.OrgDiscoveryRequest{
-        EventType:   models.OrgDiscoveryReq,
-        EventID:     fmt.Sprintf("discovery-%d", time.Now().Unix()),
-        Timestamp:   time.Now(),
-        ServiceName: "transformer-service",
-        ReplyTo:     c.orgEventsConfig.Queue, // We'll receive response on our org events queue
-    }
+	request := models.OrgDiscoveryRequest{
+		EventType:   models.OrgDiscoveryReq,
+		EventID:     fmt.Sprintf("discovery-%d", time.Now().Unix()),
+		Timestamp:   time.Now(),
+		ServiceName: "transformer-service",
+		ReplyTo:     c.orgEventsConfig.Queue, // We'll receive response on our org events queue
+	}
 
-    body, err := json.Marshal(request)
-    if err != nil {
-        return fmt.Errorf("failed to marshal discovery request: %w", err)
-    }
+	body, err := json.Marshal(request)
+	if err != nil {
+		return fmt.Errorf("failed to marshal discovery request: %w", err)
+	}
 
-    err = c.orgEventsChannel.PublishWithContext(
-        ctx,
-        c.orgEventsConfig.Exchange,    // "org.events"
-        "org.discovery.request",        // routing key
-        false,                          // mandatory
-        false,                          // immediate
-        amqp.Publishing{
-            ContentType: "application/json",
-            Body:        body,
-            Timestamp:   time.Now(),
-        },
-    )
+	err = c.orgEventsChannel.PublishWithContext(
+		ctx,
+		c.orgEventsConfig.Exchange, // "org.events"
+		"org.discovery.request",    // routing key
+		false,                      // mandatory
+		false,                      // immediate
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        body,
+			Timestamp:   time.Now(),
+		},
+	)
 
-    if err != nil {
-        return fmt.Errorf("failed to publish discovery request: %w", err)
-    }
+	if err != nil {
+		return fmt.Errorf("failed to publish discovery request: %w", err)
+	}
 
-    log.Println("Discovery request sent successfully")
-    return nil
+	log.Println("Discovery request sent successfully")
+	return nil
+}
+
+func (c *Consumer) ensureOrgEventsTopology() error {
+	if err := c.orgEventsChannel.ExchangeDeclare(
+		c.orgEventsConfig.Exchange,
+		"topic",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("exchange declare failed: %w", err)
+	}
+
+	if _, err := c.orgEventsChannel.QueueDeclare(
+		c.orgEventsConfig.Queue,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("queue declare failed: %w", err)
+	}
+
+	if err := c.orgEventsChannel.QueueBind(
+		c.orgEventsConfig.Queue,
+		c.orgEventsConfig.RoutingKey,
+		c.orgEventsConfig.Exchange,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("queue bind failed: %w", err)
+	}
+
+	return nil
 }
 
 // subscribeToOrganization starts consuming from an organization's existing queue
 func (c *Consumer) subscribeToOrganization(parentCtx context.Context, orgSlug string) error {
-    // Queue name format: {org_slug}.transformer.queue
-    // This queue will be created by console/device service!
-		defaultExchange := "amq.topic"
-    queueName := fmt.Sprintf("%s.transformer.queue", orgSlug)
+	// Queue name format: {org_slug}.transformer.queue
+	// This queue will be created by console/device service!
+	queueName := fmt.Sprintf("%s.transformer.queue", orgSlug)
 
-    log.Printf("Attempting to consume from pre-existing queue: %s", queueName)
+	// Start consuming from the existing queue
+	// Generate a unique consumer tag with timestamp to avoid conflicts after restart
+	consumerTag := fmt.Sprintf("%s-transformer-%d", orgSlug, time.Now().Unix())
 
-		exchangeName := fmt.Sprintf("%s.exchange", orgSlug)
-		// Declare exchange for this tenant
-		err := c.channel.ExchangeDeclare(
-			exchangeName,
-			"topic",
-			true,  // durable
-			false, // auto-delete
-			false, // internal
-			false, // no-wait
-			nil,
-		)
-		if err != nil {
-			c.channel.Close()
-			return fmt.Errorf("failed to declare exchange for org %s: %w", orgSlug, err)
-		}
+	messages, err := c.channel.Consume(
+		queueName,        // queue name (already exists!)
+		consumerTag,      // unique consumer tag
+		c.config.AutoAck, // auto-ack
+		false,            // exclusive
+		false,            // no-local
+		false,            // no-wait
+		nil,              // args
+	)
+	if err != nil {
+		return fmt.Errorf("failed to start consuming from queue '%s': %w", queueName, err)
+	}
 
-		routingKey := fmt.Sprintf("tenant.%s.device.data", orgSlug)
-		err = c.channel.ExchangeBind(
-			exchangeName,
-			routingKey,
-			defaultExchange,  // durable
-			false, // no-wait
-			nil,
-		)
-		if err != nil {
-			c.channel.Close()
-			return fmt.Errorf("failed to bind exchange to exchange %s: %w", orgSlug, err)
-		}
+	// Create a cancellable context for this tenant
+	tenantCtx, cancel := context.WithCancel(parentCtx)
 
-		queueInfo, err := c.channel.QueueDeclare(
-			queueName, // name
-			true,      // durablePublishes back to specific exchange
-			false,     // delete when unused
-			false,     // exclusivePublishes back to specific exchange
-			false,     // no-wait
-			nil,       // arguments
-		)
-    if err != nil {
-        return fmt.Errorf("queue '%s' does not exist (should be created by console service): %w", queueName, err)
-    }
+	// Store the consumer
+	consumer := &TenantConsumer{
+		OrgSlug:   orgSlug,
+		QueueName: queueName,
+		Cancel:    cancel,
+	}
+	c.activeConsumers.Store(orgSlug, consumer)
 
-    log.Printf("Queue exists: %s (messages: %d, consumers: %d)", 
-        queueName, queueInfo.Messages, queueInfo.Consumers)
-		
-		// Bind queue to exchange
-		err = c.channel.QueueBind(
-			queueName,
-			routingKey,
-			exchangeName,
-			false,
-			nil,
-		)
-		if err != nil {
-			c.channel.Close()
-			return fmt.Errorf("failed to bind queue for org %s: %w", orgSlug, err)
-		}
-    // Start consuming from the existing queue
-    // Generate a unique consumer tag with timestamp to avoid conflicts after restart
-    consumerTag := fmt.Sprintf("%s-transformer-%d", orgSlug, time.Now().Unix())
-    
-    messages, err := c.channel.Consume(
-        queueName,                           // queue name (already exists!)
-        consumerTag,                         // unique consumer tag
-        c.config.AutoAck,                    // auto-ack
-        false,                               // exclusive
-        false,                               // no-local
-        false,                               // no-wait
-        nil,                                 // args
-    )
-    if err != nil {
-        return fmt.Errorf("failed to start consuming from queue '%s': %w", queueName, err)
-    }
+	// Start processing messages for this tenant in a dedicated goroutine
+	go c.processTenantMessages(tenantCtx, orgSlug, messages)
 
-    // Create a cancellable context for this tenant
-    tenantCtx, cancel := context.WithCancel(parentCtx)
-
-    // Store the consumer
-    consumer := &TenantConsumer{
-        OrgSlug:   orgSlug,
-        QueueName: queueName,
-        Cancel:    cancel,
-    }
-    c.activeConsumers.Store(orgSlug, consumer)
-
-    // Start processing messages for this tenant in a dedicated goroutine
-    go c.processTenantMessages(tenantCtx, orgSlug, messages)
-
-    log.Printf("Started consuming from %s (org: %s)", queueName, orgSlug)
-    return nil
+	log.Printf("Started consuming from %s (org: %s)", queueName, orgSlug)
+	return nil
 }
 
 // unsubscribeFromOrganization stops consuming from an organization's queue
 func (c *Consumer) unsubscribeFromOrganization(orgSlug string) {
-    value, exists := c.activeConsumers.Load(orgSlug)
-    if !exists {
-        return
-    }
+	value, exists := c.activeConsumers.Load(orgSlug)
+	if !exists {
+		return
+	}
 
-    consumer := value.(*TenantConsumer)
-    consumer.Cancel() // Cancel the context to stop the goroutine
-    c.activeConsumers.Delete(orgSlug)
+	consumer := value.(*TenantConsumer)
+	consumer.Cancel() // Cancel the context to stop the goroutine
+	c.activeConsumers.Delete(orgSlug)
 
-    log.Printf("Stopped consuming from org: %s", orgSlug)
+	log.Printf("Stopped consuming from org: %s", orgSlug)
 }
 
 // stopAllConsumers stops all active tenant consumers
 func (c *Consumer) stopAllConsumers() {
-    log.Println("Stopping all tenant consumers...")
-    c.activeConsumers.Range(func(key, value interface{}) bool {
-        consumer := value.(*TenantConsumer)
-        consumer.Cancel()
-        return true
-    })
-    c.activeConsumers = sync.Map{}
-    log.Println("All tenant consumers stopped")
+	log.Println("Stopping all tenant consumers...")
+	c.activeConsumers.Range(func(key, value interface{}) bool {
+		consumer := value.(*TenantConsumer)
+		consumer.Cancel()
+		return true
+	})
+	c.activeConsumers = sync.Map{}
+	log.Println("All tenant consumers stopped")
 }
 
 // listenToOrgEvents listens for organization lifecycle events (org.created, org.deleted)
 func (c *Consumer) listenToOrgEvents(ctx context.Context) error {
-    log.Println("Setting up organization events listener...")
+	var (
+		messages <-chan amqp.Delivery
+		err      error
+		attempt  = 1
+	)
 
-    // Declare the org.events exchange
-    err := c.orgEventsChannel.ExchangeDeclare(
-        c.orgEventsConfig.Exchange, // "org.events"
-        "topic",
-        true,  // durable
-        false, // auto-deleted
-        false, // internal
-        false, // no-wait
-        nil,
-    )
-    if err != nil {
-        return fmt.Errorf("Failed to declare org events exchange: %w", err)
-    }
+	for {
+		if err = c.ensureOrgEventsTopology(); err == nil {
+			messages, err = c.orgEventsChannel.Consume(
+				c.orgEventsConfig.Queue,
+				c.orgEventsConfig.ConsumerTag,
+				false, // manual ack for reliability
+				false,
+				false,
+				false,
+				nil,
+			)
+			if err == nil {
+				break
+			}
+		}
 
-    // Declare queue for org events
-    orgQueue, err := c.orgEventsChannel.QueueDeclare(
-        c.orgEventsConfig.Queue, // "transformer.org.events.queue"
-        true,                    // durable
-        false,                   // delete when unused
-        false,                   // exclusive
-        false,                   // no-wait
-        nil,
-    )
-    if err != nil {
-        return fmt.Errorf("Failed to declare org events queue: %w", err)
-    }
+		backoff := time.Duration(attempt)
+		if backoff > 10 {
+			backoff = 10
+		}
 
-    // Bind to org events
-    err = c.orgEventsChannel.QueueBind(
-        orgQueue.Name,
-        c.orgEventsConfig.RoutingKey, // "org.#"
-        c.orgEventsConfig.Exchange,
-        false,
-        nil,
-    )
-    if err != nil {
-        return fmt.Errorf("Failed to bind org events queue: %w", err)
-    }
+		log.Printf("Transformer org events setup retry (attempt %d, next in %ds): %v", attempt, int(backoff), err)
 
-    log.Printf("Listening for org events on: %s", orgQueue.Name)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(backoff * time.Second):
+		}
 
-    // Start consuming org events
-    messages, err := c.orgEventsChannel.Consume(
-        orgQueue.Name,
-        c.orgEventsConfig.ConsumerTag,
-        false, // manual ack for reliability
-        false,
-        false,
-        false,
-        nil,
-    )
-    if err != nil {
-        return fmt.Errorf("failed to consume org events: %w", err)
-    }
+		if attempt < 10 {
+			attempt++
+		}
+	}
 
-    // Process org events
-    for {
-        select {
-        case <-ctx.Done():
-            return nil
-        case msg, ok := <-messages:
-            if !ok {
-                return nil
-            }
+	// Process org events
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg, ok := <-messages:
+			if !ok {
+				return nil
+			}
 
-            log.Printf("Received org event: %s", msg.RoutingKey)
+			log.Printf("Received org event: %s", msg.RoutingKey)
 
-            if err := c.handleOrgEvent(ctx, msg); err != nil {
-                log.Printf("Error handling org event: %v", err)
-                _ = msg.Nack(false, true) // Requeue
-            } else {
-                _ = msg.Ack(false)
-            }
-        }
-    }
+			if err := c.handleOrgEvent(ctx, msg); err != nil {
+				log.Printf("Error handling org event: %v", err)
+				_ = msg.Nack(false, true) // Requeue
+			} else {
+				_ = msg.Ack(false)
+			}
+		}
+	}
 }
 
 // handleOrgEvent processes organization lifecycle events
 func (c *Consumer) handleOrgEvent(ctx context.Context, msg amqp.Delivery) error {
-    log.Printf("Received org event with routing key: %s", msg.RoutingKey)
+	log.Printf("Received org event with routing key: %s", msg.RoutingKey)
 
-    // Handle discovery response (contains all active orgs)
-    if msg.RoutingKey == "org.discovery.response" {
-        var response models.OrgDiscoveryResponse
-        if err := json.Unmarshal(msg.Body, &response); err != nil {
-            return fmt.Errorf("failed to unmarshal discovery response: %w", err)
-        }
+	// Handle discovery response (contains all active orgs)
+	// if msg.RoutingKey == "org.discovery.response" {
+	// 	var response models.OrgDiscoveryResponse
+	// 	if err := json.Unmarshal(msg.Body, &response); err != nil {
+	// 		return fmt.Errorf("failed to unmarshal discovery response: %w", err)
+	// 	}
 
-        log.Printf("Received discovery response with %d active organizations", response.TotalCount)
+	// 	log.Printf("Received discovery response with %d active organizations", response.TotalCount)
 
-        // Subscribe to each active organization
-        for _, org := range response.Organizations {
-            if org.IsActive {
-                log.Printf("Bootstrapping subscription for org: %s", org.Slug)
-                if err := c.subscribeToOrganization(ctx, org.Slug); err != nil {
-                    log.Printf("Failed to subscribe to org '%s': %v", org.Slug, err)
-                    continue
-                }
-            }
-        }
+	// 	// Subscribe to each active organization
+	// 	for _, org := range response.Organizations {
+	// 		if org.IsActive {
+	// 			log.Printf("Bootstrapping subscription for org: %s", org.Slug)
+	// 			if err := c.subscribeToOrganization(ctx, org.Slug); err != nil {
+	// 				log.Printf("Failed to subscribe to org '%s': %v", org.Slug, err)
+	// 				continue
+	// 			}
+	// 		}
+	// 	}
 
-        log.Printf("Bootstrap complete: subscribed to %d organizations", response.TotalCount)
-        return nil
-    }
+	// 	log.Printf("Bootstrap complete: subscribed to %d organizations", response.TotalCount)
+	// 	return nil
+	// }
 
-    // Handle regular org lifecycle events
-    var event models.OrgEvent
+	// Handle regular org lifecycle events
+	var event models.OrgEvent
 
-    if err := json.Unmarshal(msg.Body, &event); err != nil {
-        return fmt.Errorf("failed to unmarshal org event: %w", err)
-    }
+	if err := json.Unmarshal(msg.Body, &event); err != nil {
+		return fmt.Errorf("failed to unmarshal org event: %w", err)
+	}
 
-    log.Printf("Processing org event: %s for org: %s", event.EventType, event.Organization.Slug)
+	log.Printf("Processing org event: %s for org: %s", event.EventType, event.Payload.Slug)
 
-    switch event.EventType {
+	switch event.EventType {
 
-    case models.OrgCreated:
-        // New org created - subscribe to its queue
-        return c.subscribeToOrganization(ctx, event.Organization.Slug)
+	case models.OrgCreated:
+		// New org created - subscribe to its queue
+		return c.subscribeToOrganization(ctx, event.Payload.Slug)
 
-    case models.OrgDeactivated:
-        // Org deleted/deactivated - unsubscribe
-        c.unsubscribeFromOrganization(event.Organization.Slug)
-        return nil
+	case models.OrgDeactivated:
+		// Org deleted/deactivated - unsubscribe
+		c.unsubscribeFromOrganization(event.Payload.Slug)
+		return nil
 
-    default:
-        log.Printf("Unknown event type: %s", event.EventType)
-        return nil
-    }
+	default:
+		log.Printf("Unknown event type: %s", event.EventType)
+		return nil
+	}
 }
 
 // processTenantMessages processes messages for a specific tenant
 func (c *Consumer) processTenantMessages(ctx context.Context, orgSlug string, messages <-chan amqp.Delivery) {
-    logTenant(orgSlug, "🔄", "Processing messages for org: %s", orgSlug)
+	logTenant(orgSlug, "🔄", "Processing messages for org: %s", orgSlug)
 
-    for {
-        select {
-        case <-ctx.Done():
-            logTenant(orgSlug, "⏹️", "Stopping message processing for org: %s", orgSlug)
-            return
+	for {
+		select {
+		case <-ctx.Done():
+			logTenant(orgSlug, "⏹️", "Stopping message processing for org: %s", orgSlug)
+			return
 
-        case msg, ok := <-messages:
-            if !ok {
-                logTenant(orgSlug, "📪", "Message channel closed for org: %s", orgSlug)
-                return
-            }
+		case msg, ok := <-messages:
+			if !ok {
+				logTenant(orgSlug, "📪", "Message channel closed for org: %s", orgSlug)
+				return
+			}
 
-            logTenant(orgSlug, "📨", "Received message from routing key: %s", msg.RoutingKey)
+			logTenant(orgSlug, "📨", "Received message from routing key: %s", msg.RoutingKey)
 
-            if err := c.handleMessage(msg, orgSlug); err != nil {
-                logTenant(orgSlug, "❌", "Error processing message: %v", err)
-                // if !c.config.AutoAck {
-                //    _ = msg.Nack(false, true) // Requeue on error
-                // }
-            } 
-            
-            // Always acknowledge message to remove it from queue if not auto-ack
-            if !c.config.AutoAck {
-                _ = msg.Ack(false)
-            }
-            
-        }
-    }
+			if err := c.handleMessage(msg, orgSlug); err != nil {
+				logTenant(orgSlug, "❌", "Error processing message: %v", err)
+				// if !c.config.AutoAck {
+				//    _ = msg.Nack(false, true) // Requeue on error
+				// }
+			}
+
+			// Always acknowledge message to remove it from queue if not auto-ack
+			if !c.config.AutoAck {
+				_ = msg.Ack(false)
+			}
+
+		}
+	}
 }
 
 // Stop gracefully stops the consumer
 func (c *Consumer) Stop() error {
-    close(c.done)
-    c.stopAllConsumers()
+	close(c.done)
+	c.stopAllConsumers()
 
-    if c.orgEventsChannel != nil {
-      _ = c.orgEventsChannel.Close()
-    }
+	if c.orgEventsChannel != nil {
+		_ = c.orgEventsChannel.Close()
+	}
 
-    if c.channel != nil {
-      _ = c.channel.Close()
-    }
+	if c.channel != nil {
+		_ = c.channel.Close()
+	}
 
-    if c.conn != nil {
-      _ = c.conn.Close()
-    }
+	if c.conn != nil {
+		_ = c.conn.Close()
+	}
 
-    return nil
+	return nil
 }
 
 // handleMessage processes a single MQTT message
@@ -684,10 +644,10 @@ func (c *Consumer) publishTransformedData(data *models.TransformedDeviceData, te
 	tenantOutputTopic := fmt.Sprintf("tenant.%s.transformed.device.location", tenant)
 	logTenant(tenant, "📡", "Publishing to topic: %s", tenantOutputTopic)
 	err = c.channel.Publish(
-		fmt.Sprintf("%s.exchange", tenant),    // exchange (use amq.topic)
-		tenantOutputTopic, 	  								 // routing key (topic name)
-		false,                                 // mandatory
-		false,                                 // immediate
+		fmt.Sprintf("%s.exchange", tenant), // exchange (use amq.topic)
+		tenantOutputTopic,                  // routing key (topic name)
+		false,                              // mandatory
+		false,                              // immediate
 		amqp.Publishing{
 			ContentType:  "application/json",
 			Body:         body,
