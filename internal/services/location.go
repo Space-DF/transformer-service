@@ -525,6 +525,16 @@ func (ls *LocationService) calculateImprovedCentroid(x1, y1, r1, x2, y2, r2, d f
 	// For lens-shaped intersection, the centroid is weighted towards the center of the lens
 	// Use the midpoint of intersection points as a better approximation
 	p1, p2 := intersectionPoints[0], intersectionPoints[1]
+	
+	// Bounds check for individual points
+	if len(p1) < 2 || len(p2) < 2 {
+		// Fallback to center line calculation
+		a := (r1*r1 - r2*r2 + d*d) / (2 * d)
+		px := x1 + a*(x2-x1)/d
+		py := y1 + a*(y2-y1)/d
+		return px, py
+	}
+	
 	midX := (p1[0] + p2[0]) / 2
 	midY := (p1[1] + p2[1]) / 2
 
