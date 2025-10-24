@@ -49,6 +49,13 @@
       "device_name": "rak4630-rs3-C1F4",
       "device_id": "DEV_9123456780",
       "description": "RAK4630 relay device with GPS for DNIIT organization"
+    },
+    "000d75e6564dc1f6": {
+      "profile": "RAK4630",
+      "organization": "matter-utilities",
+      "device_name": "rak4630-rs3-C1F6",
+      "device_id": "DEV_9123456781",
+      "description": "RAK4630 relay device with GPS for matter-utilities organization"
     }
   }
 }
