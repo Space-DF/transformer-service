@@ -32,7 +32,7 @@ func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLoc
 	metadata := ts.extractMetadata(originalPayload)
 
 	// Extract device ID from payload or device mappings
-	deviceID := ts.extractDeviceID(originalPayload, deviceLocation.DevEUI)
+	deviceID := ts.extractDeviceID(originalPayload, deviceLocation.Organization, deviceLocation.DevEUI)
 
 	// Create transformed data structure
 	transformedData := &models.TransformedDeviceData{
@@ -207,9 +207,12 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 }
 
 // extractDeviceID extracts device ID from device mappings first, then payload as fallback
-func (ts *TransformService) extractDeviceID(payload map[string]interface{}, devEUI string) string {
+func (ts *TransformService) extractDeviceID(payload map[string]interface{}, organization, devEUI string) string {
 	// Priority 1: Look up device mapping by DevEUI for hardcoded device name
-	if _, mapping, err := ts.deviceProfileService.GetDeviceProfile(devEUI); err == nil {
+	if _, mapping, err := ts.deviceProfileService.GetDeviceProfile(organization, devEUI); err == nil {
+		if mapping.DeviceID != "" {
+			return mapping.DeviceID
+		}
 		if mapping.DeviceName != "" {
 			return mapping.DeviceName
 		}
