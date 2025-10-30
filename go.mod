@@ -6,6 +6,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/joho/godotenv v1.5.1
 	github.com/rabbitmq/amqp091-go v1.10.0
+	github.com/redis/go-redis/v9 v9.5.3
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0
@@ -17,6 +18,8 @@ require (
 
 require (
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect

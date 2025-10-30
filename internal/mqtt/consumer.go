@@ -690,7 +690,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 
 	// Check if device should be skipped
 	if devEUI != "" && c.deviceProfileService != nil {
-		shouldSkip, skipErr := c.deviceProfileService.ShouldSkipDevice(devEUI)
+		shouldSkip, skipErr := c.deviceProfileService.ShouldSkipDevice(orgSlug, devEUI)
 		if skipErr != nil {
 			logTenant(orgSlug, vhost, "⚠️", "Could not check skip status for device %s: %v", devEUI, skipErr)
 		} else if shouldSkip {
@@ -704,7 +704,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	var err error
 
 	if devEUI != "" && c.deviceProfileService != nil {
-		requiresCalculation, profileErr := c.deviceProfileService.RequiresLocationCalculation(devEUI)
+		requiresCalculation, profileErr := c.deviceProfileService.RequiresLocationCalculation(orgSlug, devEUI)
 		if profileErr != nil {
 			logTenant(orgSlug, vhost, "⚠️", "Could not get device profile for %s: %v. Proceeding with location calculation.", devEUI, profileErr)
 			requiresCalculation = true // Default to requiring calculation
@@ -716,14 +716,14 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 			deviceLocation, err = c.locationService.CalculateDeviceLocation(locationPayload)
 			if err == nil && deviceLocation != nil {
 				// Set organization from device mapping if available
-				if _, mapping, mappingErr := c.deviceProfileService.GetDeviceProfile(devEUI); mappingErr == nil {
+				if _, mapping, mappingErr := c.deviceProfileService.GetDeviceProfile(orgSlug, devEUI); mappingErr == nil {
 					deviceLocation.Organization = mapping.Organization
 				}
 			}
 		} else {
 			// Device has GPS, extract coordinates using device-specific parser
 			logTenant(orgSlug, vhost, "🛰️", "Device %s has GPS capability, extracting GPS coordinates", devEUI)
-			if _, mapping, profileErr := c.deviceProfileService.GetDeviceProfile(devEUI); profileErr == nil {
+			if _, mapping, profileErr := c.deviceProfileService.GetDeviceProfile(orgSlug, devEUI); profileErr == nil {
 				deviceLocation, err = c.extractGPSFromDeviceParser(mapping.Profile, locationPayload, mapping.Organization)
 			} else {
 				logTenant(orgSlug, vhost, "⚠️", "Could not get device profile for %s: %v. Falling back to location calculation.", devEUI, profileErr)
@@ -734,6 +734,10 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 		// No device profile service or devEUI, fall back to standard calculation
 		logTenant(orgSlug, vhost, "⚠️", "No device profile service or devEUI, proceeding with location calculation")
 		deviceLocation, err = c.locationService.CalculateDeviceLocation(locationPayload)
+	}
+
+	if deviceLocation != nil && deviceLocation.Organization == "" {
+		deviceLocation.Organization = orgSlug
 	}
 
 	// Prepare processing info for logging
