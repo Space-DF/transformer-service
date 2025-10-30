@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/Space-DF/transformer-service/internal/models"
-	redis "github.com/redis/go-redis/v9"
 )
 
 type cacheEntry struct {
@@ -32,7 +31,7 @@ type DeviceProfileService struct {
 	baseURL     string
 	cache       map[string]cacheEntry
 	cacheLocker sync.RWMutex
-	redisClient *redis.Client
+	cacheStore  DeviceMappingCache
 }
 
 // NewDeviceProfileService creates a new device profile service
@@ -56,9 +55,7 @@ func NewDeviceProfileService(configPath string) (*DeviceProfileService, error) {
 
 	service.httpClient = &http.Client{Timeout: timeout}
 
-	if client := newRedisClientFromEnv(); client != nil {
-		service.redisClient = client
-	}
+	service.cacheStore = newDeviceMappingCacheFromEnv()
 
 	return service, nil
 }
@@ -83,7 +80,7 @@ func (dps *DeviceProfileService) LoadProfiles(configPath string) error {
 	if !strings.HasPrefix(configPath, allowedDir+string(filepath.Separator)) && configPath != allowedDir {
 		return fmt.Errorf("config file path is outside allowed directory")
 	}
-	
+
 	// Validate file extension
 	if filepath.Ext(configPath) != ".json" {
 		return fmt.Errorf("config file must have .json extension")
@@ -187,23 +184,36 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 		return nil, err
 	}
 
-	profile := valueToString(payload["device_profile"])
-	
+	profile := ""
+	if rawProfile, ok := payload["device_profile"].(string); ok {
+		profile = strings.TrimSpace(rawProfile)
+	}
 	if profile == "" {
 		return nil, fmt.Errorf("device mapping payload missing profile for %s", devEUI)
 	}
 
-	deviceID := valueToString(payload["device_id"])
+	deviceID := ""
+	if rawID, ok := payload["device_id"].(string); ok {
+		deviceID = strings.TrimSpace(rawID)
+	}
 	if deviceID == "" {
-		deviceID = valueToString(payload["id"])
+		if fallbackID, ok := payload["id"].(string); ok {
+			deviceID = strings.TrimSpace(fallbackID)
+		}
 	}
 
-	deviceName := valueToString(payload["device_name"])
+	deviceName := ""
+	if rawName, ok := payload["device_name"].(string); ok {
+		deviceName = strings.TrimSpace(rawName)
+	}
 	if deviceName == "" {
 		deviceName = deviceID
 	}
 
-	description := valueToString(payload["description"])
+	description := ""
+	if rawDescription, ok := payload["description"].(string); ok {
+		description = strings.TrimSpace(rawDescription)
+	}
 
 	skip := false
 	if rawSkip, ok := payload["skip"]; ok {
@@ -235,28 +245,22 @@ func (dps *DeviceProfileService) getFromCache(key string) (*models.DeviceMapping
 	entry, ok := dps.cache[key]
 	dps.cacheLocker.RUnlock()
 	if !ok {
-		if dps.redisClient != nil {
+		if dps.cacheStore != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 
-			data, err := dps.redisClient.Get(ctx, key).Bytes()
+			cached, err := dps.cacheStore.Get(ctx, key)
 			if err != nil {
-				if !errors.Is(err, redis.Nil) {
+				if !errors.Is(err, ErrCacheMiss) {
 					log.Printf("device-profile redis get error: %v", err)
 				}
 				return nil, false
 			}
 
-			var cached models.DeviceMapping
-			if err := json.Unmarshal(data, &cached); err != nil {
-				log.Printf("device-profile redis unmarshal error: %v", err)
-				return nil, false
-			}
-
 			dps.cacheLocker.Lock()
-			dps.cache[key] = cacheEntry{mapping: cached}
+			dps.cache[key] = cacheEntry{mapping: *cached}
 			dps.cacheLocker.Unlock()
-			return &cached, true
+			return cached, true
 		}
 		return nil, false
 	}
@@ -272,16 +276,10 @@ func (dps *DeviceProfileService) saveToCache(key string, mapping models.DeviceMa
 	dps.cache[key] = entry
 	dps.cacheLocker.Unlock()
 
-	if dps.redisClient != nil {
-		payload, err := json.Marshal(mapping)
-		if err != nil {
-			log.Printf("device-profile redis marshal error: %v", err)
-			return
-		}
-
+	if dps.cacheStore != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		if err := dps.redisClient.Set(ctx, key, payload, 0).Err(); err != nil {
+		if err := dps.cacheStore.Set(ctx, key, mapping); err != nil {
 			log.Printf("device-profile redis set error: %v", err)
 		}
 	}
@@ -326,72 +324,4 @@ func (dps *DeviceProfileService) ShouldSkipDevice(orgSlug, devEUI string) (bool,
 		return false, err
 	}
 	return mapping.Skip, nil
-}
-
-func newRedisClientFromEnv() *redis.Client {
-	addr := strings.TrimSpace(os.Getenv("DEVICE_CACHE_REDIS_ADDR"))
-	if addr == "" {
-		return nil
-	}
-	dialTimeout := 2 * time.Second
-	if raw := strings.TrimSpace(os.Getenv("DEVICE_CACHE_REDIS_DIAL_TIMEOUT_MS")); raw != "" {
-		if ms, err := strconv.Atoi(raw); err == nil && ms > 0 {
-			dialTimeout = time.Duration(ms) * time.Millisecond
-		}
-	}
-
-	opts, err := parseRedisOptions(addr, dialTimeout)
-	if err != nil {
-		log.Printf("device-profile redis options error: %v", err)
-		return nil
-	}
-
-	if pwd := os.Getenv("DEVICE_CACHE_REDIS_PASSWORD"); pwd != "" && opts.Password == "" {
-		opts.Password = pwd
-	}
-
-	if raw := os.Getenv("DEVICE_CACHE_REDIS_DB"); raw != "" {
-		if db, err := strconv.Atoi(raw); err == nil && db >= 0 {
-			opts.DB = db
-		}
-	}
-
-	client := redis.NewClient(opts)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if err := client.Ping(ctx).Err(); err != nil {
-		log.Printf("device-profile redis ping error: %v", err)
-		return nil
-	}
-	return client
-}
-
-func parseRedisOptions(addr string, dialTimeout time.Duration) (*redis.Options, error) {
-	if strings.HasPrefix(strings.ToLower(addr), "redis://") {
-		opts, err := redis.ParseURL(addr)
-		if err != nil {
-			return nil, err
-		}
-		opts.DialTimeout = dialTimeout
-		return opts, nil
-	}
-	return &redis.Options{
-		Addr:        addr,
-		DialTimeout: dialTimeout,
-	}, nil
-}
-
-func valueToString(value interface{}) string {
-	if value == nil {
-		return ""
-	}
-	switch v := value.(type) {
-	case string:
-		return strings.TrimSpace(v)
-	case fmt.Stringer:
-		return strings.TrimSpace(v.String())
-	default:
-		s := strings.TrimSpace(fmt.Sprint(v))
-		return s
-	}
 }
