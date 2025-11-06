@@ -193,13 +193,11 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 	}
 
 	deviceID := ""
-	if rawID, ok := payload["device_id"].(string); ok {
+	if rawID, ok := payload["id"].(string); ok {
 		deviceID = strings.TrimSpace(rawID)
 	}
 	if deviceID == "" {
-		if fallbackID, ok := payload["id"].(string); ok {
-			deviceID = strings.TrimSpace(fallbackID)
-		}
+			deviceID = "unknown-" + devEUI
 	}
 
 	deviceName := ""
