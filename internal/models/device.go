@@ -111,7 +111,7 @@ type DeviceProfile struct {
 type DeviceMapping struct {
 	Profile      string `json:"device_profile"`
 	Organization string `json:"organization"`
-	DeviceID     string `json:"device_id"`
+	DeviceID     string `json:"id"`
 	DeviceName   string `json:"device_name"`
 	Description  string `json:"description"`
 	Skip         bool   `json:"skip,omitempty"`
