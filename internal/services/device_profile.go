@@ -197,7 +197,7 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 		deviceID = strings.TrimSpace(rawID)
 	}
 	if deviceID == "" {
-			deviceID = "unknown-" + devEUI
+		deviceID = "unknown-" + devEUI
 	}
 
 	deviceName := ""
@@ -213,6 +213,11 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 		description = strings.TrimSpace(rawDescription)
 	}
 
+	spaceSlug := ""
+	if rawSpaceSlug, ok := payload["space_slug"].(string); ok {
+		spaceSlug = strings.TrimSpace(rawSpaceSlug)
+	}
+
 	skip := false
 	if rawSkip, ok := payload["skip"]; ok {
 		switch v := rawSkip.(type) {
@@ -224,14 +229,15 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 			skip = v != 0
 		}
 	}
-	log.Printf("device mapping lookup: dev_eui=%s, profile=%s, device_id=%s, device_name=%s, description=%s, skip=%v",
-		devEUI, profile, deviceID, deviceName, description, skip)
+	log.Printf("device mapping lookup: dev_eui=%s, profile=%s, device_id=%s, device_name=%s, description=%s, space_slug=%s, skip=%v",
+		devEUI, profile, deviceID, deviceName, description, spaceSlug, skip)
 	mapping := models.DeviceMapping{
 		Profile:      profile,
 		Organization: orgSlug,
 		DeviceID:     deviceID,
 		DeviceName:   deviceName,
 		Description:  description,
+		SpaceSlug:    spaceSlug,
 		Skip:         skip,
 	}
 

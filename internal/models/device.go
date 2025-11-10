@@ -45,6 +45,7 @@ type DeviceLocationData struct {
 type TransformedDeviceData struct {
 	DeviceEUI    string                 `json:"device_eui"`
 	DeviceID     string                 `json:"device_id"`
+	SpaceSlug    string                 `json:"space_slug"`
 	Location     LocationCoordinates    `json:"location"`
 	Timestamp    string                 `json:"timestamp"`
 	Organization string                 `json:"organization"`
@@ -114,6 +115,7 @@ type DeviceMapping struct {
 	DeviceID     string `json:"id"`
 	DeviceName   string `json:"device_name"`
 	Description  string `json:"description"`
+	SpaceSlug    string `json:"space_slug"`
 	Skip         bool   `json:"skip,omitempty"`
 }
 
