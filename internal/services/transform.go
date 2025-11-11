@@ -8,7 +8,7 @@ import (
 )
 
 // TransformService handles data transformation
-type TransformService struct{
+type TransformService struct {
 	deviceProfileService *DeviceProfileService
 }
 
@@ -31,13 +31,14 @@ func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLoc
 	// Extract additional metadata from original payload
 	metadata := ts.extractMetadata(originalPayload)
 
-	// Extract device ID from payload or device mappings
-	deviceID := ts.extractDeviceID(originalPayload, deviceLocation.Organization, deviceLocation.DevEUI)
+	// Extract device identifiers (device + space) from payload or device mappings
+	deviceID, spaceSlug := ts.extractDeviceIdentifiers(originalPayload, deviceLocation.Organization, deviceLocation.DevEUI)
 
 	// Create transformed data structure
 	transformedData := &models.TransformedDeviceData{
 		DeviceEUI: deviceLocation.DevEUI,
 		DeviceID:  deviceID,
+		SpaceSlug: spaceSlug,
 		Location: models.LocationCoordinates{
 			Latitude:  deviceLocation.Latitude,
 			Longitude: deviceLocation.Longitude,
@@ -206,25 +207,36 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 	return metadata
 }
 
-// extractDeviceID extracts device ID from device mappings first, then payload as fallback
-func (ts *TransformService) extractDeviceID(payload map[string]interface{}, organization, devEUI string) string {
-	// Priority 1: Look up device mapping by DevEUI for hardcoded device name
-	if _, mapping, err := ts.deviceProfileService.GetDeviceProfile(organization, devEUI); err == nil {
-		if mapping.DeviceID != "" {
-			return mapping.DeviceID
-		}
-		if mapping.DeviceName != "" {
-			return mapping.DeviceName
-		}
-	}
-	
-	// Priority 2: Try direct device_id field in payload as fallback
-	if deviceID, exists := payload["device_id"]; exists {
-		if strVal, ok := deviceID.(string); ok {
-			return strVal
+// extractDeviceIdentifiers extracts device and space identifiers from mappings or payload.
+func (ts *TransformService) extractDeviceIdentifiers(payload map[string]interface{}, organization, devEUI string) (string, string) {	
+	deviceID := "unknown"
+	spaceSlug := ""
+
+	if ts.deviceProfileService != nil && organization != "" && devEUI != "" {
+		if _, mapping, err := ts.deviceProfileService.GetDeviceProfile(organization, devEUI); err == nil && mapping != nil {
+			if mapping.DeviceID != "" {
+				deviceID = mapping.DeviceID
+			}
+
+			if mapping.SpaceSlug != "" {
+				spaceSlug = mapping.SpaceSlug
+			}
 		}
 	}
-	
-	// If no device_id found, return "unknown"
-	return "unknown"
+
+	if deviceID == "unknown" {
+		if rawDeviceID, exists := payload["device_id"]; exists {
+			if strVal, ok := rawDeviceID.(string); ok && strVal != "" {
+				deviceID = strVal
+			}
+		}
+	}
+
+	if rawSpaceSlug, exists := payload["space_slug"]; exists {
+		if strVal, ok := rawSpaceSlug.(string); ok && strVal != "" {
+			spaceSlug = strVal
+		}
+	}
+
+	return deviceID, spaceSlug
 }
