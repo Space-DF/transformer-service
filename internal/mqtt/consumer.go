@@ -651,8 +651,9 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 			if decodedData, err := base64.StdEncoding.DecodeString(rawDataStr); err == nil {
 				if sensorData := decodeCayenneLPP(decodedData); len(sensorData) > 0 {
 					payload["sensor_data"] = sensorData
-					logTenant(orgSlug, vhost, "🌡️", "Decoded Cayenne sensor data: %+v", sensorData)
+					logTenant(orgSlug, vhost, "🌡️", "Decoded Cayenne sensor data from raw_data: %+v", sensorData)
 				}
+
 				// Try to parse as JSON
 				var jsonData interface{}
 				if err := json.Unmarshal(decodedData, &jsonData); err == nil {
@@ -665,6 +666,13 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 					payload["decoded_raw_data"] = decodedData
 				}
 			}
+		}
+	}
+
+	// Try to derive sensor data from decoded payloads (e.g., RAK stickers with Cayenne LPP frames)
+	if _, hasSensor := payload["sensor_data"]; !hasSensor {
+		if !decodeSensorDataFromMap(payload, locationPayload, orgSlug, vhost) {
+			_ = decodeSensorDataFromMap(payload, payload, orgSlug, vhost)
 		}
 	}
 
@@ -840,11 +848,37 @@ func decodeCayenneLPP(data []byte) map[string]interface{} {
 		}
 	}
 
-	if len(readings) > 0 {
+	if len(readings) == 0 {
 		return nil
 	}
 
 	return readings
+}
+
+func decodeSensorDataFromMap(target, source map[string]interface{}, orgSlug, vhost string) bool {
+	if source == nil {
+		return false
+	}
+
+	for _, key := range []string{"data", "frm_payload", "frmPayload"} {
+		rawVal, ok := source[key].(string)
+		if !ok || strings.TrimSpace(rawVal) == "" {
+			continue
+		}
+
+		decoded, err := base64.StdEncoding.DecodeString(rawVal)
+		if err != nil {
+			continue
+		}
+
+		if sensorData := decodeCayenneLPP(decoded); len(sensorData) > 0 {
+			target["sensor_data"] = sensorData
+			logTenant(orgSlug, vhost, "🌡️", "Decoded Cayenne sensor data from %s: %+v", key, sensorData)
+			return true
+		}
+	}
+
+	return false
 }
 
 // publishTransformedData publishes the transformed data to the output topic
@@ -858,41 +892,32 @@ func (c *Consumer) publishTransformedData(channel *amqp.Channel, data *models.Tr
 		return fmt.Errorf("failed to marshal transformed data: %w", err)
 	}
 
-	// Create tenant-specific output topics
-	var topics []string
-	for _, topic := range c.config.OutputTopics {
-		if strings.Contains(topic, ".*.") {
-			topic = strings.ReplaceAll(topic, "*", tenant.OrgSlug)
-			topics = append(topics, topic)
-		}
-	}
-
+	// Create tenant-specific output topic
+	tenantOutputTopic := fmt.Sprintf("tenant.%s.transformed.device.location", tenant.OrgSlug)
 	exchange := tenant.Exchange
 	if exchange == "" {
 		exchange = fmt.Sprintf("%s.exchange", tenant.OrgSlug)
 	}
 
-	for _, topic := range topics {
-		logTenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing to topic: %s", topic)
-		err = channel.Publish(
-			exchange,
-			topic,
-			false, // mandatory
-			false, // immediate
-			amqp.Publishing{
-				ContentType:  "application/json",
-				Body:         body,
-				Timestamp:    time.Now(),
-				DeliveryMode: amqp.Persistent, // make message persistent
-			},
-		)
+	logTenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing to topic: %s", tenantOutputTopic)
+	err = channel.Publish(
+		exchange,
+		tenantOutputTopic,
+		false, // mandatory
+		false, // immediate
+		amqp.Publishing{
+			ContentType:  "application/json",
+			Body:         body,
+			Timestamp:    time.Now(),
+			DeliveryMode: amqp.Persistent, // make message persistent
+		},
+	)
 
-		if err != nil {
-			return fmt.Errorf("failed to publish message: %w", err)
-		}
-
-		logTenant(tenant.OrgSlug, tenant.Vhost, "✅", "Published transformed data to topic: %s", topic)
+	if err != nil {
+		return fmt.Errorf("failed to publish message: %w", err)
 	}
+
+	logTenant(tenant.OrgSlug, tenant.Vhost, "✅", "Published transformed data to topic: %s", tenantOutputTopic)
 	return nil
 }
 
