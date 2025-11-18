@@ -3,7 +3,6 @@ package mqtt
 import (
 	"context"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -824,7 +823,7 @@ func decodeCayenneLPP(data []byte) map[string]interface{} {
 			if i+2 > len(data) {
 				return readings
 			}
-			raw := int16(binary.BigEndian.Uint16(data[i : i+2]))
+			raw := int16(data[i])<<8 | int16(data[i+1])
 			i += 2
 			temp := float64(raw) / 10.0
 			readings[fmt.Sprintf("temperature_c_ch%d", channel)] = temp
@@ -835,7 +834,7 @@ func decodeCayenneLPP(data []byte) map[string]interface{} {
 			if i+2 > len(data) {
 				return readings
 			}
-			raw := int16(binary.BigEndian.Uint16(data[i : i+2]))
+			raw := int16(data[i])<<8 | int16(data[i+1])
 			i += 2
 			value := float64(raw) / 100.0
 			readings[fmt.Sprintf("analog_input_ch%d", channel)] = value
@@ -860,6 +859,7 @@ func decodeSensorDataFromMap(target, source map[string]interface{}, orgSlug, vho
 		return false
 	}
 
+	// I put it here an array of strings in case the payload get sent to have different based64 data property
 	for _, key := range []string{"data", "frm_payload", "frmPayload"} {
 		rawVal, ok := source[key].(string)
 		if !ok || strings.TrimSpace(rawVal) == "" {
