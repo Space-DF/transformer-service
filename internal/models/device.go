@@ -57,7 +57,7 @@ type TransformedDeviceData struct {
 type LocationCoordinates struct {
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
-	Accuracy  string  `json:"accuracy"`
+	Accuracy  float64 `json:"accuracy"`
 }
 
 // LocationPoint represents a point in 2D space

@@ -54,7 +54,7 @@ func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLoc
 }
 
 // determineLocationAccuracy analyzes the original payload to determine location accuracy
-func (ts *TransformService) determineLocationAccuracy(payload map[string]interface{}) string {
+func (ts *TransformService) determineLocationAccuracy(payload map[string]interface{}) float64 {
 	// Try to extract uplink message, if not found, use payload directly
 	var uplinkMessage map[string]interface{}
 	if msg, ok := payload["uplink_message"].(map[string]interface{}); ok {
@@ -62,6 +62,7 @@ func (ts *TransformService) determineLocationAccuracy(payload map[string]interfa
 	} else {
 		uplinkMessage = payload
 	}
+	fmt.Println("UPLINK MESSAGE:", uplinkMessage)
 
 	// Try to find gateway metadata in multiple possible locations
 	var rxMetadata []interface{}
@@ -71,7 +72,7 @@ func (ts *TransformService) determineLocationAccuracy(payload map[string]interfa
 		if rxMetadata, ok = uplinkMessage["gateways"].([]interface{}); !ok {
 			if rxMetadata, ok = uplinkMessage["gateway_info"].([]interface{}); !ok {
 				if rxMetadata, ok = uplinkMessage["rxInfo"].([]interface{}); !ok {
-					return "unknown"
+					return 6969
 				}
 			}
 		}
@@ -93,15 +94,15 @@ func (ts *TransformService) determineLocationAccuracy(payload map[string]interfa
 	// Determine accuracy based on number of gateways
 	switch gatewayCount {
 	case 0:
-		return "no-location"
+		return 0 // from GPS, no estimate
 	case 1:
-		return "single-gateway"
+		return 300 // ~300 m error
 	case 2:
-		return "dual-gateway"
+		return 100 // ~100 m error
 	case 3:
-		return "triangulated"
-	default:
-		return "multi-gateway"
+		return 40 // ~40 m error
+	default: // multiple gateways (4+)
+		return 20 // ~20 m (or better) error
 	}
 }
 
@@ -204,11 +205,21 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 		}
 	}
 
+	if sensorData, ok := payload["sensor_data"].(map[string]interface{}); ok && len(sensorData) > 0 {
+		metadata["sensor_data"] = sensorData
+		if temp, exists := sensorData["temperature_c"]; exists {
+			metadata["temperature_c"] = temp
+		}
+		if battery, exists := sensorData["battery_v"]; exists {
+			metadata["battery_v"] = battery
+		}
+	}
+
 	return metadata
 }
 
 // extractDeviceIdentifiers extracts device and space identifiers from mappings or payload.
-func (ts *TransformService) extractDeviceIdentifiers(payload map[string]interface{}, organization, devEUI string) (string, string) {	
+func (ts *TransformService) extractDeviceIdentifiers(payload map[string]interface{}, organization, devEUI string) (string, string) {
 	deviceID := "unknown"
 	spaceSlug := ""
 

@@ -125,6 +125,7 @@ func (dps *DeviceProfileService) GetDeviceProfile(orgSlug, devEUI string) (*mode
 
 // Get mapping device
 func (dps *DeviceProfileService) getMapping(orgSlug, devEUI string) (*models.DeviceMapping, error) {
+	devEUI = strings.ToUpper(devEUI)
 	cacheKey := orgSlug + ":" + devEUI
 
 	// Get mapping device from Redis
