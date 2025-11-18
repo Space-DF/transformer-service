@@ -25,7 +25,7 @@ type AMQPConfig struct {
 	Exchange      string   `mapstructure:"exchange" env:"AMQP_EXCHANGE"`
 	Queue         string   `mapstructure:"queue" env:"AMQP_QUEUE"`
 	RoutingKey    string   `mapstructure:"routing_key" env:"AMQP_ROUTING_KEY"`
-	OutputTopic   string   `mapstructure:"output_topic" env:"AMQP_OUTPUT_TOPIC"`
+	OutputTopics  []string `mapstructure:"output_topics" env:"AMQP_OUTPUT_TOPICS"`
 	ConsumerTag   string   `mapstructure:"consumer_tag" env:"AMQP_CONSUMER_TAG"`
 	PrefetchCount int      `mapstructure:"prefetch_count" env:"AMQP_PREFETCH_COUNT"`
 	AutoAck       bool     `mapstructure:"auto_ack" env:"AMQP_AUTO_ACK"`
@@ -72,7 +72,7 @@ func New() (Config, error) {
 	// Manually bind environment variables to ensure they're read
 	_ = vp.BindEnv("server.log_level", "SERVER_LOG_LEVEL")
 	_ = vp.BindEnv("amqp.broker_url", "AMQP_BROKER_URL")
-	_ = vp.BindEnv("amqp.output_topic", "AMQP_OUTPUT_TOPIC")
+	_ = vp.BindEnv("amqp.output_topics", "AMQP_OUTPUT_TOPICS")
 	_ = vp.BindEnv("amqp.prefetch_count", "AMQP_PREFETCH_COUNT")
 	_ = vp.BindEnv("amqp.auto_ack", "AMQP_AUTO_ACK")
 	_ = vp.BindEnv("amqp.allowed_vhosts", "AMQP_ALLOWED_VHOSTS")
@@ -102,7 +102,7 @@ func New() (Config, error) {
 func setDefaults(vp *viper.Viper) {
 	vp.SetDefault("server.log_level", "info")
 	vp.SetDefault("amqp.broker_url", "amqp://default:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/")
-	vp.SetDefault("amqp.output_topic", "tenant.*.transformed.device.location")
+	vp.SetDefault("amqp.output_topics", []string{"tenant.*.transformed.device.location", "tenant.*.transformed.telemetry.device.location"})
 	vp.SetDefault("amqp.consumer_tag", "transformer-service")
 	vp.SetDefault("amqp.prefetch_count", 10)
 	vp.SetDefault("amqp.auto_ack", false)

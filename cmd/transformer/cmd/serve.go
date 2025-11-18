@@ -34,7 +34,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	// Initialize OpenTelemetry tracing
 	cleanup := telemetry.InitTracing("transformer-service")
 	defer cleanup()
-	
+
 	// Load configuration
 	cfg, err := config.New()
 	if err != nil {
@@ -64,7 +64,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		log.Printf("Device profiles loaded successfully")
 	}
 
-	// Create MQTT consumer with event-driven organization discovery 
+	// Create MQTT consumer with event-driven organization discovery
 	consumer := mqtt.NewConsumer(cfg.AMQP, cfg.OrgEvents, loggerService, deviceProfileService)
 
 	// Connect to AMQP broker
@@ -74,12 +74,12 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	log.Printf("Connected to AMQP broker: %s", cfg.AMQP.BrokerURL)
 	log.Printf("Consuming from queue: %s with routing key: %s", cfg.AMQP.Queue, cfg.AMQP.RoutingKey)
-	log.Printf("Publishing to topic: %s", cfg.AMQP.OutputTopic)
+	log.Printf("Publishing to topics: %v", cfg.AMQP.OutputTopics)
 	log.Printf("Raw data logging enabled - File: %t, JSON: %t, Dir: %s", cfg.RawDataLog.EnableFileLog, cfg.RawDataLog.EnableJSONLog, cfg.RawDataLog.LogDir)
 
 	// Setup HTTP server for health check endpoint
 	mux := http.NewServeMux()
-	
+
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -125,7 +125,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	
+
 	select {
 	case <-quit:
 		log.Println("Received shutdown signal")

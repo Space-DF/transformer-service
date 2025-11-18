@@ -803,32 +803,41 @@ func (c *Consumer) publishTransformedData(channel *amqp.Channel, data *models.Tr
 		return fmt.Errorf("failed to marshal transformed data: %w", err)
 	}
 
-	// Create tenant-specific output topic
-	tenantOutputTopic := fmt.Sprintf("tenant.%s.transformed.device.location", tenant.OrgSlug)
+	// Create tenant-specific output topics
+	var topics []string
+	for _, topic := range c.config.OutputTopics {
+		if strings.Contains(topic, ".*.") {
+			topic = strings.ReplaceAll(topic, "*", tenant.OrgSlug)
+			topics = append(topics, topic)
+		}
+	}
+
 	exchange := tenant.Exchange
 	if exchange == "" {
 		exchange = fmt.Sprintf("%s.exchange", tenant.OrgSlug)
 	}
 
-	logTenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing to topic: %s", tenantOutputTopic)
-	err = channel.Publish(
-		exchange,
-		tenantOutputTopic,
-		false, // mandatory
-		false, // immediate
-		amqp.Publishing{
-			ContentType:  "application/json",
-			Body:         body,
-			Timestamp:    time.Now(),
-			DeliveryMode: amqp.Persistent, // make message persistent
-		},
-	)
+	for _, topic := range topics {
+		logTenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing to topic: %s", topic)
+		err = channel.Publish(
+			exchange,
+			topic,
+			false, // mandatory
+			false, // immediate
+			amqp.Publishing{
+				ContentType:  "application/json",
+				Body:         body,
+				Timestamp:    time.Now(),
+				DeliveryMode: amqp.Persistent, // make message persistent
+			},
+		)
 
-	if err != nil {
-		return fmt.Errorf("failed to publish message: %w", err)
+		if err != nil {
+			return fmt.Errorf("failed to publish message: %w", err)
+		}
+
+		logTenant(tenant.OrgSlug, tenant.Vhost, "✅", "Published transformed data to topic: %s", topic)
 	}
-
-	logTenant(tenant.OrgSlug, tenant.Vhost, "✅", "Published transformed data to topic: %s", tenantOutputTopic)
 	return nil
 }
 
