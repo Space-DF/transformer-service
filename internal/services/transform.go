@@ -204,6 +204,16 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 		}
 	}
 
+	if sensorData, ok := payload["sensor_data"].(map[string]interface{}); ok && len(sensorData) > 0 {
+		metadata["sensor_data"] = sensorData
+		if temp, exists := sensorData["temperature_c"]; exists {
+			metadata["temperature_c"] = temp
+		}
+		if battery, exists := sensorData["battery_v"]; exists {
+			metadata["battery_v"] = battery
+		}
+	}
+
 	return metadata
 }
 

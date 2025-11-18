@@ -3,6 +3,7 @@ package mqtt
 import (
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -648,6 +649,11 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 			// rawDataMap found
 		} else if rawDataStr, ok := rawData.(string); ok {
 			if decodedData, err := base64.StdEncoding.DecodeString(rawDataStr); err == nil {
+				if sensorData := decodeCayenneLPP(decodedData); len(sensorData) > 0 {
+					payload["sensor_data"] = sensorData
+					logTenant(orgSlug, vhost, "🌡️", "Decoded Cayenne sensor data from raw_data: %+v", sensorData)
+				}
+
 				// Try to parse as JSON
 				var jsonData interface{}
 				if err := json.Unmarshal(decodedData, &jsonData); err == nil {
@@ -660,6 +666,13 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 					payload["decoded_raw_data"] = decodedData
 				}
 			}
+		}
+	}
+
+	// Try to derive sensor data from decoded payloads (e.g., RAK stickers with Cayenne LPP frames)
+	if _, hasSensor := payload["sensor_data"]; !hasSensor {
+		if !decodeSensorDataFromMap(payload, locationPayload, orgSlug, vhost) {
+			_ = decodeSensorDataFromMap(payload, payload, orgSlug, vhost)
 		}
 	}
 
@@ -790,6 +803,82 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 
 	logTenant(orgSlug, vhost, "✅", "Successfully processed device: %s", deviceLocation.DevEUI)
 	return nil
+}
+
+// decodeCayenneLPP decodes a subset of Cayenne LPP payloads used by RAK trackers
+// to expose temperature and battery/analog readings.
+func decodeCayenneLPP(data []byte) map[string]interface{} {
+	if len(data) < 4 {
+		return nil
+	}
+
+	readings := make(map[string]interface{})
+
+	for i := 0; i < len(data)-1; {
+		channel := data[i]
+		dataType := data[i+1]
+		i += 2
+
+		switch dataType {
+		case 0x67: // Temperature
+			if i+2 > len(data) {
+				return readings
+			}
+			raw := int16(binary.BigEndian.Uint16(data[i : i+2]))
+			i += 2
+			temp := float64(raw) / 10.0
+			readings[fmt.Sprintf("temperature_c_ch%d", channel)] = temp
+			if _, exists := readings["temperature_c"]; !exists {
+				readings["temperature_c"] = temp
+			}
+		case 0x02: // Analog input
+			if i+2 > len(data) {
+				return readings
+			}
+			raw := int16(binary.BigEndian.Uint16(data[i : i+2]))
+			i += 2
+			value := float64(raw) / 100.0
+			readings[fmt.Sprintf("analog_input_ch%d", channel)] = value
+			if channel == 0 {
+				readings["battery_v"] = value
+			}
+		default:
+			// Unsupported type; stop decoding to avoid misalignment
+			return readings
+		}
+	}
+
+	if len(readings) == 0 {
+		return nil
+	}
+
+	return readings
+}
+
+func decodeSensorDataFromMap(target, source map[string]interface{}, orgSlug, vhost string) bool {
+	if source == nil {
+		return false
+	}
+
+	for _, key := range []string{"data", "frm_payload", "frmPayload"} {
+		rawVal, ok := source[key].(string)
+		if !ok || strings.TrimSpace(rawVal) == "" {
+			continue
+		}
+
+		decoded, err := base64.StdEncoding.DecodeString(rawVal)
+		if err != nil {
+			continue
+		}
+
+		if sensorData := decodeCayenneLPP(decoded); len(sensorData) > 0 {
+			target["sensor_data"] = sensorData
+			logTenant(orgSlug, vhost, "", "Decoded Cayenne sensor data from %s: %+v", key, sensorData)
+			return true
+		}
+	}
+
+	return false
 }
 
 // publishTransformedData publishes the transformed data to the output topic
