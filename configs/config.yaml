@@ -7,7 +7,9 @@ amqp:
   broker_url: "amqp://default:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/"
   allowed_vhosts: []
   exchange: "amq.topic"
-  output_topic: "tenant.*.transformed.device.location"
+  output_topics:
+    - "tenant.*.transformed.device.location"
+    - "tenant.*.transformed.telemetry.device.location"
   consumer_tag: "transformer-service"
   prefetch_count: 10
   auto_ack: false
