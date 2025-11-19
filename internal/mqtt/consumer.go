@@ -776,6 +776,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 
 	// Publish transformed data to output topic
 	logTenant(orgSlug, vhost, "📤", "Publishing transformed data for device %s", deviceLocation.DevEUI)
+	logTenant(orgSlug, vhost, ".", "TRANSFORMED_DATA: %+v, ORIGINAL DATA: %+v", transformedData, payload)
 	if err := c.publishTransformedData(tenant.Channel, transformedData, tenant); err != nil {
 		return fmt.Errorf("failed to publish transformed data: %w", err)
 	}
