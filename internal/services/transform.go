@@ -177,6 +177,8 @@ func (ts *TransformService) extractDeviceIdentifiers(payload map[string]interfac
 	deviceID := "unknown"
 	spaceSlug := ""
 
+	fmt.Printf("DEVICE PAYLOAD: %+v\n", payload)
+
 	if ts.deviceProfileService != nil && organization != "" && devEUI != "" {
 		if _, mapping, err := ts.deviceProfileService.GetDeviceProfile(organization, devEUI); err == nil && mapping != nil {
 			if mapping.DeviceID != "" {
