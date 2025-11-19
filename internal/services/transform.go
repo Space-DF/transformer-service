@@ -20,13 +20,13 @@ func NewTransformService(deviceProfileService *DeviceProfileService) *TransformS
 }
 
 // TransformDeviceData transforms device location data to the standardized output format
-func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLocationData, originalPayload map[string]interface{}) (*models.TransformedDeviceData, error) {
+func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLocationData, gatewayCount int, originalPayload map[string]interface{}) (*models.TransformedDeviceData, error) {
 	if deviceLocation == nil {
 		return nil, fmt.Errorf("device location data is nil")
 	}
 
 	// Determine location accuracy based on calculation method
-	accuracy := ts.determineLocationAccuracy(originalPayload)
+	accuracy := ts.determineLocationAccuracy(gatewayCount)
 
 	// Extract additional metadata from original payload
 	metadata := ts.extractMetadata(originalPayload)
@@ -54,54 +54,19 @@ func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLoc
 }
 
 // determineLocationAccuracy analyzes the original payload to determine location accuracy
-func (ts *TransformService) determineLocationAccuracy(payload map[string]interface{}) string {
-	// Try to extract uplink message, if not found, use payload directly
-	var uplinkMessage map[string]interface{}
-	if msg, ok := payload["uplink_message"].(map[string]interface{}); ok {
-		uplinkMessage = msg
-	} else {
-		uplinkMessage = payload
-	}
-
-	// Try to find gateway metadata in multiple possible locations
-	var rxMetadata []interface{}
-	var ok bool
-
-	if rxMetadata, ok = uplinkMessage["rx_metadata"].([]interface{}); !ok {
-		if rxMetadata, ok = uplinkMessage["gateways"].([]interface{}); !ok {
-			if rxMetadata, ok = uplinkMessage["gateway_info"].([]interface{}); !ok {
-				if rxMetadata, ok = uplinkMessage["rxInfo"].([]interface{}); !ok {
-					return "unknown"
-				}
-			}
-		}
-	}
-
-	// Count gateways with valid location data
-	gatewayCount := 0
-	for _, gw := range rxMetadata {
-		gateway, ok := gw.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		if location, exists := gateway["location"]; exists && location != nil {
-			gatewayCount++
-		}
-	}
-
+func (ts *TransformService) determineLocationAccuracy(gatewayCount int) float64 {
 	// Determine accuracy based on number of gateways
 	switch gatewayCount {
 	case 0:
-		return "no-location"
+		return 0 // from GPS, no estimate
 	case 1:
-		return "single-gateway"
+		return 300 // ~300 m error
 	case 2:
-		return "dual-gateway"
+		return 100 // ~100 m error
 	case 3:
-		return "triangulated"
-	default:
-		return "multi-gateway"
+		return 40 // ~40 m error
+	default: // multiple gateways (4+)
+		return 20 // ~20 m (or better) error
 	}
 }
 
@@ -208,7 +173,7 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 }
 
 // extractDeviceIdentifiers extracts device and space identifiers from mappings or payload.
-func (ts *TransformService) extractDeviceIdentifiers(payload map[string]interface{}, organization, devEUI string) (string, string) {	
+func (ts *TransformService) extractDeviceIdentifiers(payload map[string]interface{}, organization, devEUI string) (string, string) {
 	deviceID := "unknown"
 	spaceSlug := ""
 

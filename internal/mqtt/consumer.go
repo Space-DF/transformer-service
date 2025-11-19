@@ -739,12 +739,13 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	if deviceLocation != nil && deviceLocation.Organization == "" {
 		deviceLocation.Organization = orgSlug
 	}
+	gatewayCount := c.countGateways(locationPayload)
 
 	// Prepare processing info for logging
 	processingInfo := models.ProcessingInfo{
 		LocationCalculated: err == nil,
 		HasLocationData:    c.hasLocationData(locationPayload),
-		GatewayCount:       c.countGateways(locationPayload),
+		GatewayCount:       gatewayCount,
 	}
 
 	if err != nil {
@@ -761,17 +762,16 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 		return fmt.Errorf("failed to calculate device location: %w", err)
 	}
 
-	// Add location result to processing info for successful calculations
+	// Transform data to output format
+	transformedData, err := c.transformService.TransformDeviceData(deviceLocation, processingInfo.GatewayCount, payload)
+	if err != nil {
+		return fmt.Errorf("failed to transform device data: %w", err)
+	}
+
 	processingInfo.LocationResult = &models.LocationResult{
 		Latitude:  deviceLocation.Latitude,
 		Longitude: deviceLocation.Longitude,
-		Accuracy:  fmt.Sprintf("%d_gateways", processingInfo.GatewayCount),
-	}
-
-	// Transform data to output format
-	transformedData, err := c.transformService.TransformDeviceData(deviceLocation, payload)
-	if err != nil {
-		return fmt.Errorf("failed to transform device data: %w", err)
+		Accuracy:  transformedData.Location.Accuracy,
 	}
 
 	// Publish transformed data to output topic
