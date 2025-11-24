@@ -19,7 +19,6 @@ func (p *Parser) Parse(msg amqp.Delivery) (payload map[string]interface{}, locat
 	// Parse the incoming message
 	var rawPayload map[string]interface{}
 	if err := json.Unmarshal(msg.Body, &rawPayload); err != nil {
-		// logging.Tenant(orgSlug, vhost, "❌", "Failed to unmarshal message: %v", err)
 		return nil, nil, fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 

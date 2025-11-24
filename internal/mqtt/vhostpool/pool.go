@@ -53,8 +53,8 @@ func (p *Pool) Release(vhost string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	pooled := p.connections[vhost]
-	if pooled == nil {
+	pooled, ok := p.connections[vhost]
+	if !ok || pooled == nil {
 		return
 	}
 	pooled.refCount--
