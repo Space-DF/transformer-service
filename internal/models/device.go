@@ -116,6 +116,7 @@ type DeviceMapping struct {
 	DeviceName   string `json:"device_name"`
 	Description  string `json:"description"`
 	SpaceSlug    string `json:"space_slug"`
+	IsPublished  bool   `json:"is_published"`
 	Skip         bool   `json:"skip,omitempty"`
 }
 

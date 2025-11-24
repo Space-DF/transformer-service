@@ -218,19 +218,18 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 		spaceSlug = strings.TrimSpace(rawSpaceSlug)
 	}
 
+	isPublished := false
+	if rawPublished, ok := payload["is_published"]; ok {
+		isPublished = rawPublished.(bool)
+	}
+
 	skip := false
 	if rawSkip, ok := payload["skip"]; ok {
-		switch v := rawSkip.(type) {
-		case bool:
-			skip = v
-		case string:
-			skip = strings.EqualFold(v, "true")
-		case float64:
-			skip = v != 0
-		}
+		skip = rawSkip.(bool)
 	}
-	log.Printf("device mapping lookup: dev_eui=%s, profile=%s, device_id=%s, device_name=%s, description=%s, space_slug=%s, skip=%v",
-		devEUI, profile, deviceID, deviceName, description, spaceSlug, skip)
+
+	log.Printf("device mapping lookup: dev_eui=%s, profile=%s, device_id=%s, device_name=%s, description=%s, space_slug=%s, is_published=%v,  skip=%v",
+		devEUI, profile, deviceID, deviceName, description, spaceSlug, isPublished, skip)
 	mapping := models.DeviceMapping{
 		Profile:      profile,
 		Organization: orgSlug,
@@ -238,6 +237,7 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 		DeviceName:   deviceName,
 		Description:  description,
 		SpaceSlug:    spaceSlug,
+		IsPublished:  isPublished,
 		Skip:         skip,
 	}
 
