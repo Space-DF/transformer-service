@@ -32,13 +32,14 @@ func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLoc
 	metadata := ts.extractMetadata(originalPayload)
 
 	// Extract device identifiers (device + space) from payload or device mappings
-	deviceID, spaceSlug := ts.extractDeviceIdentifiers(originalPayload, deviceLocation.Organization, deviceLocation.DevEUI)
+	deviceID, spaceSlug, isPublished := ts.extractDeviceIdentifiers(originalPayload, deviceLocation.Organization, deviceLocation.DevEUI)
 
 	// Create transformed data structure
 	transformedData := &models.TransformedDeviceData{
-		DeviceEUI: deviceLocation.DevEUI,
-		DeviceID:  deviceID,
-		SpaceSlug: spaceSlug,
+		DeviceEUI:   deviceLocation.DevEUI,
+		DeviceID:    deviceID,
+		SpaceSlug:   spaceSlug,
+		IsPublished: isPublished,
 		Location: models.LocationCoordinates{
 			Latitude:  deviceLocation.Latitude,
 			Longitude: deviceLocation.Longitude,
@@ -173,9 +174,10 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 }
 
 // extractDeviceIdentifiers extracts device and space identifiers from mappings or payload.
-func (ts *TransformService) extractDeviceIdentifiers(payload map[string]interface{}, organization, devEUI string) (string, string) {
+func (ts *TransformService) extractDeviceIdentifiers(payload map[string]interface{}, organization, devEUI string) (string, string, bool) {
 	deviceID := "unknown"
 	spaceSlug := ""
+	isPublished := false
 
 	if ts.deviceProfileService != nil && organization != "" && devEUI != "" {
 		if _, mapping, err := ts.deviceProfileService.GetDeviceProfile(organization, devEUI); err == nil && mapping != nil {
@@ -185,6 +187,10 @@ func (ts *TransformService) extractDeviceIdentifiers(payload map[string]interfac
 
 			if mapping.SpaceSlug != "" {
 				spaceSlug = mapping.SpaceSlug
+			}
+
+			if mapping.IsPublished {
+				isPublished = true
 			}
 		}
 	}
@@ -203,5 +209,11 @@ func (ts *TransformService) extractDeviceIdentifiers(payload map[string]interfac
 		}
 	}
 
-	return deviceID, spaceSlug
+	if rawIsPublished, exists := payload["is_published"]; exists {
+		if boolVal, ok := rawIsPublished.(bool); ok {
+			isPublished = boolVal
+		}
+	}
+
+	return deviceID, spaceSlug, isPublished
 }

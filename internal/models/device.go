@@ -46,6 +46,7 @@ type TransformedDeviceData struct {
 	DeviceEUI    string                 `json:"device_eui"`
 	DeviceID     string                 `json:"device_id"`
 	SpaceSlug    string                 `json:"space_slug"`
+	IsPublished  bool                   `json:"is_published"`
 	Location     LocationCoordinates    `json:"location"`
 	Timestamp    string                 `json:"timestamp"`
 	Organization string                 `json:"organization"`
