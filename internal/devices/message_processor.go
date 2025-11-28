@@ -70,7 +70,7 @@ func (mp *MessageProcessor) findDevice(ctx context.Context, orgSlug string, iden
 	for _, priority := range priorityOrder {
 		for _, identifier := range identifiers {
 			if identifier.Type == priority {
-				device, err := mp.registry.getDeviceByIdentifier(ctx, identifier.Type, identifier.Key, identifier.Value)
+				device, err := mp.registry.getDeviceByIdentifier(ctx, orgSlug, identifier.Type, identifier.Key, identifier.Value)
 				if err == nil {
 					// Found device! Return with primary identifier for Business Device lookup
 					primaryID := mp.determinePrimaryID(identifier, device)

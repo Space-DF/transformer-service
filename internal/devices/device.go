@@ -2,7 +2,6 @@ package devices
 
 import (
 	"context"
-	"fmt"
 	"time"
 )
 

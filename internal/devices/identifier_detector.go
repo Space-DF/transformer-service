@@ -1,7 +1,6 @@
 package devices
 
 import (
-	"encoding/json"
 	"log"
 	"strings"
 )

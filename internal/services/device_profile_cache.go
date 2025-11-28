@@ -23,42 +23,34 @@ type DeviceMappingCache interface {
 	Set(ctx context.Context, key string, mapping models.DeviceMapping) error
 }
 
-// TODO: DeviceRegistryCache interface temporarily commented out due to circular dependency
-// Will be moved to common package to resolve architectural issue
-/*
+// DeviceRegistryCache interface - now enabled for Device Registry integration
 type DeviceRegistryCache interface {
-	// Existing DeviceMapping functionality
+	// Existing DeviceMapping functionality for backward compatibility
 	DeviceMappingCache
 	
-	// Org-aware Device Entry operations (fast lookup pattern)
-	GetDeviceEntry(ctx context.Context, org, deviceID string) (*devices.DeviceEntry, error)
-	SetDeviceEntry(ctx context.Context, org, deviceID string, device devices.DeviceEntry) error
+	// Org-aware Device Entry operations using interface{} to avoid circular imports
+	GetDeviceEntry(ctx context.Context, org, deviceID string) (interface{}, error)
+	SetDeviceEntry(ctx context.Context, org, deviceID string, device interface{}) error
 	DeleteDeviceEntry(ctx context.Context, org, deviceID string) error
 	
-	// Fast org-specific identifier lookup (same pattern as device cache)
-	GetDeviceByIdentifier(ctx context.Context, org, identifierType, value string) (string, error) // Returns deviceID
-	SetIdentifierMapping(ctx context.Context, org, identifierType, value, deviceID string) error
-	DeleteIdentifierMapping(ctx context.Context, org, identifierType, value string) error
+	// Fast org-specific identifier lookup
+	GetDeviceByIdentifier(ctx context.Context, org, identifierType, key, value string) (string, error) // Returns deviceID
+	SetIdentifierMapping(ctx context.Context, org, identifierType, key, value, deviceID string) error
+	DeleteIdentifierMapping(ctx context.Context, org, identifierType, key, value string) error
 	
 	// Org-specific connection lookup
 	GetDeviceByConnection(ctx context.Context, org, connectionType, value string) (string, error) // Returns deviceID
 	SetConnectionMapping(ctx context.Context, org, connectionType, value, deviceID string) error
 	DeleteConnectionMapping(ctx context.Context, org, connectionType, value string) error
-	
-	// Org-specific parser metadata (with global fallback)
-	GetParserMetadata(ctx context.Context, org, deviceType string) (*devices.ParserMetadata, error)
-	SetParserMetadata(ctx context.Context, org, deviceType string, metadata devices.ParserMetadata) error
-	SetGlobalParserMetadata(ctx context.Context, deviceType string, metadata devices.ParserMetadata) error
 }
-*/
 
 // redisDeviceMappingCache stores device mappings in Redis
 type redisDeviceMappingCache struct {
 	client *redis.Client
 }
 
-// TODO: DeviceRegistryCache implementation temporarily commented out
-// var _ DeviceRegistryCache = (*redisDeviceMappingCache)(nil)
+// Ensure redisDeviceMappingCache implements DeviceRegistryCache
+var _ DeviceRegistryCache = (*redisDeviceMappingCache)(nil)
 
 // newDeviceMappingCacheFromEnv returns a Redis-backed cache if configured via env vars
 func newDeviceMappingCacheFromEnv() DeviceMappingCache {
@@ -101,8 +93,7 @@ func newDeviceMappingCacheFromEnv() DeviceMappingCache {
 	return &redisDeviceMappingCache{client: client}
 }
 
-// TODO: NewDeviceRegistryCacheFromEnv temporarily commented out due to circular dependency
-/*
+// NewDeviceRegistryCacheFromEnv creates a Device Registry cache from environment variables
 func NewDeviceRegistryCacheFromEnv() DeviceRegistryCache {
 	// Reuse the same Redis client creation logic
 	cache := newDeviceMappingCacheFromEnv()
@@ -117,7 +108,6 @@ func NewDeviceRegistryCacheFromEnv() DeviceRegistryCache {
 	
 	return nil
 }
-*/
 
 // Get fetches a device mapping from Redis
 func (c *redisDeviceMappingCache) Get(ctx context.Context, key string) (*models.DeviceMapping, error) {
@@ -147,11 +137,10 @@ func (c *redisDeviceMappingCache) Set(ctx context.Context, key string, mapping m
 	return c.client.Set(ctx, key, payload, 0).Err()
 }
 
-// TODO: Device Registry Cache Implementation temporarily commented out due to circular dependency
-/*
+// Device Registry Cache Implementation with organization isolation
 
 // GetDeviceEntry retrieves a device entry from Redis (org-aware)
-func (c *redisDeviceMappingCache) GetDeviceEntry(ctx context.Context, org, deviceID string) (*devices.DeviceEntry, error) {
+func (c *redisDeviceMappingCache) GetDeviceEntry(ctx context.Context, org, deviceID string) (interface{}, error) {
 	key := c.deviceEntryKey(org, deviceID)
 	data, err := c.client.Get(ctx, key).Bytes()
 	if err != nil {
@@ -161,16 +150,17 @@ func (c *redisDeviceMappingCache) GetDeviceEntry(ctx context.Context, org, devic
 		return nil, err
 	}
 
-	var device devices.DeviceEntry
+	// Return raw JSON map to avoid circular imports
+	var device map[string]interface{}
 	if err := json.Unmarshal(data, &device); err != nil {
 		return nil, err
 	}
 
-	return &device, nil
+	return device, nil
 }
 
 // SetDeviceEntry stores a device entry in Redis (org-aware)
-func (c *redisDeviceMappingCache) SetDeviceEntry(ctx context.Context, org, deviceID string, device devices.DeviceEntry) error {
+func (c *redisDeviceMappingCache) SetDeviceEntry(ctx context.Context, org, deviceID string, device interface{}) error {
 	key := c.deviceEntryKey(org, deviceID)
 	data, err := json.Marshal(device)
 	if err != nil {
@@ -186,8 +176,8 @@ func (c *redisDeviceMappingCache) DeleteDeviceEntry(ctx context.Context, org, de
 }
 
 // GetDeviceByIdentifier implements fast org-specific identifier lookup
-func (c *redisDeviceMappingCache) GetDeviceByIdentifier(ctx context.Context, org, identifierType, value string) (string, error) {
-	indexKey := c.identifierIndexKey(org, identifierType, value)
+func (c *redisDeviceMappingCache) GetDeviceByIdentifier(ctx context.Context, org, identifierType, key, value string) (string, error) {
+	indexKey := c.identifierIndexKey(org, identifierType, key, value)
 	deviceID, err := c.client.Get(ctx, indexKey).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
@@ -199,14 +189,14 @@ func (c *redisDeviceMappingCache) GetDeviceByIdentifier(ctx context.Context, org
 }
 
 // SetIdentifierMapping stores an org-specific identifier → device_id mapping
-func (c *redisDeviceMappingCache) SetIdentifierMapping(ctx context.Context, org, identifierType, value, deviceID string) error {
-	indexKey := c.identifierIndexKey(org, identifierType, value)
+func (c *redisDeviceMappingCache) SetIdentifierMapping(ctx context.Context, org, identifierType, key, value, deviceID string) error {
+	indexKey := c.identifierIndexKey(org, identifierType, key, value)
 	return c.client.Set(ctx, indexKey, deviceID, 0).Err()
 }
 
 // DeleteIdentifierMapping removes an org-specific identifier mapping
-func (c *redisDeviceMappingCache) DeleteIdentifierMapping(ctx context.Context, org, identifierType, value string) error {
-	indexKey := c.identifierIndexKey(org, identifierType, value)
+func (c *redisDeviceMappingCache) DeleteIdentifierMapping(ctx context.Context, org, identifierType, key, value string) error {
+	indexKey := c.identifierIndexKey(org, identifierType, key, value)
 	return c.client.Del(ctx, indexKey).Err()
 }
 
@@ -235,82 +225,22 @@ func (c *redisDeviceMappingCache) DeleteConnectionMapping(ctx context.Context, o
 	return c.client.Del(ctx, indexKey).Err()
 }
 
-// GetParserMetadata retrieves org-specific parser metadata with global fallback
-func (c *redisDeviceMappingCache) GetParserMetadata(ctx context.Context, org, deviceType string) (*devices.ParserMetadata, error) {
-	// Try org-specific parser first
-	key := c.parserMetadataKey(org, deviceType)
-	data, err := c.client.Get(ctx, key).Bytes()
-	if err == nil {
-		var metadata devices.ParserMetadata
-		if err := json.Unmarshal(data, &metadata); err != nil {
-			return nil, err
-		}
-		return &metadata, nil
-	}
-
-	// Fallback to global parser metadata
-	if !errors.Is(err, redis.Nil) {
-		return nil, err
-	}
-
-	globalKey := c.globalParserMetadataKey(deviceType)
-	data, err = c.client.Get(ctx, globalKey).Bytes()
-	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			return nil, ErrCacheMiss
-		}
-		return nil, err
-	}
-
-	var metadata devices.ParserMetadata
-	if err := json.Unmarshal(data, &metadata); err != nil {
-		return nil, err
-	}
-
-	return &metadata, nil
-}
-
-// SetParserMetadata stores org-specific parser metadata
-func (c *redisDeviceMappingCache) SetParserMetadata(ctx context.Context, org, deviceType string, metadata devices.ParserMetadata) error {
-	key := c.parserMetadataKey(org, deviceType)
-	data, err := json.Marshal(metadata)
-	if err != nil {
-		return err
-	}
-	return c.client.Set(ctx, key, data, 0).Err()
-}
-
-// SetGlobalParserMetadata stores global parser metadata (fallback)
-func (c *redisDeviceMappingCache) SetGlobalParserMetadata(ctx context.Context, deviceType string, metadata devices.ParserMetadata) error {
-	key := c.globalParserMetadataKey(deviceType)
-	data, err := json.Marshal(metadata)
-	if err != nil {
-		return err
-	}
-	return c.client.Set(ctx, key, data, 0).Err()
-}
-
 // Redis key generators (org-aware, following existing device_cache pattern)
 func (c *redisDeviceMappingCache) deviceEntryKey(org, deviceID string) string {
 	return "device_registry:" + org + ":entries:" + deviceID
 }
 
-func (c *redisDeviceMappingCache) identifierIndexKey(org, identifierType, value string) string {
-	return "device_registry:" + org + ":" + identifierType + ":" + value
+func (c *redisDeviceMappingCache) identifierIndexKey(org, identifierType, key, value string) string {
+	return "device_registry:" + org + ":" + identifierType + ":" + key + ":" + value
 }
 
 func (c *redisDeviceMappingCache) connectionIndexKey(org, connectionType, value string) string {
 	return "device_registry:" + org + ":connections:" + connectionType + ":" + value
 }
 
-func (c *redisDeviceMappingCache) parserMetadataKey(org, deviceType string) string {
-	return "device_registry:" + org + ":parsers:" + deviceType
-}
 
-func (c *redisDeviceMappingCache) globalParserMetadataKey(deviceType string) string {
-	return "device_registry:global:parsers:" + deviceType
-}
-*/
+
+
 
 func parseRedisOptions(addr string, dialTimeout time.Duration) (*redis.Options, error) {
 	if strings.HasPrefix(strings.ToLower(addr), "redis://") {
