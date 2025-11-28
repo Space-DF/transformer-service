@@ -27,11 +27,11 @@ type cacheEntry struct {
 type DeviceProfileService struct {
 	profiles map[string]models.DeviceProfile
 
-	httpClient  *http.Client
-	baseURL     string
-	cache       map[string]cacheEntry
-	cacheLocker sync.RWMutex
-	cacheStore  DeviceMappingCache
+	httpClient     *http.Client
+	baseURL        string
+	cache          map[string]cacheEntry
+	cacheLocker    sync.RWMutex
+	cacheStore     DeviceMappingCache
 }
 
 // NewDeviceProfileService creates a new device profile service
@@ -125,7 +125,7 @@ func (dps *DeviceProfileService) GetDeviceProfile(orgSlug, devEUI string) (*mode
 
 // Get mapping device
 func (dps *DeviceProfileService) getMapping(orgSlug, devEUI string) (*models.DeviceMapping, error) {
-	cacheKey := orgSlug + ":" + devEUI
+	cacheKey := orgSlug + ":lorawan:" + devEUI
 
 	// Get mapping device from Redis
 	// If there's no data in Redis, it calls an API to get the mapping device

@@ -23,10 +23,42 @@ type DeviceMappingCache interface {
 	Set(ctx context.Context, key string, mapping models.DeviceMapping) error
 }
 
+// TODO: DeviceRegistryCache interface temporarily commented out due to circular dependency
+// Will be moved to common package to resolve architectural issue
+/*
+type DeviceRegistryCache interface {
+	// Existing DeviceMapping functionality
+	DeviceMappingCache
+	
+	// Org-aware Device Entry operations (fast lookup pattern)
+	GetDeviceEntry(ctx context.Context, org, deviceID string) (*devices.DeviceEntry, error)
+	SetDeviceEntry(ctx context.Context, org, deviceID string, device devices.DeviceEntry) error
+	DeleteDeviceEntry(ctx context.Context, org, deviceID string) error
+	
+	// Fast org-specific identifier lookup (same pattern as device cache)
+	GetDeviceByIdentifier(ctx context.Context, org, identifierType, value string) (string, error) // Returns deviceID
+	SetIdentifierMapping(ctx context.Context, org, identifierType, value, deviceID string) error
+	DeleteIdentifierMapping(ctx context.Context, org, identifierType, value string) error
+	
+	// Org-specific connection lookup
+	GetDeviceByConnection(ctx context.Context, org, connectionType, value string) (string, error) // Returns deviceID
+	SetConnectionMapping(ctx context.Context, org, connectionType, value, deviceID string) error
+	DeleteConnectionMapping(ctx context.Context, org, connectionType, value string) error
+	
+	// Org-specific parser metadata (with global fallback)
+	GetParserMetadata(ctx context.Context, org, deviceType string) (*devices.ParserMetadata, error)
+	SetParserMetadata(ctx context.Context, org, deviceType string, metadata devices.ParserMetadata) error
+	SetGlobalParserMetadata(ctx context.Context, deviceType string, metadata devices.ParserMetadata) error
+}
+*/
+
 // redisDeviceMappingCache stores device mappings in Redis
 type redisDeviceMappingCache struct {
 	client *redis.Client
 }
+
+// TODO: DeviceRegistryCache implementation temporarily commented out
+// var _ DeviceRegistryCache = (*redisDeviceMappingCache)(nil)
 
 // newDeviceMappingCacheFromEnv returns a Redis-backed cache if configured via env vars
 func newDeviceMappingCacheFromEnv() DeviceMappingCache {
@@ -69,6 +101,24 @@ func newDeviceMappingCacheFromEnv() DeviceMappingCache {
 	return &redisDeviceMappingCache{client: client}
 }
 
+// TODO: NewDeviceRegistryCacheFromEnv temporarily commented out due to circular dependency
+/*
+func NewDeviceRegistryCacheFromEnv() DeviceRegistryCache {
+	// Reuse the same Redis client creation logic
+	cache := newDeviceMappingCacheFromEnv()
+	if cache == nil {
+		return nil
+	}
+	
+	// Type assert to the extended interface (since redisDeviceMappingCache implements DeviceRegistryCache)
+	if registryCache, ok := cache.(*redisDeviceMappingCache); ok {
+		return registryCache
+	}
+	
+	return nil
+}
+*/
+
 // Get fetches a device mapping from Redis
 func (c *redisDeviceMappingCache) Get(ctx context.Context, key string) (*models.DeviceMapping, error) {
 	data, err := c.client.Get(ctx, key).Bytes()
@@ -96,6 +146,171 @@ func (c *redisDeviceMappingCache) Set(ctx context.Context, key string, mapping m
 	}
 	return c.client.Set(ctx, key, payload, 0).Err()
 }
+
+// TODO: Device Registry Cache Implementation temporarily commented out due to circular dependency
+/*
+
+// GetDeviceEntry retrieves a device entry from Redis (org-aware)
+func (c *redisDeviceMappingCache) GetDeviceEntry(ctx context.Context, org, deviceID string) (*devices.DeviceEntry, error) {
+	key := c.deviceEntryKey(org, deviceID)
+	data, err := c.client.Get(ctx, key).Bytes()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, ErrCacheMiss
+		}
+		return nil, err
+	}
+
+	var device devices.DeviceEntry
+	if err := json.Unmarshal(data, &device); err != nil {
+		return nil, err
+	}
+
+	return &device, nil
+}
+
+// SetDeviceEntry stores a device entry in Redis (org-aware)
+func (c *redisDeviceMappingCache) SetDeviceEntry(ctx context.Context, org, deviceID string, device devices.DeviceEntry) error {
+	key := c.deviceEntryKey(org, deviceID)
+	data, err := json.Marshal(device)
+	if err != nil {
+		return err
+	}
+	return c.client.Set(ctx, key, data, 0).Err()
+}
+
+// DeleteDeviceEntry removes a device entry from Redis (org-aware)
+func (c *redisDeviceMappingCache) DeleteDeviceEntry(ctx context.Context, org, deviceID string) error {
+	key := c.deviceEntryKey(org, deviceID)
+	return c.client.Del(ctx, key).Err()
+}
+
+// GetDeviceByIdentifier implements fast org-specific identifier lookup
+func (c *redisDeviceMappingCache) GetDeviceByIdentifier(ctx context.Context, org, identifierType, value string) (string, error) {
+	indexKey := c.identifierIndexKey(org, identifierType, value)
+	deviceID, err := c.client.Get(ctx, indexKey).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return "", ErrCacheMiss
+		}
+		return "", err
+	}
+	return deviceID, nil
+}
+
+// SetIdentifierMapping stores an org-specific identifier → device_id mapping
+func (c *redisDeviceMappingCache) SetIdentifierMapping(ctx context.Context, org, identifierType, value, deviceID string) error {
+	indexKey := c.identifierIndexKey(org, identifierType, value)
+	return c.client.Set(ctx, indexKey, deviceID, 0).Err()
+}
+
+// DeleteIdentifierMapping removes an org-specific identifier mapping
+func (c *redisDeviceMappingCache) DeleteIdentifierMapping(ctx context.Context, org, identifierType, value string) error {
+	indexKey := c.identifierIndexKey(org, identifierType, value)
+	return c.client.Del(ctx, indexKey).Err()
+}
+
+// GetDeviceByConnection implements org-specific connection lookup
+func (c *redisDeviceMappingCache) GetDeviceByConnection(ctx context.Context, org, connectionType, value string) (string, error) {
+	indexKey := c.connectionIndexKey(org, connectionType, value)
+	deviceID, err := c.client.Get(ctx, indexKey).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return "", ErrCacheMiss
+		}
+		return "", err
+	}
+	return deviceID, nil
+}
+
+// SetConnectionMapping stores an org-specific connection → device_id mapping
+func (c *redisDeviceMappingCache) SetConnectionMapping(ctx context.Context, org, connectionType, value, deviceID string) error {
+	indexKey := c.connectionIndexKey(org, connectionType, value)
+	return c.client.Set(ctx, indexKey, deviceID, 0).Err()
+}
+
+// DeleteConnectionMapping removes an org-specific connection mapping
+func (c *redisDeviceMappingCache) DeleteConnectionMapping(ctx context.Context, org, connectionType, value string) error {
+	indexKey := c.connectionIndexKey(org, connectionType, value)
+	return c.client.Del(ctx, indexKey).Err()
+}
+
+// GetParserMetadata retrieves org-specific parser metadata with global fallback
+func (c *redisDeviceMappingCache) GetParserMetadata(ctx context.Context, org, deviceType string) (*devices.ParserMetadata, error) {
+	// Try org-specific parser first
+	key := c.parserMetadataKey(org, deviceType)
+	data, err := c.client.Get(ctx, key).Bytes()
+	if err == nil {
+		var metadata devices.ParserMetadata
+		if err := json.Unmarshal(data, &metadata); err != nil {
+			return nil, err
+		}
+		return &metadata, nil
+	}
+
+	// Fallback to global parser metadata
+	if !errors.Is(err, redis.Nil) {
+		return nil, err
+	}
+
+	globalKey := c.globalParserMetadataKey(deviceType)
+	data, err = c.client.Get(ctx, globalKey).Bytes()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, ErrCacheMiss
+		}
+		return nil, err
+	}
+
+	var metadata devices.ParserMetadata
+	if err := json.Unmarshal(data, &metadata); err != nil {
+		return nil, err
+	}
+
+	return &metadata, nil
+}
+
+// SetParserMetadata stores org-specific parser metadata
+func (c *redisDeviceMappingCache) SetParserMetadata(ctx context.Context, org, deviceType string, metadata devices.ParserMetadata) error {
+	key := c.parserMetadataKey(org, deviceType)
+	data, err := json.Marshal(metadata)
+	if err != nil {
+		return err
+	}
+	return c.client.Set(ctx, key, data, 0).Err()
+}
+
+// SetGlobalParserMetadata stores global parser metadata (fallback)
+func (c *redisDeviceMappingCache) SetGlobalParserMetadata(ctx context.Context, deviceType string, metadata devices.ParserMetadata) error {
+	key := c.globalParserMetadataKey(deviceType)
+	data, err := json.Marshal(metadata)
+	if err != nil {
+		return err
+	}
+	return c.client.Set(ctx, key, data, 0).Err()
+}
+
+// Redis key generators (org-aware, following existing device_cache pattern)
+func (c *redisDeviceMappingCache) deviceEntryKey(org, deviceID string) string {
+	return "device_registry:" + org + ":entries:" + deviceID
+}
+
+func (c *redisDeviceMappingCache) identifierIndexKey(org, identifierType, value string) string {
+	return "device_registry:" + org + ":" + identifierType + ":" + value
+}
+
+func (c *redisDeviceMappingCache) connectionIndexKey(org, connectionType, value string) string {
+	return "device_registry:" + org + ":connections:" + connectionType + ":" + value
+}
+
+func (c *redisDeviceMappingCache) parserMetadataKey(org, deviceType string) string {
+	return "device_registry:" + org + ":parsers:" + deviceType
+}
+
+func (c *redisDeviceMappingCache) globalParserMetadataKey(deviceType string) string {
+	return "device_registry:global:parsers:" + deviceType
+}
+*/
 
 func parseRedisOptions(addr string, dialTimeout time.Duration) (*redis.Options, error) {
 	if strings.HasPrefix(strings.ToLower(addr), "redis://") {

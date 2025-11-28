@@ -3,20 +3,42 @@ package devices
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
+	"time"
+
+	"github.com/Space-DF/transformer-service/internal/services"
 )
 
-// Registry manages all registered device parsers
+// Registry manages all registered device parsers and device entries
 type Registry struct {
 	mu      sync.RWMutex
 	parsers map[DeviceType]DeviceParser
+	
+	// Device management
+	devices           map[string]*DeviceEntry          // deviceID → DeviceEntry
+	identifierIndex   map[string]string                // "type:key:value" → deviceID  
+	connectionIndex   map[string]string                // "type:value" → deviceID
+	
+	// Redis cache integration
+	cache services.DeviceRegistryCache
 }
 
 // NewRegistry creates a new device parser registry
 func NewRegistry() *Registry {
 	return &Registry{
-		parsers: make(map[DeviceType]DeviceParser),
+		parsers:         make(map[DeviceType]DeviceParser),
+		devices:         make(map[string]*DeviceEntry),
+		identifierIndex: make(map[string]string),
+		connectionIndex: make(map[string]string),
 	}
+}
+
+// NewRegistryWithCache creates a new registry with Redis cache support
+func NewRegistryWithCache() *Registry {
+	registry := NewRegistry()
+	registry.cache = services.NewDeviceRegistryCacheFromEnv() // Use the cache we enhanced
+	return registry
 }
 
 // Register adds a device parser to the registry
@@ -143,4 +165,173 @@ func RegisterGlobal(parser DeviceParser) error {
 // GetGlobalRegistry returns the global registry instance
 func GetGlobalRegistry() *Registry {
 	return globalRegistry
+}
+
+// Device management methods
+
+// RegisterDevice adds or updates a device entry in the registry
+func (r *Registry) RegisterDevice(ctx context.Context, device *DeviceEntry) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Store in memory
+	r.devices[device.ID] = device
+
+	// Update identifier indexes
+	for _, identifier := range device.Identifiers {
+		key := r.makeIdentifierKey(identifier.Type, identifier.Key, identifier.Value)
+		r.identifierIndex[key] = device.ID
+	}
+
+	// Update connection indexes
+	for _, connection := range device.Connections {
+		key := r.makeConnectionKey(connection.Type, connection.Value)
+		r.connectionIndex[key] = device.ID
+	}
+
+	// Store in Redis if cache is available
+	if r.cache != nil {
+		if err := r.cache.SetDeviceEntry(ctx, device.ID, *device); err != nil {
+			log.Printf("Failed to cache device entry: %v", err)
+		}
+
+		// Store identifier indexes in Redis
+		for _, identifier := range device.Identifiers {
+			if err := r.cache.SetIdentifierMapping(ctx, identifier.Type, identifier.Key, identifier.Value, device.ID); err != nil {
+				log.Printf("Failed to cache identifier mapping: %v", err)
+			}
+		}
+
+		// Store connection indexes in Redis
+		for _, connection := range device.Connections {
+			if err := r.cache.SetConnectionMapping(ctx, connection.Type, connection.Value, device.ID); err != nil {
+				log.Printf("Failed to cache connection mapping: %v", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// GetDevice retrieves a device by ID
+func (r *Registry) GetDevice(ctx context.Context, deviceID string) (*DeviceEntry, error) {
+	r.mu.RLock()
+	
+	// Check memory first
+	if device, exists := r.devices[deviceID]; exists {
+		r.mu.RUnlock()
+		return device, nil
+	}
+	r.mu.RUnlock()
+
+	// Check Redis cache if available
+	if r.cache != nil {
+		device, err := r.cache.GetDeviceEntry(ctx, deviceID)
+		if err == nil {
+			// Cache hit - store in memory for next time
+			r.mu.Lock()
+			r.devices[deviceID] = device
+			r.mu.Unlock()
+			return device, nil
+		}
+		if err != services.ErrCacheMiss {
+			log.Printf("Redis cache error: %v", err)
+		}
+	}
+
+	return nil, fmt.Errorf("device not found: %s", deviceID)
+}
+
+// GetDeviceByIdentifiers implements multi-identifier lookup pattern
+func (r *Registry) GetDeviceByIdentifiers(ctx context.Context, identifiers []DeviceIdentifier) (*DeviceEntry, error) {
+	// Try each identifier (no switch case required)
+	for _, identifier := range identifiers {
+		if device, err := r.getDeviceByIdentifier(ctx, identifier.Type, identifier.Key, identifier.Value); err == nil {
+			return device, nil
+		}
+	}
+	return nil, fmt.Errorf("no device found for provided identifiers")
+}
+
+// GetDeviceByConnections implements connection lookup pattern
+func (r *Registry) GetDeviceByConnections(ctx context.Context, connections []DeviceConnection) (*DeviceEntry, error) {
+	// Try each connection (no switch case required)
+	for _, connection := range connections {
+		if device, err := r.getDeviceByConnection(ctx, connection.Type, connection.Value); err == nil {
+			return device, nil
+		}
+	}
+	return nil, fmt.Errorf("no device found for provided connections")
+}
+
+// getDeviceByIdentifier internal helper for identifier lookup
+func (r *Registry) getDeviceByIdentifier(ctx context.Context, identifierType, key, value string) (*DeviceEntry, error) {
+	r.mu.RLock()
+	
+	// Check memory index first
+	indexKey := r.makeIdentifierKey(identifierType, key, value)
+	if deviceID, exists := r.identifierIndex[indexKey]; exists {
+		r.mu.RUnlock()
+		return r.GetDevice(ctx, deviceID)
+	}
+	r.mu.RUnlock()
+
+	// Check Redis cache if available
+	if r.cache != nil {
+		deviceID, err := r.cache.GetDeviceByIdentifier(ctx, identifierType, key, value)
+		if err == nil {
+			return r.GetDevice(ctx, deviceID)
+		}
+		if err != services.ErrCacheMiss {
+			log.Printf("Redis identifier lookup error: %v", err)
+		}
+	}
+
+	return nil, fmt.Errorf("device not found for identifier %s:%s:%s", identifierType, key, value)
+}
+
+// getDeviceByConnection internal helper for connection lookup
+func (r *Registry) getDeviceByConnection(ctx context.Context, connectionType, value string) (*DeviceEntry, error) {
+	r.mu.RLock()
+	
+	// Check memory index first
+	indexKey := r.makeConnectionKey(connectionType, value)
+	if deviceID, exists := r.connectionIndex[indexKey]; exists {
+		r.mu.RUnlock()
+		return r.GetDevice(ctx, deviceID)
+	}
+	r.mu.RUnlock()
+
+	// Check Redis cache if available
+	if r.cache != nil {
+		deviceID, err := r.cache.GetDeviceByConnection(ctx, connectionType, value)
+		if err == nil {
+			return r.GetDevice(ctx, deviceID)
+		}
+		if err != services.ErrCacheMiss {
+			log.Printf("Redis connection lookup error: %v", err)
+		}
+	}
+
+	return nil, fmt.Errorf("device not found for connection %s:%s", connectionType, value)
+}
+
+// UpdateDeviceLastSeen updates the last seen timestamp for a device
+func (r *Registry) UpdateDeviceLastSeen(ctx context.Context, deviceID string) error {
+	device, err := r.GetDevice(ctx, deviceID)
+	if err != nil {
+		return err
+	}
+
+	device.UpdateLastSeen()
+	return r.RegisterDevice(ctx, device)
+}
+
+// Helper methods for creating index keys
+func (r *Registry) makeIdentifierKey(identifierType, key, value string) string {
+	return fmt.Sprintf("%s:%s:%s", identifierType, key, value)
+}
+
+func (r *Registry) makeConnectionKey(connectionType, value string) string {
+	return fmt.Sprintf("%s:%s", connectionType, value)
 }
