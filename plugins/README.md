@@ -103,12 +103,12 @@ cat > main.go << 'EOF'
 package main
 
 import (
-    "github.com/Space-DF/transformer-service/internal/devices/rak2270"
-    "github.com/Space-DF/transformer-service/internal/devices"
+    "github.com/Space-DF/transformer-service/internal/components/rakwireless"
+    "github.com/Space-DF/transformer-service/internal/components"
 )
 
-func NewParser() devices.DeviceParser {
-    return rak2270.NewParser()
+func NewComponent() components.DeviceComponent {
+    return rakwireless.NewComponent()
 }
 EOF
 

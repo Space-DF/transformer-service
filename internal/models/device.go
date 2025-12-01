@@ -41,7 +41,7 @@ type DeviceLocationData struct {
 	Organization string  `json:"organization"`
 }
 
-// TransformedDeviceData represents the final transformed output
+// TransformedDeviceData represents the final transformed output (DEPRECATED: Use TelemetryPayload)
 type TransformedDeviceData struct {
 	DeviceEUI    string                 `json:"device_eui"`
 	DeviceID     string                 `json:"device_id"`
@@ -51,6 +51,42 @@ type TransformedDeviceData struct {
 	Organization string                 `json:"organization"`
 	Metadata     map[string]interface{} `json:"metadata"`
 	Source       string                 `json:"source"`
+}
+
+// TelemetryPayload represents the new entity-based telemetry output
+type TelemetryPayload struct {
+	Organization string                 `json:"organization"`
+	DeviceEUI    string                 `json:"device_eui"`
+	DeviceID     string                 `json:"device_id,omitempty"`
+	SpaceSlug    string                 `json:"space_slug,omitempty"`
+	DeviceInfo   TelemetryDeviceInfo    `json:"device_info"`
+	Entities     []TelemetryEntity      `json:"entities"`
+	Timestamp    string                 `json:"timestamp"`
+	Source       string                 `json:"source"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// TelemetryDeviceInfo represents device information for telemetry
+type TelemetryDeviceInfo struct {
+	Identifiers  []string `json:"identifiers"`  // ["70b3d57ed005b847"]
+	Name         string   `json:"name"`         // "Conference Room Tracker"
+	Manufacturer string   `json:"manufacturer"` // "RAKwireless"
+	Model        string   `json:"model"`        // "RAK2270"
+	ModelID      string   `json:"model_id"`     // "rak2270"
+}
+
+// TelemetryEntity represents a single entity in telemetry output
+type TelemetryEntity struct {
+	UniqueID     string                 `json:"unique_id"`      // "acme_70b3d57ed005b847_location"
+	EntityID     string                 `json:"entity_id"`      // "device_tracker.acme_rakwireless_rak2270_70b3d57ed005b847_location"
+	EntityType   string                 `json:"entity_type"`    // "device_tracker", "sensor"
+	DeviceClass  string                 `json:"device_class,omitempty"`  // "location", "battery"
+	Name         string                 `json:"name"`           // "Location", "Battery Level"
+	State        interface{}            `json:"state"`          // "home", 85, 22.5
+	Attributes   map[string]interface{} `json:"attributes,omitempty"`     // Additional properties
+	UnitOfMeas   string                 `json:"unit_of_measurement,omitempty"` // "%", "°C"
+	Icon         string                 `json:"icon,omitempty"`
+	Timestamp    string                 `json:"timestamp"`
 }
 
 // LocationCoordinates represents geographic coordinates

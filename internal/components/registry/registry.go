@@ -9,7 +9,7 @@ import (
 )
 
 // ComponentRegistry manages registered device components
-// This follows Home Assistant's component registry pattern
+// This follows a component registry pattern
 type ComponentRegistry struct {
 	components map[string]components.DeviceComponent
 	deviceMap  map[components.DeviceType][]string // Maps device type to component names
