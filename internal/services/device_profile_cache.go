@@ -23,6 +23,12 @@ type DeviceMappingCache interface {
 	Set(ctx context.Context, key string, mapping models.DeviceMapping) error
 }
 
+// UnifiedDeviceCache defines the cache interface for the unified Device model
+type UnifiedDeviceCache interface {
+	GetDevice(ctx context.Context, key string) (*models.Device, error)
+	SetDevice(ctx context.Context, key string, device models.Device) error
+}
+
 // DeviceRegistryCache interface - now enabled for Device Registry integration
 type DeviceRegistryCache interface {
 	// Existing DeviceMapping functionality for backward compatibility
@@ -49,8 +55,9 @@ type redisDeviceMappingCache struct {
 	client *redis.Client
 }
 
-// Ensure redisDeviceMappingCache implements DeviceRegistryCache
+// Ensure redisDeviceMappingCache implements DeviceRegistryCache and UnifiedDeviceCache
 var _ DeviceRegistryCache = (*redisDeviceMappingCache)(nil)
+var _ UnifiedDeviceCache = (*redisDeviceMappingCache)(nil)
 
 // newDeviceMappingCacheFromEnv returns a Redis-backed cache if configured via env vars
 func newDeviceMappingCacheFromEnv() DeviceMappingCache {
@@ -131,6 +138,34 @@ func (c *redisDeviceMappingCache) Get(ctx context.Context, key string) (*models.
 // Set stores a device mapping in Redis
 func (c *redisDeviceMappingCache) Set(ctx context.Context, key string, mapping models.DeviceMapping) error {
 	payload, err := json.Marshal(mapping)
+	if err != nil {
+		return err
+	}
+	return c.client.Set(ctx, key, payload, 0).Err()
+}
+
+// GetDevice fetches a unified Device from Redis
+func (c *redisDeviceMappingCache) GetDevice(ctx context.Context, key string) (*models.Device, error) {
+	data, err := c.client.Get(ctx, key).Bytes()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, ErrCacheMiss
+		}
+		return nil, err
+	}
+
+	var cached models.Device
+	if err := json.Unmarshal(data, &cached); err != nil {
+		return nil, err
+	}
+
+	device := cached
+	return &device, nil
+}
+
+// SetDevice stores a unified Device in Redis
+func (c *redisDeviceMappingCache) SetDevice(ctx context.Context, key string, device models.Device) error {
+	payload, err := json.Marshal(device)
 	if err != nil {
 		return err
 	}

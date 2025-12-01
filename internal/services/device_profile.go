@@ -21,6 +21,7 @@ import (
 
 type cacheEntry struct {
 	mapping models.DeviceMapping
+	device  *models.Device // New unified device model
 }
 
 // DeviceProfileService handles device profile management
@@ -328,4 +329,99 @@ func (dps *DeviceProfileService) ShouldSkipDevice(orgSlug, devEUI string) (bool,
 		return false, err
 	}
 	return mapping.Skip, nil
+}
+
+// GetDevice returns the unified Device model for a given organization + DevEUI
+func (dps *DeviceProfileService) GetDevice(orgSlug, devEUI string) (*models.Device, error) {
+	if dps.profiles == nil {
+		return nil, fmt.Errorf("device profiles not loaded")
+	}
+
+	if devEUI == "" {
+		return nil, fmt.Errorf("dev_eui is required")
+	}
+
+	device, err := dps.getDeviceFromCache(orgSlug, devEUI)
+	if err != nil {
+		return nil, err
+	}
+
+	return device, nil
+}
+
+// GetDeviceWithProfile returns both the unified Device model and its profile
+func (dps *DeviceProfileService) GetDeviceWithProfile(orgSlug, devEUI string) (*models.Device, *models.DeviceProfile, error) {
+	device, err := dps.GetDevice(orgSlug, devEUI)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	profile, ok := dps.profiles[device.Profile]
+	if !ok {
+		return nil, nil, fmt.Errorf("device profile %s not found", device.Profile)
+	}
+
+	return device, &profile, nil
+}
+
+// getDeviceFromCache retrieves or creates a unified Device from cache/API
+func (dps *DeviceProfileService) getDeviceFromCache(orgSlug, devEUI string) (*models.Device, error) {
+	cacheKey := orgSlug + ":lorawan:" + devEUI
+
+	// Check if we have the unified device in cache
+	if device, ok := dps.getUnifiedDeviceFromCache(cacheKey); ok {
+		return device, nil
+	}
+
+	// Fallback to legacy mapping and convert
+	mapping, err := dps.getMapping(orgSlug, devEUI)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert legacy mapping to unified device model
+	device := models.FromDeviceMapping(*mapping, devEUI)
+	
+	// Enhance with profile information if available
+	if profile, exists := dps.profiles[device.Profile]; exists {
+		device.HasGPS = profile.HasGPS
+		device.SupportedPorts = profile.SupportedPorts
+	}
+
+	// Cache the unified device for future use
+	dps.saveUnifiedDeviceToCache(cacheKey, device)
+
+	return &device, nil
+}
+
+// getUnifiedDeviceFromCache retrieves unified Device from cache
+func (dps *DeviceProfileService) getUnifiedDeviceFromCache(key string) (*models.Device, bool) {
+	dps.cacheLocker.RLock()
+	entry, ok := dps.cache[key]
+	dps.cacheLocker.RUnlock()
+	
+	if ok && entry.device != nil {
+		deviceCopy := *entry.device
+		return &deviceCopy, true
+	}
+
+	// TODO: Add Redis support for unified Device model in future iteration
+	return nil, false
+}
+
+// saveUnifiedDeviceToCache saves unified Device to cache
+func (dps *DeviceProfileService) saveUnifiedDeviceToCache(key string, device models.Device) {
+	dps.cacheLocker.Lock()
+	if entry, exists := dps.cache[key]; exists {
+		entry.device = &device
+		dps.cache[key] = entry
+	} else {
+		dps.cache[key] = cacheEntry{
+			mapping: device.ToDeviceMapping(),
+			device:  &device,
+		}
+	}
+	dps.cacheLocker.Unlock()
+
+	// TODO: Add Redis support for unified Device model in future iteration
 }

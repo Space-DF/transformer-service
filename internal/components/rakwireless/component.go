@@ -1,0 +1,157 @@
+package rakwireless
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/Space-DF/transformer-service/internal/components"
+	"github.com/Space-DF/transformer-service/internal/models"
+)
+
+// RAKwirelessComponent handles all RAKwireless devices
+// This follows Home Assistant's manufacturer-based component pattern
+type RAKwirelessComponent struct {
+	parsers map[components.DeviceType]DeviceParser
+}
+
+// DeviceParser handles device-specific parsing logic
+type DeviceParser interface {
+	ParsePayload(payload *components.RawPayload) (*components.ParsedData, error)
+	SupportsGPS() bool
+	GetSupportedPorts() []int
+}
+
+// NewRAKwirelessComponent creates a new RAKwireless component
+func NewRAKwirelessComponent() *RAKwirelessComponent {
+	component := &RAKwirelessComponent{
+		parsers: make(map[components.DeviceType]DeviceParser),
+	}
+
+	// Register device-specific parsers
+	component.parsers[components.DeviceTypeRAK2270] = NewRAK2270Parser()
+	component.parsers[components.DeviceTypeRAK7200] = NewRAK7200Parser()
+	component.parsers[components.DeviceTypeRAK4630] = NewRAK4630Parser()
+
+	return component
+}
+
+// GetInfo returns component metadata
+func (c *RAKwirelessComponent) GetInfo() components.ComponentInfo {
+	return components.ComponentInfo{
+		Name:         "rakwireless",
+		Manufacturer: "RAKwireless",
+		Version:      "1.0.0",
+		Description:  "Component for RAKwireless devices including RAK2270, RAK7200, and RAK4630",
+		DeviceTypes: []components.DeviceType{
+			components.DeviceTypeRAK2270,
+			components.DeviceTypeRAK7200,
+			components.DeviceTypeRAK4630,
+		},
+	}
+}
+
+// GetSupportedDevices returns the device types this component supports
+func (c *RAKwirelessComponent) GetSupportedDevices() []components.DeviceType {
+	return []components.DeviceType{
+		components.DeviceTypeRAK2270,
+		components.DeviceTypeRAK7200,
+		components.DeviceTypeRAK4630,
+	}
+}
+
+// CanHandle checks if this component can handle the given device type and payload
+func (c *RAKwirelessComponent) CanHandle(deviceType components.DeviceType, payload *components.RawPayload) bool {
+	parser, exists := c.parsers[deviceType]
+	return exists && parser != nil
+}
+
+// Parse converts raw payload into structured ParsedData
+func (c *RAKwirelessComponent) Parse(ctx context.Context, deviceType components.DeviceType, payload *components.RawPayload) (*components.ParsedData, error) {
+	parser, exists := c.parsers[deviceType]
+	if !exists {
+		return nil, fmt.Errorf("no parser found for device type %s", deviceType)
+	}
+
+	return parser.ParsePayload(payload)
+}
+
+// Validate performs device-specific validation on the parsed data
+func (c *RAKwirelessComponent) Validate(deviceType components.DeviceType, data *components.ParsedData) error {
+	// Basic validation
+	if data.DeviceEUI == "" {
+		return fmt.Errorf("device EUI is required")
+	}
+
+	if data.DeviceType != deviceType {
+		return fmt.Errorf("device type mismatch: expected %s, got %s", deviceType, data.DeviceType)
+	}
+
+	// Device-specific validation could be added here
+	return nil
+}
+
+// SupportsGPS returns true if the device has built-in GPS
+func (c *RAKwirelessComponent) SupportsGPS(deviceType components.DeviceType) bool {
+	parser, exists := c.parsers[deviceType]
+	if !exists {
+		return false
+	}
+	return parser.SupportsGPS()
+}
+
+// GetSupportedPorts returns the fPorts this device type uses
+func (c *RAKwirelessComponent) GetSupportedPorts(deviceType components.DeviceType) []int {
+	parser, exists := c.parsers[deviceType]
+	if !exists {
+		return nil
+	}
+	return parser.GetSupportedPorts()
+}
+
+// Helper function to extract DevEUI from various payload formats
+func extractDevEUI(payload map[string]interface{}) string {
+	// Try multiple locations for device EUI
+	if endDeviceIDs, ok := payload["end_device_ids"].(map[string]interface{}); ok {
+		if devEUI, ok := endDeviceIDs["dev_eui"].(string); ok {
+			return devEUI
+		}
+	}
+
+	if devEUI, ok := payload["dev_eui"].(string); ok {
+		return devEUI
+	}
+
+	if devEUI, ok := payload["devEui"].(string); ok {
+		return devEUI
+	}
+
+	if deviceInfo, ok := payload["deviceInfo"].(map[string]interface{}); ok {
+		if devEUI, ok := deviceInfo["devEui"].(string); ok {
+			return devEUI
+		}
+	}
+
+	return ""
+}
+
+// Helper function to convert models.DeviceLocationData to components.ParsedData
+func convertToComponentsData(deviceData *models.DeviceLocationData, deviceType components.DeviceType) *components.ParsedData {
+	if deviceData == nil {
+		return nil
+	}
+
+	var location *components.Location
+	if deviceData.Latitude != 0 && deviceData.Longitude != 0 {
+		location = &components.Location{
+			Latitude:  deviceData.Latitude,
+			Longitude: deviceData.Longitude,
+		}
+	}
+
+	return &components.ParsedData{
+		DeviceEUI:  deviceData.DevEUI,
+		DeviceType: deviceType,
+		Location:   location,
+		SensorData: make(map[string]interface{}),
+	}
+}

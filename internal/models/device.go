@@ -109,6 +109,7 @@ type DeviceProfile struct {
 }
 
 // DeviceMapping represents a device EUI to profile mapping
+// DEPRECATED: Use Device instead for new code
 type DeviceMapping struct {
 	Profile      string `json:"device_profile"`
 	Organization string `json:"organization"`
@@ -118,6 +119,195 @@ type DeviceMapping struct {
 	SpaceSlug    string `json:"space_slug"`
 	IsPublished  bool   `json:"is_published"`
 	Skip         bool   `json:"skip,omitempty"`
+}
+
+// DeviceIdentifier represents a single identifier for a device
+type DeviceIdentifier struct {
+	Type  string `json:"type"`  // "lorawan", "satellite", "network", etc.
+	Key   string `json:"key"`   // "dev_eui", "esn", "mac", etc.
+	Value string `json:"value"` // The actual identifier value
+}
+
+// DeviceConnection represents a network-based connection identifier
+type DeviceConnection struct {
+	Type  string `json:"type"`  // "mac", "ip", "bluetooth", etc.
+	Value string `json:"value"` // The connection identifier value
+}
+
+// Device represents a unified device entry combining DeviceMapping and DeviceEntry
+type Device struct {
+	// Core identification
+	ID          string             `json:"id"`          // Unique device ID
+	DeviceEUI   string             `json:"device_eui"`  // Primary LoRaWAN DevEUI (for backward compatibility)
+	Identifiers []DeviceIdentifier `json:"identifiers"` // Multiple identifiers
+	Connections []DeviceConnection `json:"connections"` // Network connections
+	
+	// Device information
+	Name         string `json:"name,omitempty"`
+	Description  string `json:"description,omitempty"`
+	Manufacturer string `json:"manufacturer,omitempty"`
+	Model        string `json:"model,omitempty"`
+	ModelID      string `json:"model_id,omitempty"`
+	
+	// Device profile and configuration
+	Profile            string   `json:"device_profile"`          // Device profile name
+	SupportedPorts     []int    `json:"supported_ports,omitempty"`
+	SupportedProtocols []string `json:"supported_protocols,omitempty"`
+	HasGPS             bool     `json:"has_gps,omitempty"`
+	
+	// Organization and space (SpaceDF specific)
+	Organization string `json:"organization"`
+	SpaceSlug    string `json:"space_slug,omitempty"`
+	
+	// Status and control
+	IsPublished bool   `json:"is_published"`
+	Skip        bool   `json:"skip,omitempty"`
+	DisabledBy  string `json:"disabled_by,omitempty"`
+	
+	// Version information
+	HWVersion string `json:"hw_version,omitempty"`
+	SWVersion string `json:"sw_version,omitempty"`
+	
+	// Timestamps
+	CreatedAt string `json:"created_at,omitempty"`
+	UpdatedAt string `json:"updated_at,omitempty"`
+	LastSeen  string `json:"last_seen,omitempty"`
+	
+	// Additional metadata
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// Helper methods for Device
+
+// GetIdentifierByKey returns the first identifier with the specified key
+func (d *Device) GetIdentifierByKey(key string) *DeviceIdentifier {
+	for _, identifier := range d.Identifiers {
+		if identifier.Key == key {
+			return &identifier
+		}
+	}
+	return nil
+}
+
+// GetIdentifierValue returns the value of the first identifier with the specified key
+func (d *Device) GetIdentifierValue(key string) string {
+	if identifier := d.GetIdentifierByKey(key); identifier != nil {
+		return identifier.Value
+	}
+	return ""
+}
+
+// GetConnectionByType returns the first connection with the specified type
+func (d *Device) GetConnectionByType(connType string) *DeviceConnection {
+	for _, connection := range d.Connections {
+		if connection.Type == connType {
+			return &connection
+		}
+	}
+	return nil
+}
+
+// GetConnectionValue returns the value of the first connection with the specified type
+func (d *Device) GetConnectionValue(connType string) string {
+	if connection := d.GetConnectionByType(connType); connection != nil {
+		return connection.Value
+	}
+	return ""
+}
+
+// GetDevEUI returns the LoRaWAN DevEUI identifier value
+func (d *Device) GetDevEUI() string {
+	// Check primary DeviceEUI field first for backward compatibility
+	if d.DeviceEUI != "" {
+		return d.DeviceEUI
+	}
+	// Fallback to identifiers
+	return d.GetIdentifierValue("dev_eui")
+}
+
+// GetESN returns the satellite ESN identifier value
+func (d *Device) GetESN() string {
+	return d.GetIdentifierValue("esn")
+}
+
+// GetMAC returns the network MAC address
+func (d *Device) GetMAC() string {
+	return d.GetConnectionValue("mac")
+}
+
+// AddIdentifier adds a new identifier to the device
+func (d *Device) AddIdentifier(identifierType, key, value string) {
+	d.Identifiers = append(d.Identifiers, DeviceIdentifier{
+		Type:  identifierType,
+		Key:   key,
+		Value: value,
+	})
+}
+
+// AddConnection adds a new connection to the device
+func (d *Device) AddConnection(connType, value string) {
+	d.Connections = append(d.Connections, DeviceConnection{
+		Type:  connType,
+		Value: value,
+	})
+}
+
+// SupportsPort checks if the device supports a specific fPort
+func (d *Device) SupportsPort(port int) bool {
+	for _, p := range d.SupportedPorts {
+		if p == port {
+			return true
+		}
+	}
+	return false
+}
+
+// SupportsProtocol checks if the device supports a specific protocol
+func (d *Device) SupportsProtocol(protocol string) bool {
+	for _, p := range d.SupportedProtocols {
+		if p == protocol {
+			return true
+		}
+	}
+	return false
+}
+
+// ToDeviceMapping converts the unified Device to legacy DeviceMapping for backward compatibility
+func (d *Device) ToDeviceMapping() DeviceMapping {
+	return DeviceMapping{
+		Profile:      d.Profile,
+		Organization: d.Organization,
+		DeviceID:     d.ID,
+		DeviceName:   d.Name,
+		Description:  d.Description,
+		SpaceSlug:    d.SpaceSlug,
+		IsPublished:  d.IsPublished,
+		Skip:         d.Skip,
+	}
+}
+
+// FromDeviceMapping creates a Device from legacy DeviceMapping
+func FromDeviceMapping(dm DeviceMapping, deviceEUI string) Device {
+	device := Device{
+		ID:           dm.DeviceID,
+		DeviceEUI:    deviceEUI, // Maintain backward compatibility
+		Name:         dm.DeviceName,
+		Description:  dm.Description,
+		Profile:      dm.Profile,
+		Organization: dm.Organization,
+		SpaceSlug:    dm.SpaceSlug,
+		IsPublished:  dm.IsPublished,
+		Skip:         dm.Skip,
+		Identifiers:  []DeviceIdentifier{},
+		Connections:  []DeviceConnection{},
+	}
+	
+	// Add DevEUI as an identifier
+	if deviceEUI != "" {
+		device.AddIdentifier("lorawan", "dev_eui", deviceEUI)
+	}
+	
+	return device
 }
 
 // DeviceProfiles represents the complete device profiles configuration

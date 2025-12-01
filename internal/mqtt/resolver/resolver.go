@@ -1,13 +1,19 @@
 package resolver
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/Space-DF/transformer-service/internal/components"
+	"github.com/Space-DF/transformer-service/internal/components/registry"
 	"github.com/Space-DF/transformer-service/internal/models"
 	"github.com/Space-DF/transformer-service/internal/mqtt/helpers"
-	"github.com/Space-DF/transformer-service/internal/parsers"
 	"github.com/Space-DF/transformer-service/internal/services"
+
+	// Import component packages to trigger registration
+	_ "github.com/Space-DF/transformer-service/internal/components/rakwireless"
 )
 
 var ErrDeviceSkipped = errors.New("device skipped")
@@ -92,29 +98,94 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 	return deviceLocation, &info, nil
 }
 
-// extractGPSFromDeviceParser extracts GPS coordinates using device-specific parser
+// extractGPSFromDeviceParser extracts GPS coordinates using component-based parser
 func (r *Resolver) extractGPSFromDeviceParser(profile string, payload map[string]interface{}, organization string) (*models.DeviceLocationData, error) {
+	// Convert profile to device type
+	deviceType := r.profileToDeviceType(profile)
+	if deviceType == components.DeviceTypeUnknown {
+		return nil, fmt.Errorf("unknown device profile: %s", profile)
+	}
+
+	// Create raw payload structure for component system
+	rawPayload := &components.RawPayload{
+		DeviceEUI: extractDevEUIFromPayload(payload),
+		Timestamp: time.Now(),
+		Metadata:  payload,
+	}
+
+	// Find component that can handle this device type
+	component := registry.FindComponent(deviceType, rawPayload)
+	if component == nil {
+		return nil, fmt.Errorf("no component found for device type: %s", deviceType)
+	}
+
+	// Check if device supports GPS
+	if !component.SupportsGPS(deviceType) {
+		return nil, fmt.Errorf("device type %s does not support GPS", deviceType)
+	}
+
+	// Parse using the component
+	parsedData, err := component.Parse(r.ctx(), deviceType, rawPayload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse GPS data with component: %w", err)
+	}
+
+	// Convert to DeviceLocationData
+	if parsedData.Location == nil {
+		return nil, fmt.Errorf("no GPS location found in parsed data")
+	}
+
+	locationData := &models.DeviceLocationData{
+		Latitude:     parsedData.Location.Latitude,
+		Longitude:    parsedData.Location.Longitude,
+		DevEUI:       parsedData.DeviceEUI,
+		Organization: organization,
+	}
+
+	return locationData, nil
+}
+
+// profileToDeviceType converts a profile string to DeviceType
+func (r *Resolver) profileToDeviceType(profile string) components.DeviceType {
 	switch profile {
+	case "RAK2270":
+		return components.DeviceTypeRAK2270
+	case "RAK7200":
+		return components.DeviceTypeRAK7200
 	case "RAK4630":
-		return r.extractGPSFromRAK4630(payload, organization)
+		return components.DeviceTypeRAK4630
 	default:
-		return nil, fmt.Errorf("GPS extraction not implemented for device profile: %s", profile)
+		return components.DeviceTypeUnknown
 	}
 }
 
-// extractGPSFromRAK4630 extracts GPS coordinates from RAK4630 device using CBOR parsing
-func (r *Resolver) extractGPSFromRAK4630(payload map[string]interface{}, organization string) (*models.DeviceLocationData, error) {
-	// Create RAK4630 parser
-	rak4630Parser := parsers.NewRAK4630Parser()
-
-	// Use RAK4630 parser to extract GPS data from payload
-	locationData, err := rak4630Parser.ParsePayload(payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse RAK4630 GPS data: %w", err)
+// extractDevEUIFromPayload extracts DevEUI from various payload formats
+func extractDevEUIFromPayload(payload map[string]interface{}) string {
+	// Try multiple locations for device EUI
+	if endDeviceIDs, ok := payload["end_device_ids"].(map[string]interface{}); ok {
+		if devEUI, ok := endDeviceIDs["dev_eui"].(string); ok {
+			return devEUI
+		}
 	}
 
-	// Set organization
-	locationData.Organization = organization
+	if devEUI, ok := payload["dev_eui"].(string); ok {
+		return devEUI
+	}
 
-	return locationData, nil
+	if devEUI, ok := payload["devEui"].(string); ok {
+		return devEUI
+	}
+
+	if deviceInfo, ok := payload["deviceInfo"].(map[string]interface{}); ok {
+		if devEUI, ok := deviceInfo["devEui"].(string); ok {
+			return devEUI
+		}
+	}
+
+	return ""
+}
+
+// ctx returns a background context for component operations
+func (r *Resolver) ctx() context.Context {
+	return context.Background()
 }
