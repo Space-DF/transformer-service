@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"math"
 
 	"github.com/Space-DF/transformer-service/internal/components"
 )
@@ -25,11 +26,11 @@ func (p *RAK7200Parser) ParsePayload(payload *components.RawPayload) (*component
 	// RAK7200 GPS parsing logic would go here
 	// This is a placeholder implementation
 	parsedData := &components.ParsedData{
-		DeviceEUI:    payload.DeviceEUI,
-		DeviceType:   components.DeviceTypeRAK7200,
-		Timestamp:    payload.Timestamp,
-		SensorData:   make(map[string]interface{}),
-		RawData:      payload.Data,
+		DeviceEUI:  payload.DeviceEUI,
+		DeviceType: components.DeviceTypeRAK7200,
+		Timestamp:  payload.Timestamp,
+		SensorData: make(map[string]interface{}),
+		RawData:    payload.Data,
 	}
 
 	// TODO: Implement actual GPS parsing from base64 data
@@ -81,11 +82,11 @@ func (p *RAK7200Parser) ParseToEntities(orgSlug string, payload *components.RawP
 			Name:        "Location",
 			State:       "home",
 			Attributes: map[string]interface{}{
-				"latitude":   parsedValues.Latitude,
-				"longitude":  parsedValues.Longitude,
-				"source":     "gps",
-				"accuracy":   5.0, // GPS typically 5m accuracy
-				"gps_capable": true,
+				"latitude":     parsedValues.Latitude,
+				"longitude":    parsedValues.Longitude,
+				"source":       "gps",
+				"accuracy":     5.0, // GPS typically 5m accuracy
+				"gps_capable":  true,
 				"device_model": "RAK7200",
 			},
 			Enabled:   true,
@@ -167,8 +168,15 @@ func (p *RAK7200Parser) parseRAK7200Payload(data string) (*RAK7200ParsedValues, 
 	// Bytes 9-10: Temperature (int16)
 
 	// Parse GPS coordinates
-	latRaw := int32(binary.LittleEndian.Uint32(decodedData[0:4]))
-	lonRaw := int32(binary.LittleEndian.Uint32(decodedData[4:8]))
+	latRawU := binary.LittleEndian.Uint32(decodedData[0:4])
+	lonRawU := binary.LittleEndian.Uint32(decodedData[4:8])
+
+	if latRawU > math.MaxInt32 || lonRawU > math.MaxInt32 {
+		return nil, fmt.Errorf("gps coordinate out of int32 range")
+	}
+
+	latRaw := int32(latRawU)
+	lonRaw := int32(lonRawU)
 
 	if latRaw != 0 && lonRaw != 0 {
 		result.HasGPS = true
@@ -183,7 +191,11 @@ func (p *RAK7200Parser) parseRAK7200Payload(data string) (*RAK7200ParsedValues, 
 
 	// Parse temperature
 	if len(decodedData) > 10 {
-		tempRaw := int16(binary.LittleEndian.Uint16(decodedData[9:11]))
+		tempRawU := binary.LittleEndian.Uint16(decodedData[9:11])
+		if tempRawU > math.MaxInt16 {
+			return nil, fmt.Errorf("temperature out of int16 range")
+		}
+		tempRaw := int16(tempRawU)
 		result.Temperature = float64(tempRaw) / 100.0 // Convert from centidegrees
 	}
 

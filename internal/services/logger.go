@@ -157,7 +157,7 @@ func (ls *LoggerService) rotateLogFile() error {
 	timestamp := time.Now().UTC().Format("20060102_150405")
 	filename := fmt.Sprintf("raw_data_%s.jsonl", timestamp)
 	filePath := filepath.Join(ls.logDir, filename)
-	
+
 	// Clean the file path to prevent path traversal attacks
 	cleanPath := filepath.Clean(filePath)
 

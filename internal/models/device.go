@@ -77,16 +77,16 @@ type TelemetryDeviceInfo struct {
 
 // TelemetryEntity represents a single entity in telemetry output
 type TelemetryEntity struct {
-	UniqueID     string                 `json:"unique_id"`      // "acme_70b3d57ed005b847_location"
-	EntityID     string                 `json:"entity_id"`      // "device_tracker.acme_rakwireless_rak2270_70b3d57ed005b847_location"
-	EntityType   string                 `json:"entity_type"`    // "device_tracker", "sensor"
-	DeviceClass  string                 `json:"device_class,omitempty"`  // "location", "battery"
-	Name         string                 `json:"name"`           // "Location", "Battery Level"
-	State        interface{}            `json:"state"`          // "home", 85, 22.5
-	Attributes   map[string]interface{} `json:"attributes,omitempty"`     // Additional properties
-	UnitOfMeas   string                 `json:"unit_of_measurement,omitempty"` // "%", "°C"
-	Icon         string                 `json:"icon,omitempty"`
-	Timestamp    string                 `json:"timestamp"`
+	UniqueID    string                 `json:"unique_id"`                     // "acme_70b3d57ed005b847_location"
+	EntityID    string                 `json:"entity_id"`                     // "device_tracker.acme_rakwireless_rak2270_70b3d57ed005b847_location"
+	EntityType  string                 `json:"entity_type"`                   // "device_tracker", "sensor"
+	DeviceClass string                 `json:"device_class,omitempty"`        // "location", "battery"
+	Name        string                 `json:"name"`                          // "Location", "Battery Level"
+	State       interface{}            `json:"state"`                         // "home", 85, 22.5
+	Attributes  map[string]interface{} `json:"attributes,omitempty"`          // Additional properties
+	UnitOfMeas  string                 `json:"unit_of_measurement,omitempty"` // "%", "°C"
+	Icon        string                 `json:"icon,omitempty"`
+	Timestamp   string                 `json:"timestamp"`
 }
 
 // LocationCoordinates represents geographic coordinates
@@ -177,38 +177,38 @@ type Device struct {
 	DeviceEUI   string             `json:"device_eui"`  // Primary LoRaWAN DevEUI (for backward compatibility)
 	Identifiers []DeviceIdentifier `json:"identifiers"` // Multiple identifiers
 	Connections []DeviceConnection `json:"connections"` // Network connections
-	
+
 	// Device information
 	Name         string `json:"name,omitempty"`
 	Description  string `json:"description,omitempty"`
 	Manufacturer string `json:"manufacturer,omitempty"`
 	Model        string `json:"model,omitempty"`
 	ModelID      string `json:"model_id,omitempty"`
-	
+
 	// Device profile and configuration
-	Profile            string   `json:"device_profile"`          // Device profile name
+	Profile            string   `json:"device_profile"` // Device profile name
 	SupportedPorts     []int    `json:"supported_ports,omitempty"`
 	SupportedProtocols []string `json:"supported_protocols,omitempty"`
 	HasGPS             bool     `json:"has_gps,omitempty"`
-	
+
 	// Organization and space (SpaceDF specific)
 	Organization string `json:"organization"`
 	SpaceSlug    string `json:"space_slug,omitempty"`
-	
+
 	// Status and control
 	IsPublished bool   `json:"is_published"`
 	Skip        bool   `json:"skip,omitempty"`
 	DisabledBy  string `json:"disabled_by,omitempty"`
-	
+
 	// Version information
 	HWVersion string `json:"hw_version,omitempty"`
 	SWVersion string `json:"sw_version,omitempty"`
-	
+
 	// Timestamps
 	CreatedAt string `json:"created_at,omitempty"`
 	UpdatedAt string `json:"updated_at,omitempty"`
 	LastSeen  string `json:"last_seen,omitempty"`
-	
+
 	// Additional metadata
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
@@ -337,12 +337,12 @@ func FromDeviceMapping(dm DeviceMapping, deviceEUI string) Device {
 		Identifiers:  []DeviceIdentifier{},
 		Connections:  []DeviceConnection{},
 	}
-	
+
 	// Add DevEUI as an identifier
 	if deviceEUI != "" {
 		device.AddIdentifier("lorawan", "dev_eui", deviceEUI)
 	}
-	
+
 	return device
 }
 

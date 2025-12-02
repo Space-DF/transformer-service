@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/Space-DF/transformer-service/internal/components"
-	"github.com/Space-DF/transformer-service/internal/models"
 )
 
 // RAKwirelessComponent handles all RAKwireless devices
@@ -174,24 +173,4 @@ func extractDevEUI(payload map[string]interface{}) string {
 	return ""
 }
 
-// Helper function to convert models.DeviceLocationData to components.ParsedData
-func convertToComponentsData(deviceData *models.DeviceLocationData, deviceType components.DeviceType) *components.ParsedData {
-	if deviceData == nil {
-		return nil
-	}
 
-	var location *components.Location
-	if deviceData.Latitude != 0 && deviceData.Longitude != 0 {
-		location = &components.Location{
-			Latitude:  deviceData.Latitude,
-			Longitude: deviceData.Longitude,
-		}
-	}
-
-	return &components.ParsedData{
-		DeviceEUI:  deviceData.DevEUI,
-		DeviceType: deviceType,
-		Location:   location,
-		SensorData: make(map[string]interface{}),
-	}
-}

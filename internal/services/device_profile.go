@@ -28,11 +28,11 @@ type cacheEntry struct {
 type DeviceProfileService struct {
 	profiles map[string]models.DeviceProfile
 
-	httpClient     *http.Client
-	baseURL        string
-	cache          map[string]cacheEntry
-	cacheLocker    sync.RWMutex
-	cacheStore     DeviceMappingCache
+	httpClient  *http.Client
+	baseURL     string
+	cache       map[string]cacheEntry
+	cacheLocker sync.RWMutex
+	cacheStore  DeviceMappingCache
 }
 
 // NewDeviceProfileService creates a new device profile service
@@ -126,7 +126,8 @@ func (dps *DeviceProfileService) GetDeviceProfile(orgSlug, devEUI string) (*mode
 
 // Get mapping device
 func (dps *DeviceProfileService) getMapping(orgSlug, devEUI string) (*models.DeviceMapping, error) {
-	cacheKey := orgSlug + ":lorawan:" + devEUI
+	version := 1
+	cacheKey := fmt.Sprintf(":%d:%s:lorawan:%s", version, orgSlug, devEUI)
 
 	// Get mapping device from Redis
 	// If there's no data in Redis, it calls an API to get the mapping device
@@ -381,7 +382,7 @@ func (dps *DeviceProfileService) getDeviceFromCache(orgSlug, devEUI string) (*mo
 
 	// Convert legacy mapping to unified device model
 	device := models.FromDeviceMapping(*mapping, devEUI)
-	
+
 	// Enhance with profile information if available
 	if profile, exists := dps.profiles[device.Profile]; exists {
 		device.HasGPS = profile.HasGPS
@@ -399,7 +400,7 @@ func (dps *DeviceProfileService) getUnifiedDeviceFromCache(key string) (*models.
 	dps.cacheLocker.RLock()
 	entry, ok := dps.cache[key]
 	dps.cacheLocker.RUnlock()
-	
+
 	if ok && entry.device != nil {
 		deviceCopy := *entry.device
 		return &deviceCopy, true

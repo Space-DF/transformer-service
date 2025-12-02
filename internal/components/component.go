@@ -18,21 +18,21 @@ const (
 
 // ComponentInfo provides metadata about a component
 type ComponentInfo struct {
-	Name         string     `json:"name"`
-	Manufacturer string     `json:"manufacturer"`
-	Version      string     `json:"version"`
-	Description  string     `json:"description"`
+	Name         string       `json:"name"`
+	Manufacturer string       `json:"manufacturer"`
+	Version      string       `json:"version"`
+	Description  string       `json:"description"`
 	DeviceTypes  []DeviceType `json:"device_types"`
 }
 
 // RawPayload represents the incoming device data before parsing
 type RawPayload struct {
-	DeviceEUI   string                 `json:"device_eui"`
-	FPort       int                    `json:"fport"`
-	Data        string                 `json:"data"` // Base64-encoded payload
-	Timestamp   time.Time              `json:"timestamp"`
-	RxInfo      []GatewayInfo          `json:"rx_info"`
-	Metadata    map[string]interface{} `json:"metadata"`
+	DeviceEUI string                 `json:"device_eui"`
+	FPort     int                    `json:"fport"`
+	Data      string                 `json:"data"` // Base64-encoded payload
+	Timestamp time.Time              `json:"timestamp"`
+	RxInfo    []GatewayInfo          `json:"rx_info"`
+	Metadata  map[string]interface{} `json:"metadata"`
 }
 
 // GatewayInfo contains information about the gateway that received the message
@@ -71,30 +71,30 @@ type ParseResult struct {
 
 // DeviceInfo represents device metadata
 type DeviceInfo struct {
-	Identifiers  []string `json:"identifiers"`  // ["70b3d57ed005b847"]
+	Identifiers  []string   `json:"identifiers"`           // ["70b3d57ed005b847"]
 	Connections  [][]string `json:"connections,omitempty"` // [["mac", "02:5b:26:a8:dc:12"]]
-	Name         string   `json:"name"`         // "Conference Room Tracker"
-	Manufacturer string   `json:"manufacturer"` // "RAKwireless"
-	Model        string   `json:"model"`        // "RAK2270"
-	ModelID      string   `json:"model_id"`     // "rak2270"
-	SWVersion    string   `json:"sw_version,omitempty"`
-	HWVersion    string   `json:"hw_version,omitempty"`
-	ViaDevice    string   `json:"via_device,omitempty"`
+	Name         string     `json:"name"`                  // "Conference Room Tracker"
+	Manufacturer string     `json:"manufacturer"`          // "RAKwireless"
+	Model        string     `json:"model"`                 // "RAK2270"
+	ModelID      string     `json:"model_id"`              // "rak2270"
+	SWVersion    string     `json:"sw_version,omitempty"`
+	HWVersion    string     `json:"hw_version,omitempty"`
+	ViaDevice    string     `json:"via_device,omitempty"`
 }
 
 // Entity represents a single device capability
 type Entity struct {
-	UniqueID     string                 `json:"unique_id"`      // "acme_70b3d57ed005b847_location"
-	EntityID     string                 `json:"entity_id"`      // "device_tracker.acme_rakwireless_rak2270_70b3d57ed005b847_location"
-	EntityType   string                 `json:"entity_type"`    // "device_tracker", "sensor", "binary_sensor"
-	DeviceClass  string                 `json:"device_class,omitempty"`  // "location", "battery", "temperature"
-	Name         string                 `json:"name"`           // "Location", "Battery Level"
-	State        interface{}            `json:"state"`          // "home", 85, 22.5
-	Attributes   map[string]interface{} `json:"attributes"`     // Additional properties
-	UnitOfMeas   string                 `json:"unit_of_measurement,omitempty"` // "%", "°C"
-	Icon         string                 `json:"icon,omitempty"`
-	Enabled      bool                   `json:"enabled"`        // Default: true
-	Timestamp    time.Time              `json:"timestamp"`
+	UniqueID    string                 `json:"unique_id"`                     // "acme_70b3d57ed005b847_location"
+	EntityID    string                 `json:"entity_id"`                     // "device_tracker.acme_rakwireless_rak2270_70b3d57ed005b847_location"
+	EntityType  string                 `json:"entity_type"`                   // "device_tracker", "sensor", "binary_sensor"
+	DeviceClass string                 `json:"device_class,omitempty"`        // "location", "battery", "temperature"
+	Name        string                 `json:"name"`                          // "Location", "Battery Level"
+	State       interface{}            `json:"state"`                         // "home", 85, 22.5
+	Attributes  map[string]interface{} `json:"attributes"`                    // Additional properties
+	UnitOfMeas  string                 `json:"unit_of_measurement,omitempty"` // "%", "°C"
+	Icon        string                 `json:"icon,omitempty"`
+	Enabled     bool                   `json:"enabled"` // Default: true
+	Timestamp   time.Time              `json:"timestamp"`
 }
 
 // DeviceComponent defines the interface that each device component must implement
@@ -138,7 +138,7 @@ func GenerateUniqueID(orgSlug, devEUI, entityType string) string {
 // GenerateEntityID creates a descriptive entity ID with model information
 func GenerateEntityID(domain, orgSlug, manufacturer, model, devEUI, entityType string) string {
 	// Format: domain.org_manufacturer_model_deveui_entitytype
-	return fmt.Sprintf("%s.%s_%s_%s_%s_%s", 
+	return fmt.Sprintf("%s.%s_%s_%s_%s_%s",
 		domain, orgSlug, manufacturer, model, devEUI, entityType)
 }
 
@@ -172,10 +172,10 @@ func CreateDeviceInfo(devEUI, name, manufacturer, model, modelID string) DeviceI
 // ComponentWithSetup extends DeviceComponent with optional setup/teardown
 type ComponentWithSetup interface {
 	DeviceComponent
-	
+
 	// Setup is called when the component is loaded
 	Setup(ctx context.Context) error
-	
+
 	// Teardown is called when the component is unloaded
 	Teardown(ctx context.Context) error
 }

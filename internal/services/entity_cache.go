@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/Space-DF/transformer-service/internal/components"
+	"github.com/redis/go-redis/v9"
 )
 
 // EntityCacheService handles entity storage and retrieval with Redis
 type EntityCacheService struct {
-	redis       *redis.Client
-	defaultTTL  time.Duration
+	redis      *redis.Client
+	defaultTTL time.Duration
 }
 
 // NewEntityCacheService creates a new entity cache service
@@ -54,7 +54,7 @@ func (e *EntityCacheService) StoreEntities(ctx context.Context, orgSlug string, 
 // GetEntity retrieves a single entity by unique ID
 func (e *EntityCacheService) GetEntity(ctx context.Context, orgSlug, uniqueID string) (*components.Entity, error) {
 	key := fmt.Sprintf("tenant:%s:entity:%s", orgSlug, uniqueID)
-	
+
 	result := e.redis.Get(ctx, key)
 	if result.Err() != nil {
 		if result.Err() == redis.Nil {
@@ -86,7 +86,7 @@ func (e *EntityCacheService) GetEntityByID(ctx context.Context, orgSlug, entityI
 // GetDeviceEntities retrieves all entities for a specific device
 func (e *EntityCacheService) GetDeviceEntities(ctx context.Context, orgSlug, deviceEUI string) ([]components.Entity, error) {
 	deviceKey := fmt.Sprintf("tenant:%s:device_entities:%s", orgSlug, deviceEUI)
-	
+
 	uniqueIDs := e.redis.SMembers(ctx, deviceKey).Val()
 	if len(uniqueIDs) == 0 {
 		return []components.Entity{}, nil
@@ -137,7 +137,7 @@ func (e *EntityCacheService) UpdateEntityState(ctx context.Context, orgSlug, uni
 	// Update state and timestamp
 	entity.State = state
 	entity.Timestamp = time.Now().UTC()
-	
+
 	// Merge attributes if provided
 	if attributes != nil {
 		if entity.Attributes == nil {
@@ -182,7 +182,7 @@ func (e *EntityCacheService) DeleteDeviceEntities(ctx context.Context, orgSlug, 
 	for _, entity := range entities {
 		entityKey := fmt.Sprintf("tenant:%s:entity:%s", orgSlug, entity.UniqueID)
 		pipe.Del(ctx, entityKey)
-		
+
 		entityIDKey := fmt.Sprintf("tenant:%s:entity_id:%s", orgSlug, entity.EntityID)
 		pipe.Del(ctx, entityIDKey)
 	}
@@ -245,7 +245,7 @@ func splitUniqueID(uniqueID string) []string {
 	parts := make([]string, 0, 3)
 	currentPart := ""
 	underscoreCount := 0
-	
+
 	for _, char := range uniqueID {
 		if char == '_' {
 			underscoreCount++
@@ -258,6 +258,6 @@ func splitUniqueID(uniqueID string) []string {
 		currentPart += string(char)
 	}
 	parts = append(parts, currentPart) // Add the last part
-	
+
 	return parts
 }

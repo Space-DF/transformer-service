@@ -61,17 +61,17 @@ func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{
 	} else {
 		// ChirpStack/custom format - check for rxInfo in multiple locations
 		var rxOk bool
-		
+
 		// First try top-level rxInfo
 		rxMetadata, rxOk = payload["rxInfo"].([]interface{})
-		
+
 		// If not found, try uplinkEvent.rxInfo
 		if !rxOk {
 			if uplinkEvent, uplinkOk := payload["uplinkEvent"].(map[string]interface{}); uplinkOk {
 				rxMetadata, rxOk = uplinkEvent["rxInfo"].([]interface{})
 			}
 		}
-		
+
 		if !rxOk {
 			return nil, fmt.Errorf("rxInfo not found in payload")
 		}
@@ -525,7 +525,7 @@ func (ls *LocationService) calculateImprovedCentroid(x1, y1, r1, x2, y2, r2, d f
 	// For lens-shaped intersection, the centroid is weighted towards the center of the lens
 	// Use the midpoint of intersection points as a better approximation
 	p1, p2 := intersectionPoints[0], intersectionPoints[1]
-	
+
 	// Bounds check for individual points
 	if len(p1) < 2 || len(p2) < 2 {
 		// Fallback to center line calculation
@@ -534,7 +534,7 @@ func (ls *LocationService) calculateImprovedCentroid(x1, y1, r1, x2, y2, r2, d f
 		py := y1 + a*(y2-y1)/d
 		return px, py
 	}
-	
+
 	midX := (p1[0] + p2[0]) / 2
 	midY := (p1[1] + p2[1]) / 2
 

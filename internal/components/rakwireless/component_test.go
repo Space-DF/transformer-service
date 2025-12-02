@@ -13,31 +13,31 @@ func TestRAKwirelessComponent_EntityParsing(t *testing.T) {
 	ctx := context.Background()
 
 	testCases := []struct {
-		name         string
-		deviceType   components.DeviceType
-		orgSlug      string
-		devEUI       string
+		name             string
+		deviceType       components.DeviceType
+		orgSlug          string
+		devEUI           string
 		expectedEntities int
 	}{
 		{
-			name:       "RAK2270 - Location only",
-			deviceType: components.DeviceTypeRAK2270,
-			orgSlug:    "testorg",
-			devEUI:     "70b3d57ed005b847",
+			name:             "RAK2270 - Location only",
+			deviceType:       components.DeviceTypeRAK2270,
+			orgSlug:          "testorg",
+			devEUI:           "70b3d57ed005b847",
 			expectedEntities: 1, // location only
 		},
 		{
-			name:       "RAK7200 - GPS + Battery + Temperature", 
-			deviceType: components.DeviceTypeRAK7200,
-			orgSlug:    "testorg",
-			devEUI:     "abc123def456789",
+			name:             "RAK7200 - GPS + Battery + Temperature",
+			deviceType:       components.DeviceTypeRAK7200,
+			orgSlug:          "testorg",
+			devEUI:           "abc123def456789",
 			expectedEntities: 3, // location, battery, temperature
 		},
 		{
-			name:       "RAK4630 - Multiple sensors",
-			deviceType: components.DeviceTypeRAK4630,
-			orgSlug:    "testorg", 
-			devEUI:     "123456789abcdef",
+			name:             "RAK4630 - Multiple sensors",
+			deviceType:       components.DeviceTypeRAK4630,
+			orgSlug:          "testorg",
+			devEUI:           "123456789abcdef",
 			expectedEntities: 4, // location, battery, temperature, humidity
 		},
 	}
@@ -114,7 +114,7 @@ func TestRAKwirelessComponent_EntityParsing(t *testing.T) {
 					t.Error("Entity Name is empty")
 				}
 
-				t.Logf("Entity: UniqueID=%s, EntityID=%s, Type=%s, Name=%s", 
+				t.Logf("Entity: UniqueID=%s, EntityID=%s, Type=%s, Name=%s",
 					entity.UniqueID, entity.EntityID, entity.EntityType, entity.Name)
 			}
 		})
@@ -184,7 +184,7 @@ func TestEntityIDFormats(t *testing.T) {
 		t.Errorf("GenerateUniqueID() = %s, expected %s", uniqueID, expected)
 	}
 
-	// Test entity ID generation  
+	// Test entity ID generation
 	domain := components.GetEntityDomain(entityType)
 	entityID := components.GenerateEntityID(domain, orgSlug, "rakwireless", "rak2270", devEUI, entityType)
 	expectedEntityID := "device_tracker.testorg_rakwireless_rak2270_70b3d57ed005b847_location"

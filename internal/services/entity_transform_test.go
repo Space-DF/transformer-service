@@ -31,11 +31,11 @@ func TestEntityTransformService_TransformToTelemetry(t *testing.T) {
 				Name:        "Location",
 				State:       "home",
 				Attributes: map[string]interface{}{
-					"latitude":      40.7128,
-					"longitude":     -74.0060,
-					"source":        "trilateration",
-					"gps_capable":   false,
-					"device_model":  "RAK2270",
+					"latitude":     40.7128,
+					"longitude":    -74.0060,
+					"source":       "trilateration",
+					"gps_capable":  false,
+					"device_model": "RAK2270",
 				},
 				Enabled:   true,
 				Timestamp: time.Now(),
@@ -124,9 +124,9 @@ func TestEntityTransformService_TransformToTelemetry(t *testing.T) {
 	}
 
 	t.Logf("✅ Successfully created telemetry payload with %d entities", len(telemetryPayload.Entities))
-	t.Logf("   📍 Location entity: %s", entity.EntityID)
-	t.Logf("   🏢 Organization: %s", telemetryPayload.Organization)
-	t.Logf("   📱 Device: %s (%s)", telemetryPayload.DeviceID, telemetryPayload.DeviceInfo.Model)
+	t.Logf("📍 Location entity: %s", entity.EntityID)
+	t.Logf("🏢 Organization: %s", telemetryPayload.Organization)
+	t.Logf("📱 Device: %s (%s)", telemetryPayload.DeviceID, telemetryPayload.DeviceInfo.Model)
 }
 
 func TestEntityTransformService_TransformLocationData_BackwardCompatibility(t *testing.T) {
@@ -187,8 +187,8 @@ func TestEntityTransformService_TransformLocationData_BackwardCompatibility(t *t
 	}
 
 	t.Logf("✅ Backward compatibility test passed")
-	t.Logf("   📍 Converted legacy location to entity: %s", entity.EntityID)
-	t.Logf("   🎯 Accuracy: %.0fm (%d gateways)", entity.Attributes["accuracy"], gatewayCount)
+	t.Logf("📍 Converted legacy location to entity: %s", entity.EntityID)
+	t.Logf("🎯 Accuracy: %.0fm (%d gateways)", entity.Attributes["accuracy"], gatewayCount)
 }
 
 func TestEntityTransformService_DetermineLocationAccuracy(t *testing.T) {
@@ -268,7 +268,7 @@ func TestTelemetryPayloadFormat(t *testing.T) {
 
 	// Verify entity format matches expected conventions
 	entity := telemetryPayload.Entities[0]
-	
+
 	// Check unique_id format: org_deveui_entitytype
 	expectedUniquePrefix := "acme_corp_70b3d57ed005b847_"
 	if len(entity.UniqueID) < len(expectedUniquePrefix) || entity.UniqueID[:len(expectedUniquePrefix)] != expectedUniquePrefix {
@@ -282,7 +282,7 @@ func TestTelemetryPayloadFormat(t *testing.T) {
 	}
 
 	t.Logf("✅ Telemetry payload format validation passed")
-	t.Logf("   🆔 Unique ID: %s", entity.UniqueID)
-	t.Logf("   🏷️  Entity ID: %s", entity.EntityID)
-	t.Logf("   📊 Payload size: %d entities", len(telemetryPayload.Entities))
+	t.Logf("🆔 Unique ID: %s", entity.UniqueID)
+	t.Logf("🏷️ Entity ID: %s", entity.EntityID)
+	t.Logf("📊 Payload size: %d entities", len(telemetryPayload.Entities))
 }

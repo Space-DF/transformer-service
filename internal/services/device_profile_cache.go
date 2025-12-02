@@ -33,17 +33,17 @@ type UnifiedDeviceCache interface {
 type DeviceRegistryCache interface {
 	// Existing DeviceMapping functionality for backward compatibility
 	DeviceMappingCache
-	
+
 	// Org-aware Device Entry operations using interface{} to avoid circular imports
 	GetDeviceEntry(ctx context.Context, org, deviceID string) (interface{}, error)
 	SetDeviceEntry(ctx context.Context, org, deviceID string, device interface{}) error
 	DeleteDeviceEntry(ctx context.Context, org, deviceID string) error
-	
+
 	// Fast org-specific identifier lookup
 	GetDeviceByIdentifier(ctx context.Context, org, identifierType, key, value string) (string, error) // Returns deviceID
 	SetIdentifierMapping(ctx context.Context, org, identifierType, key, value, deviceID string) error
 	DeleteIdentifierMapping(ctx context.Context, org, identifierType, key, value string) error
-	
+
 	// Org-specific connection lookup
 	GetDeviceByConnection(ctx context.Context, org, connectionType, value string) (string, error) // Returns deviceID
 	SetConnectionMapping(ctx context.Context, org, connectionType, value, deviceID string) error
@@ -107,12 +107,12 @@ func NewDeviceRegistryCacheFromEnv() DeviceRegistryCache {
 	if cache == nil {
 		return nil
 	}
-	
+
 	// Type assert to the extended interface (since redisDeviceMappingCache implements DeviceRegistryCache)
 	if registryCache, ok := cache.(*redisDeviceMappingCache); ok {
 		return registryCache
 	}
-	
+
 	return nil
 }
 
@@ -272,10 +272,6 @@ func (c *redisDeviceMappingCache) identifierIndexKey(org, identifierType, key, v
 func (c *redisDeviceMappingCache) connectionIndexKey(org, connectionType, value string) string {
 	return "device_registry:" + org + ":connections:" + connectionType + ":" + value
 }
-
-
-
-
 
 func parseRedisOptions(addr string, dialTimeout time.Duration) (*redis.Options, error) {
 	if strings.HasPrefix(strings.ToLower(addr), "redis://") {

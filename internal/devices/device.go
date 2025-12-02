@@ -32,36 +32,36 @@ type DeviceEntry struct {
 	ID          string             `json:"id"`          // Unique device ID
 	Identifiers []DeviceIdentifier `json:"identifiers"` // Multiple identifiers
 	Connections []DeviceConnection `json:"connections"` // Network connections
-	
+
 	// Device information
 	Name         string     `json:"name,omitempty"`
 	Manufacturer string     `json:"manufacturer,omitempty"`
 	Model        string     `json:"model,omitempty"`
 	ModelID      string     `json:"model_id,omitempty"`
 	DeviceType   DeviceType `json:"device_type"`
-	
+
 	// Version information
 	HWVersion string `json:"hw_version,omitempty"`
 	SWVersion string `json:"sw_version,omitempty"`
-	
+
 	// Configuration and capabilities
-	SupportedPorts    []int    `json:"supported_ports,omitempty"`
+	SupportedPorts     []int    `json:"supported_ports,omitempty"`
 	SupportedProtocols []string `json:"supported_protocols,omitempty"`
-	HasGPS            bool     `json:"has_gps,omitempty"`
-	
+	HasGPS             bool     `json:"has_gps,omitempty"`
+
 	// Organization and area (SpaceDF specific)
 	Organization string  `json:"organization,omitempty"`
 	AreaID       *string `json:"area_id,omitempty"`
-	
+
 	// Status and control
-	DisabledBy   *string `json:"disabled_by,omitempty"`
-	ConfigURL    *string `json:"config_url,omitempty"`
-	
+	DisabledBy *string `json:"disabled_by,omitempty"`
+	ConfigURL  *string `json:"config_url,omitempty"`
+
 	// Timestamps
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	LastSeen  *time.Time `json:"last_seen,omitempty"`
-	
+
 	// Additional metadata
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
@@ -169,13 +169,13 @@ func (d *DeviceEntry) SupportsProtocol(protocol string) bool {
 
 // RawPayload represents the incoming device data before parsing
 type RawPayload struct {
-	DeviceEUI   string                 `json:"device_eui"`
-	FPort       int                    `json:"fport"`
-	Data        string                 `json:"data"` // Base64-encoded payload
-	Timestamp   time.Time              `json:"timestamp"`
-	RxInfo      []GatewayInfo          `json:"rx_info"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	
+	DeviceEUI string                 `json:"device_eui"`
+	FPort     int                    `json:"fport"`
+	Data      string                 `json:"data"` // Base64-encoded payload
+	Timestamp time.Time              `json:"timestamp"`
+	RxInfo    []GatewayInfo          `json:"rx_info"`
+	Metadata  map[string]interface{} `json:"metadata"`
+
 	// Enhanced with multi-identifier support
 	Identifiers []DeviceIdentifier `json:"identifiers,omitempty"` // Multiple device IDs
 	Connections []DeviceConnection `json:"connections,omitempty"` // Network connections
@@ -225,11 +225,11 @@ type DeviceParser interface {
 
 // ParserMetadata provides information about the device parser
 type ParserMetadata struct {
-	DeviceType   DeviceType
-	Manufacturer string
-	Model        string
-	Version      string
-	Description  string
+	DeviceType     DeviceType
+	Manufacturer   string
+	Model          string
+	Version        string
+	Description    string
 	SupportedPorts []int // FPorts this device uses
 }
 

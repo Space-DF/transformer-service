@@ -85,15 +85,15 @@ func (ts *EntityTransformService) UpdateEntityLocation(orgSlug, deviceEUI string
 
 	// Find location entity for device
 	uniqueID := components.GenerateUniqueID(orgSlug, deviceEUI, "location")
-	
+
 	// Update entity state and attributes
 	state := "home" // Could be calculated based on geofences
 	attributes := map[string]interface{}{
-		"latitude":            latitude,
-		"longitude":           longitude,
-		"accuracy":            accuracy,
-		"calculation_method":  calculationMethod,
-		"last_updated":        time.Now().UTC().Format(time.RFC3339),
+		"latitude":           latitude,
+		"longitude":          longitude,
+		"accuracy":           accuracy,
+		"calculation_method": calculationMethod,
+		"last_updated":       time.Now().UTC().Format(time.RFC3339),
 	}
 
 	return ts.entityCacheService.UpdateEntityState(nil, orgSlug, uniqueID, state, attributes)
@@ -127,11 +127,11 @@ func (ts *EntityTransformService) TransformLocationData(deviceLocation *models.D
 		Name:        "Location",
 		State:       "home",
 		Attributes: map[string]interface{}{
-			"latitude":            deviceLocation.Latitude,
-			"longitude":           deviceLocation.Longitude,
-			"accuracy":            accuracy,
-			"gateway_count":       gatewayCount,
-			"calculation_method":  ts.getCalculationMethod(gatewayCount),
+			"latitude":           deviceLocation.Latitude,
+			"longitude":          deviceLocation.Longitude,
+			"accuracy":           accuracy,
+			"gateway_count":      gatewayCount,
+			"calculation_method": ts.getCalculationMethod(gatewayCount),
 		},
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	}

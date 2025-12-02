@@ -13,12 +13,12 @@ import (
 type Registry struct {
 	mu      sync.RWMutex
 	parsers map[devices.DeviceType]devices.DeviceParser
-	
+
 	// Device management
-	devices           map[string]*devices.DeviceEntry          // deviceID → DeviceEntry
-	identifierIndex   map[string]string                        // "type:key:value" → deviceID  
-	connectionIndex   map[string]string                        // "type:value" → deviceID
-	
+	devices         map[string]*devices.DeviceEntry // deviceID → DeviceEntry
+	identifierIndex map[string]string               // "type:key:value" → deviceID
+	connectionIndex map[string]string               // "type:value" → deviceID
+
 	// Redis cache integration
 	cache DeviceRegistryCache
 }
@@ -215,7 +215,7 @@ func (r *Registry) RegisterDevice(ctx context.Context, device *devices.DeviceEnt
 // GetDevice retrieves a device by ID
 func (r *Registry) GetDevice(ctx context.Context, deviceID string) (*devices.DeviceEntry, error) {
 	r.mu.RLock()
-	
+
 	// Check memory first
 	if device, exists := r.devices[deviceID]; exists {
 		r.mu.RUnlock()
@@ -254,7 +254,7 @@ func (r *Registry) GetDeviceByConnections(ctx context.Context, org string, conne
 // getDeviceByIdentifier internal helper for identifier lookup with organization context
 func (r *Registry) getDeviceByIdentifier(ctx context.Context, org, identifierType, key, value string) (*devices.DeviceEntry, error) {
 	r.mu.RLock()
-	
+
 	// Check memory index first
 	indexKey := r.makeIdentifierKey(identifierType, key, value)
 	if deviceID, exists := r.identifierIndex[indexKey]; exists {
@@ -280,7 +280,7 @@ func (r *Registry) getDeviceByIdentifier(ctx context.Context, org, identifierTyp
 // getDeviceByConnection internal helper for connection lookup with organization context
 func (r *Registry) getDeviceByConnection(ctx context.Context, org, connectionType, value string) (*devices.DeviceEntry, error) {
 	r.mu.RLock()
-	
+
 	// Check memory index first
 	indexKey := r.makeConnectionKey(connectionType, value)
 	if deviceID, exists := r.connectionIndex[indexKey]; exists {

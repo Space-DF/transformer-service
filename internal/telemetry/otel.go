@@ -73,7 +73,6 @@ func InitTracing(serviceName string) func() {
 	}
 }
 
-
 // GetTracer returns a tracer for the given name
 func GetTracer(name string) oteltrace.Tracer {
 	return otel.Tracer(name)

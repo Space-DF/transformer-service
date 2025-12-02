@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/Space-DF/transformer-service/internal/models"
 	"github.com/Space-DF/transformer-service/internal/devices"
+	"github.com/Space-DF/transformer-service/internal/models"
 )
 
 // MessageProcessor handles enhanced message processing with Device Registry integration
@@ -27,19 +27,19 @@ func NewMessageProcessor(registry *Registry) *MessageProcessor {
 // ProcessingContext combines all device information for message processing
 type ProcessingContext struct {
 	// Device identifiers
-	Identifiers     []devices.DeviceIdentifier `json:"identifiers"`
-	PrimaryID       string             `json:"primary_id"`       // For Device Service API
-	ProtocolType    string             `json:"protocol_type"`    // "lorawan", "satellite", etc.
-	
+	Identifiers  []devices.DeviceIdentifier `json:"identifiers"`
+	PrimaryID    string                     `json:"primary_id"`    // For Device Service API
+	ProtocolType string                     `json:"protocol_type"` // "lorawan", "satellite", etc.
+
 	// Device entries
-	TechnicalDevice *devices.DeviceEntry       `json:"technical_device"` // From Device Registry (DEPRECATED)
-	UnifiedDevice   *models.Device            `json:"unified_device"`   // New unified device model
-	BusinessDevice  *models.DeviceMapping     `json:"business_device"`  // Legacy - for backward compatibility
-	
+	TechnicalDevice *devices.DeviceEntry  `json:"technical_device"` // From Device Registry (DEPRECATED)
+	UnifiedDevice   *models.Device        `json:"unified_device"`   // New unified device model
+	BusinessDevice  *models.DeviceMapping `json:"business_device"`  // Legacy - for backward compatibility
+
 	// Processing state
-	ShouldSkip      bool               `json:"should_skip"`
-	Organization    string             `json:"organization"`
-	Parser          devices.DeviceParser       `json:"-"`                // Selected parser
+	ShouldSkip   bool                 `json:"should_skip"`
+	Organization string               `json:"organization"`
+	Parser       devices.DeviceParser `json:"-"` // Selected parser
 }
 
 // ProcessMessage processes an MQTT message using Device Registry
@@ -139,11 +139,11 @@ func (mp *MessageProcessor) findBestIdentifierForAPI(identifiers []devices.Devic
 		Type string
 		Key  string
 	}{
-		{"lorawan", "dev_eui"},     // Highest priority - existing system
-		{"satellite", "esn"},       // Second priority - satellite systems
-		{"cellular", "imei"},       // Third priority - cellular devices
-		{"network", "mac"},         // Fourth priority - network devices
-		{"hardware", "serial"},     // Fifth priority - hardware serial
+		{"lorawan", "dev_eui"}, // Highest priority - existing system
+		{"satellite", "esn"},   // Second priority - satellite systems
+		{"cellular", "imei"},   // Third priority - cellular devices
+		{"network", "mac"},     // Fourth priority - network devices
+		{"hardware", "serial"}, // Fifth priority - hardware serial
 	}
 
 	for _, priority := range priorities {
@@ -199,7 +199,7 @@ func (mp *MessageProcessor) GetParserForDevice(ctx context.Context, orgSlug stri
 // DetermineDeviceType determines device type from identifiers and payload
 func (mp *MessageProcessor) DetermineDeviceType(identifiers []devices.DeviceIdentifier, payload map[string]interface{}) devices.DeviceType {
 	// Try to determine device type from various sources
-	
+
 	// 1. Check for explicit device type in payload
 	if deviceType, ok := payload["device_type"].(string); ok && deviceType != "" {
 		return devices.DeviceType(deviceType)
@@ -234,7 +234,7 @@ func (mp *MessageProcessor) detectRAK2270Pattern(payload map[string]interface{})
 		// RAK2270 typically uses fPort 2
 		return true
 	}
-	
+
 	// Check for RAK-specific field patterns
 	if uplinkMsg, ok := payload["uplink_message"].(map[string]interface{}); ok {
 		if settings, ok := uplinkMsg["settings"].(map[string]interface{}); ok {
@@ -252,7 +252,7 @@ func (mp *MessageProcessor) detectRAK2270Pattern(payload map[string]interface{})
 // CreateDeviceFromIdentifiers creates a new device entry from identifiers
 func (mp *MessageProcessor) CreateDeviceFromIdentifiers(ctx context.Context, orgSlug string, identifiers []devices.DeviceIdentifier, payload map[string]interface{}) (*devices.DeviceEntry, error) {
 	deviceType := mp.DetermineDeviceType(identifiers, payload)
-	
+
 	device := &devices.DeviceEntry{
 		ID:           generateDeviceID(),
 		Identifiers:  identifiers,

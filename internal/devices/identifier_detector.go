@@ -143,7 +143,7 @@ func (d *IdentifierDetector) detectNetwork(payload, locationPayload map[string]i
 	// IP address detection
 	if ip := d.extractIP(payload, locationPayload); ip != "" {
 		identifiers = append(identifiers, DeviceIdentifier{
-			Type:  "network", 
+			Type:  "network",
 			Key:   "ip",
 			Value: ip,
 		})
@@ -218,7 +218,7 @@ func (d *IdentifierDetector) detectCustom(payload, locationPayload map[string]in
 func (d *IdentifierDetector) extractMAC(payload, locationPayload map[string]interface{}) string {
 	// Try various MAC address field names
 	macFields := []string{"mac", "mac_address", "macAddress", "hw_addr", "ethernet_mac"}
-	
+
 	for _, field := range macFields {
 		if mac, ok := payload[field].(string); ok && d.isValidMAC(mac) {
 			return mac
@@ -242,7 +242,7 @@ func (d *IdentifierDetector) extractMAC(payload, locationPayload map[string]inte
 
 func (d *IdentifierDetector) extractIP(payload, locationPayload map[string]interface{}) string {
 	ipFields := []string{"ip", "ip_address", "ipAddress", "device_ip", "client_ip"}
-	
+
 	for _, field := range ipFields {
 		if ip, ok := payload[field].(string); ok && d.isValidIP(ip) {
 			return ip
@@ -257,7 +257,7 @@ func (d *IdentifierDetector) extractIP(payload, locationPayload map[string]inter
 
 func (d *IdentifierDetector) extractSerial(payload, locationPayload map[string]interface{}) string {
 	serialFields := []string{"serial", "serial_number", "serialNumber", "device_serial", "hw_serial"}
-	
+
 	for _, field := range serialFields {
 		if serial, ok := payload[field].(string); ok && serial != "" {
 			return serial
@@ -272,7 +272,7 @@ func (d *IdentifierDetector) extractSerial(payload, locationPayload map[string]i
 
 func (d *IdentifierDetector) extractIMEI(payload, locationPayload map[string]interface{}) string {
 	imeiFields := []string{"imei", "device_imei", "cellular_imei"}
-	
+
 	for _, field := range imeiFields {
 		if imei, ok := payload[field].(string); ok && d.isValidIMEI(imei) {
 			return imei
@@ -287,7 +287,7 @@ func (d *IdentifierDetector) extractIMEI(payload, locationPayload map[string]int
 
 func (d *IdentifierDetector) extractBluetooth(payload, locationPayload map[string]interface{}) string {
 	btFields := []string{"bluetooth", "bt_address", "ble_address", "bluetooth_mac"}
-	
+
 	for _, field := range btFields {
 		if bt, ok := payload[field].(string); ok && d.isValidMAC(bt) {
 			return bt
@@ -364,8 +364,8 @@ func (d *IdentifierDetector) isValidESN(esn string) bool {
 	}
 	// Check if it starts with common ESN prefixes
 	upper := strings.ToUpper(esn)
-	return strings.HasPrefix(upper, "ESN") || strings.HasPrefix(upper, "300") || 
-		   (len(esn) >= 10 && len(esn) <= 15) // Typical ESN length
+	return strings.HasPrefix(upper, "ESN") || strings.HasPrefix(upper, "300") ||
+		(len(esn) >= 10 && len(esn) <= 15) // Typical ESN length
 }
 
 func (d *IdentifierDetector) isValidMAC(mac string) bool {

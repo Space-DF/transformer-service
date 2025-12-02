@@ -105,7 +105,7 @@ func (r *ComponentRegistry) GetComponentsForDevice(deviceType components.DeviceT
 // FindComponentForPayload finds the best component to handle a specific payload
 func (r *ComponentRegistry) FindComponentForPayload(deviceType components.DeviceType, payload *components.RawPayload) components.DeviceComponent {
 	components := r.GetComponentsForDevice(deviceType)
-	
+
 	// Return the first component that can handle this payload
 	for _, component := range components {
 		if component.CanHandle(deviceType, payload) {
@@ -153,7 +153,7 @@ func (r *ComponentRegistry) removeFromDeviceMap(componentName string, deviceType
 					break
 				}
 			}
-			
+
 			// Clean up empty slices
 			if len(r.deviceMap[deviceType]) == 0 {
 				delete(r.deviceMap, deviceType)

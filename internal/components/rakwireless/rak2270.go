@@ -66,10 +66,10 @@ func (p *RAK2270Parser) ParseToEntities(orgSlug string, payload *components.RawP
 		Name:        "Location",
 		State:       "unknown", // Will be updated by trilateration service
 		Attributes: map[string]interface{}{
-			"source":           "trilateration",
+			"source":               "trilateration",
 			"requires_calculation": true,
-			"gps_capable":      false,
-			"device_model":     "RAK2270",
+			"gps_capable":          false,
+			"device_model":         "RAK2270",
 		},
 		Enabled:   true,
 		Timestamp: payload.Timestamp,
