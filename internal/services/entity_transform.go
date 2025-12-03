@@ -1,7 +1,9 @@
 package services
 
 import (
+	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Space-DF/transformer-service/internal/components"
@@ -78,9 +80,13 @@ func (ts *EntityTransformService) TransformToTelemetry(parseResult *components.P
 }
 
 // UpdateEntityLocation updates a location entity with calculated coordinates
-func (ts *EntityTransformService) UpdateEntityLocation(orgSlug, deviceEUI string, latitude, longitude, accuracy float64, calculationMethod string) error {
+func (ts *EntityTransformService) UpdateEntityLocation(ctx context.Context, orgSlug, deviceEUI, manufacture string, latitude, longitude, accuracy float64, calculationMethod string) error {
 	if ts.entityCacheService == nil {
 		return fmt.Errorf("entity cache service not available")
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	// Find location entity for device
@@ -96,7 +102,41 @@ func (ts *EntityTransformService) UpdateEntityLocation(orgSlug, deviceEUI string
 		"last_updated":       time.Now().UTC().Format(time.RFC3339),
 	}
 
-	return ts.entityCacheService.UpdateEntityState(nil, orgSlug, uniqueID, state, attributes)
+	// First try to update existing entity; if missing, create it
+	if err := ts.entityCacheService.UpdateEntityState(ctx, orgSlug, uniqueID, state, attributes); err == nil {
+		return nil
+	}
+
+	// Create a new location entity
+	manufacturer := strings.TrimSpace(manufacture)
+	if manufacturer == "" {
+		manufacturer = "unknown"
+	}
+	entityID := components.GenerateEntityID(
+		components.GetEntityDomain("location"),
+		orgSlug, manufacturer, "unknown", deviceEUI, "location",
+	)
+
+	newEntity := components.Entity{
+		UniqueID:    uniqueID,
+		EntityID:    entityID,
+		EntityType:  "location",
+		DeviceClass: "location",
+		Name:        "Location",
+		State:       state,
+		Attributes: map[string]interface{}{
+			"source":             calculationMethod,
+			"latitude":           latitude,
+			"longitude":          longitude,
+			"accuracy":           accuracy,
+			"calculation_method": calculationMethod,
+			"last_updated":       time.Now().UTC().Format(time.RFC3339),
+		},
+		Enabled:   true,
+		Timestamp: time.Now().UTC(),
+	}
+
+	return ts.entityCacheService.StoreEntities(ctx, orgSlug, []components.Entity{newEntity})
 }
 
 // TransformLocationData converts legacy location data to entity-based format (for backward compatibility)
@@ -275,7 +315,7 @@ func (ts *EntityTransformService) extractDeviceIdentifiers(payload map[string]in
 
 	// Try to get from device profile service
 	if ts.deviceProfileService != nil && organization != "" && devEUI != "" {
-		if _, mapping, err := ts.deviceProfileService.GetDeviceProfile(organization, devEUI); err == nil && mapping != nil {
+		if mapping, err := ts.deviceProfileService.GetDeviceMapping(organization, devEUI); err == nil && mapping != nil {
 			if mapping.DeviceID != "" {
 				deviceID = mapping.DeviceID
 			}

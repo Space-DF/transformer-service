@@ -172,5 +172,3 @@ func extractDevEUI(payload map[string]interface{}) string {
 
 	return ""
 }
-
-

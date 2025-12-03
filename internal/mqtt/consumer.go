@@ -44,6 +44,8 @@ type Consumer struct {
 	transformService     *services.TransformService
 	loggerService        *services.LoggerService
 	deviceProfileService *services.DeviceProfileService
+	entityCache          *services.EntityCacheService
+	entityTransform      *services.EntityTransformService
 	resolver             *resolver.Resolver
 	done                 chan bool
 
@@ -56,7 +58,7 @@ type Consumer struct {
 }
 
 // NewConsumer creates a new MQTT consumer
-func NewConsumer(cfg config.AMQPConfig, orgEventsCfg config.OrgEventsConfig, loggerService *services.LoggerService, deviceProfileService *services.DeviceProfileService) *Consumer {
+func NewConsumer(cfg config.AMQPConfig, orgEventsCfg config.OrgEventsConfig, loggerService *services.LoggerService, deviceProfileService *services.DeviceProfileService, entityCache *services.EntityCacheService) *Consumer {
 	locationSvc := services.NewLocationService()
 	parser := payload.NewParser()
 
@@ -68,6 +70,8 @@ func NewConsumer(cfg config.AMQPConfig, orgEventsCfg config.OrgEventsConfig, log
 		transformService:     services.NewTransformService(deviceProfileService),
 		loggerService:        loggerService,
 		deviceProfileService: deviceProfileService,
+		entityCache:          entityCache,
+		entityTransform:      services.NewEntityTransformService(deviceProfileService, entityCache),
 		done:                 make(chan bool, 1),
 		tenantConsumers:      make(map[string]*TenantConsumer),
 		vhostPool:            pool.New(cfg.BrokerURL),
@@ -374,8 +378,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	}
 
 	// Extract devEUI first to check device profile
-	var devEUI string
-	devEUI = c.parser.ExtractDevEUI(payload, locationPayload)
+	var devEUI string = c.parser.ExtractDevEUI(payload, locationPayload)
 
 	// Check if device should be skipped
 	deviceLocation, processingInfo, err := c.resolver.Resolve(orgSlug, vhost, devEUI, payload, locationPayload)
@@ -394,6 +397,13 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	transformedData, err := c.transformService.TransformDeviceData(deviceLocation, processingInfo.GatewayCount, payload)
 	if err != nil {
 		return fmt.Errorf("failed to transform device data: %w", err)
+	}
+	
+	// Cache entity (location) if configured
+	if c.entityTransform != nil && deviceLocation != nil {
+		if err := c.entityTransform.UpdateEntityLocation(context.Background(), orgSlug, deviceLocation.DevEUI, deviceLocation.Manufacture, deviceLocation.Latitude, deviceLocation.Longitude, transformedData.Location.Accuracy, "calculated"); err != nil {
+			logging.Tenant(orgSlug, vhost, "⚠️", "Failed to cache entity for device %s: %v", deviceLocation.DevEUI, err)
+		}
 	}
 
 	processingInfo.LocationResult = &models.LocationResult{

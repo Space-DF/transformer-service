@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Space-DF/transformer-service/internal/components"
@@ -22,6 +26,37 @@ func NewEntityCacheService(redisClient *redis.Client) *EntityCacheService {
 		redis:      redisClient,
 		defaultTTL: 24 * time.Hour, // Default 24-hour entity TTL
 	}
+}
+
+// NewEntityCacheServiceFromEnv creates an entity cache using the same Redis envs as device profile cache:
+func NewEntityCacheServiceFromEnv() *EntityCacheService {
+	addr := strings.TrimSpace(os.Getenv("DEVICE_CACHE_REDIS_ADDR"))
+	if addr == "" {
+		return nil
+	}
+
+	opts := &redis.Options{
+		Addr: addr,
+	}
+
+	if pwd := strings.TrimSpace(os.Getenv("DEVICE_CACHE_REDIS_PASSWORD")); pwd != "" {
+		opts.Password = pwd
+	}
+	if rawDB := strings.TrimSpace(os.Getenv("DEVICE_CACHE_REDIS_DB")); rawDB != "" {
+		if db, err := strconv.Atoi(rawDB); err == nil && db >= 0 {
+			opts.DB = db
+		}
+	}
+
+	client := redis.NewClient(opts)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := client.Ping(ctx).Err(); err != nil {
+		log.Printf("entity cache redis ping error: %v", err)
+		return nil
+	}
+
+	return NewEntityCacheService(client)
 }
 
 // StoreEntities stores multiple entities for a device in Redis
@@ -108,11 +143,11 @@ func (e *EntityCacheService) GetDeviceEntities(ctx context.Context, orgSlug, dev
 // GetEntitiesByType retrieves all entities of a specific type for an organization
 func (e *EntityCacheService) GetEntitiesByType(ctx context.Context, orgSlug, entityType string) ([]components.Entity, error) {
 	pattern := fmt.Sprintf("tenant:%s:entity:*_%s", orgSlug, entityType)
-	keys := e.redis.Keys(ctx, pattern).Val()
 
 	var entities []components.Entity
-	for _, key := range keys {
-		result := e.redis.Get(ctx, key)
+	iter := e.redis.Scan(ctx, 0, pattern, 0).Iterator()
+	for iter.Next(ctx) {
+		result := e.redis.Get(ctx, iter.Val())
 		if result.Err() != nil {
 			continue
 		}
@@ -201,13 +236,14 @@ func (e *EntityCacheService) GetEntityStats(ctx context.Context, orgSlug string)
 
 	// Count total entities
 	entityPattern := fmt.Sprintf("tenant:%s:entity:*", orgSlug)
-	totalKeys := e.redis.Keys(ctx, entityPattern).Val()
-	stats["total_entities"] = len(totalKeys)
+	entityIter := e.redis.Scan(ctx, 0, entityPattern, 0).Iterator()
+	totalEntities := 0
 
 	// Count by entity type
 	entityTypes := make(map[string]int)
-	for _, key := range totalKeys {
-		result := e.redis.Get(ctx, key)
+
+	for entityIter.Next(ctx) {
+		result := e.redis.Get(ctx, entityIter.Val())
 		if result.Err() != nil {
 			continue
 		}
@@ -216,14 +252,22 @@ func (e *EntityCacheService) GetEntityStats(ctx context.Context, orgSlug string)
 		if err := json.Unmarshal([]byte(result.Val()), &entity); err != nil {
 			continue
 		}
+
+		totalEntities++
 		entityTypes[entity.EntityType]++
 	}
+
+	stats["total_entities"] = totalEntities
 	stats["entity_types"] = entityTypes
 
 	// Count devices
 	devicePattern := fmt.Sprintf("tenant:%s:device_entities:*", orgSlug)
-	deviceKeys := e.redis.Keys(ctx, devicePattern).Val()
-	stats["total_devices"] = len(deviceKeys)
+	deviceIter := e.redis.Scan(ctx, 0, devicePattern, 0).Iterator()
+	totalDevices := 0
+	for deviceIter.Next(ctx) {
+		totalDevices++
+	}
+	stats["total_devices"] = totalDevices
 
 	return stats, nil
 }

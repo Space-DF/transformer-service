@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,13 +20,10 @@ import (
 
 type cacheEntry struct {
 	mapping models.DeviceMapping
-	device  *models.Device // New unified device model
 }
 
 // DeviceProfileService handles device profile management
 type DeviceProfileService struct {
-	profiles map[string]models.DeviceProfile
-
 	httpClient  *http.Client
 	baseURL     string
 	cache       map[string]cacheEntry
@@ -36,13 +32,9 @@ type DeviceProfileService struct {
 }
 
 // NewDeviceProfileService creates a new device profile service
-func NewDeviceProfileService(configPath string) (*DeviceProfileService, error) {
+func NewDeviceProfileService() (*DeviceProfileService, error) {
 	service := &DeviceProfileService{
 		cache: make(map[string]cacheEntry),
-	}
-
-	if err := service.LoadProfiles(configPath); err != nil {
-		return nil, fmt.Errorf("failed to load device profiles: %w", err)
 	}
 
 	service.baseURL = strings.TrimSpace(os.Getenv("DEVICE_SERVICE_BASE_URL"))
@@ -61,67 +53,12 @@ func NewDeviceProfileService(configPath string) (*DeviceProfileService, error) {
 	return service, nil
 }
 
-// LoadProfiles loads device profiles from a JSON configuration file
-func (dps *DeviceProfileService) LoadProfiles(configPath string) error {
-	pwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get working directory: %w", err)
-	}
-
-	// If configPath is relative, make it absolute from project root
-	if !filepath.IsAbs(configPath) {
-		configPath = filepath.Join(pwd, configPath)
-	}
-
-	// Clean and validate the path to prevent directory traversal
-	configPath = filepath.Clean(configPath)
-
-	// Validate that the path stays within the project directory
-	allowedDir := filepath.Clean(pwd)
-	if !strings.HasPrefix(configPath, allowedDir+string(filepath.Separator)) && configPath != allowedDir {
-		return fmt.Errorf("config file path is outside allowed directory")
-	}
-
-	// Validate file extension
-	if filepath.Ext(configPath) != ".json" {
-		return fmt.Errorf("config file must have .json extension")
-	}
-
-	data, err := os.ReadFile(configPath) // #nosec G304 - path is validated above
-	if err != nil {
-		return fmt.Errorf("failed to read device profiles config file: %w", err)
-	}
-
-	var cfg models.DeviceProfiles
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return fmt.Errorf("failed to unmarshal device profiles: %w", err)
-	}
-
-	dps.profiles = cfg.DeviceProfiles
-	return nil
-}
-
-// GetDeviceProfile returns the device profile and mapping for a given organization + DevEUI.
-func (dps *DeviceProfileService) GetDeviceProfile(orgSlug, devEUI string) (*models.DeviceProfile, *models.DeviceMapping, error) {
-	if dps.profiles == nil {
-		return nil, nil, fmt.Errorf("device profiles not loaded")
-	}
-
+func (dps *DeviceProfileService) GetDeviceMapping(orgSlug, devEUI string) (*models.DeviceMapping, error) {
 	if devEUI == "" {
-		return nil, nil, fmt.Errorf("dev_eui is required")
+		return nil, fmt.Errorf("dev_eui is required")
 	}
 
-	mapping, err := dps.getMapping(orgSlug, devEUI)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	profile, ok := dps.profiles[mapping.Profile]
-	if !ok {
-		return nil, nil, fmt.Errorf("device profile %s not found", mapping.Profile)
-	}
-
-	return &profile, mapping, nil
+	return dps.getMapping(orgSlug, devEUI)
 }
 
 // Get mapping device
@@ -181,62 +118,45 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 		return nil, fmt.Errorf("device service error: %s - %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 
-	var payload map[string]interface{}
+	var payload models.DeviceLookupResponse
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		return nil, err
 	}
 
-	profile := ""
-	if rawProfile, ok := payload["device_profile"].(string); ok {
-		profile = strings.TrimSpace(rawProfile)
-	}
+	profile := strings.TrimSpace(payload.DeviceProfile.DeviceType)
 	if profile == "" {
 		return nil, fmt.Errorf("device mapping payload missing profile for %s", devEUI)
 	}
 
-	deviceID := ""
-	if rawID, ok := payload["id"].(string); ok {
-		deviceID = strings.TrimSpace(rawID)
-	}
+	deviceID := strings.TrimSpace(payload.ID)
 	if deviceID == "" {
 		deviceID = "unknown-" + devEUI
 	}
 
-	deviceName := ""
-	if rawName, ok := payload["device_name"].(string); ok {
-		deviceName = strings.TrimSpace(rawName)
-	}
+	deviceName := strings.TrimSpace(payload.DeviceProfile.Name)
 	if deviceName == "" {
 		deviceName = deviceID
 	}
 
-	description := ""
-	if rawDescription, ok := payload["description"].(string); ok {
-		description = strings.TrimSpace(rawDescription)
+	manufacture := strings.TrimSpace(payload.DeviceProfile.Manufacture)
+	if manufacture == "" {
+		manufacture = "unknown"
 	}
 
-	spaceSlug := ""
-	if rawSpaceSlug, ok := payload["space_slug"].(string); ok {
-		spaceSlug = strings.TrimSpace(rawSpaceSlug)
-	}
+	description := strings.TrimSpace(payload.DeviceProfile.Description)
 
-	isPublished := false
-	if rawPublished, ok := payload["is_published"]; ok {
-		isPublished = rawPublished.(bool)
-	}
+	spaceSlug := strings.TrimSpace(payload.SpaceSlug)
+	isPublished := payload.IsPublished
+	skip := payload.Skip
 
-	skip := false
-	if rawSkip, ok := payload["skip"]; ok {
-		skip = rawSkip.(bool)
-	}
-
-	log.Printf("device mapping lookup: dev_eui=%s, profile=%s, device_id=%s, device_name=%s, description=%s, space_slug=%s, is_published=%v,  skip=%v",
-		devEUI, profile, deviceID, deviceName, description, spaceSlug, isPublished, skip)
+	log.Printf("device mapping lookup: dev_eui=%s, profile=%s, device_id=%s, device_name=%s, manufacture=%s, description=%s, space_slug=%s, is_published=%v,  skip=%v",
+		devEUI, profile, deviceID, deviceName, manufacture, description, spaceSlug, isPublished, skip)
 	mapping := models.DeviceMapping{
 		Profile:      profile,
 		Organization: orgSlug,
 		DeviceID:     deviceID,
 		DeviceName:   deviceName,
+		Manufacture:  manufacture,
 		Description:  description,
 		SpaceSlug:    spaceSlug,
 		IsPublished:  isPublished,
@@ -291,138 +211,11 @@ func (dps *DeviceProfileService) saveToCache(key string, mapping models.DeviceMa
 	}
 }
 
-// GetAllProfiles returns all available device profiles.
-func (dps *DeviceProfileService) GetAllProfiles() map[string]models.DeviceProfile {
-	return dps.profiles
-}
-
-// HasGPS checks if a device has built-in GPS capability.
-func (dps *DeviceProfileService) HasGPS(orgSlug, devEUI string) (bool, error) {
-	profile, _, err := dps.GetDeviceProfile(orgSlug, devEUI)
-	if err != nil {
-		return false, err
-	}
-	return profile.HasGPS, nil
-}
-
-// RequiresLocationCalculation checks if a device requires location calculation
-func (dps *DeviceProfileService) RequiresLocationCalculation(orgSlug, devEUI string) (bool, error) {
-	profile, _, err := dps.GetDeviceProfile(orgSlug, devEUI)
-	if err != nil {
-		return true, err // Default to requiring calculation if profile not found
-	}
-	return profile.LocationCalculationRequired, nil
-}
-
-// GetParserType returns the parser type for a device
-func (dps *DeviceProfileService) GetParserType(orgSlug, devEUI string) (string, error) {
-	profile, _, err := dps.GetDeviceProfile(orgSlug, devEUI)
-	if err != nil {
-		return "", err
-	}
-	return profile.ParserType, nil
-}
-
 // ShouldSkipDevice checks if a device should be skipped from processing.
 func (dps *DeviceProfileService) ShouldSkipDevice(orgSlug, devEUI string) (bool, error) {
-	_, mapping, err := dps.GetDeviceProfile(orgSlug, devEUI)
+	mapping, err := dps.GetDeviceMapping(orgSlug, devEUI)
 	if err != nil {
 		return false, err
 	}
 	return mapping.Skip, nil
-}
-
-// GetDevice returns the unified Device model for a given organization + DevEUI
-func (dps *DeviceProfileService) GetDevice(orgSlug, devEUI string) (*models.Device, error) {
-	if dps.profiles == nil {
-		return nil, fmt.Errorf("device profiles not loaded")
-	}
-
-	if devEUI == "" {
-		return nil, fmt.Errorf("dev_eui is required")
-	}
-
-	device, err := dps.getDeviceFromCache(orgSlug, devEUI)
-	if err != nil {
-		return nil, err
-	}
-
-	return device, nil
-}
-
-// GetDeviceWithProfile returns both the unified Device model and its profile
-func (dps *DeviceProfileService) GetDeviceWithProfile(orgSlug, devEUI string) (*models.Device, *models.DeviceProfile, error) {
-	device, err := dps.GetDevice(orgSlug, devEUI)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	profile, ok := dps.profiles[device.Profile]
-	if !ok {
-		return nil, nil, fmt.Errorf("device profile %s not found", device.Profile)
-	}
-
-	return device, &profile, nil
-}
-
-// getDeviceFromCache retrieves or creates a unified Device from cache/API
-func (dps *DeviceProfileService) getDeviceFromCache(orgSlug, devEUI string) (*models.Device, error) {
-	cacheKey := orgSlug + ":lorawan:" + devEUI
-
-	// Check if we have the unified device in cache
-	if device, ok := dps.getUnifiedDeviceFromCache(cacheKey); ok {
-		return device, nil
-	}
-
-	// Fallback to legacy mapping and convert
-	mapping, err := dps.getMapping(orgSlug, devEUI)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert legacy mapping to unified device model
-	device := models.FromDeviceMapping(*mapping, devEUI)
-
-	// Enhance with profile information if available
-	if profile, exists := dps.profiles[device.Profile]; exists {
-		device.HasGPS = profile.HasGPS
-		device.SupportedPorts = profile.SupportedPorts
-	}
-
-	// Cache the unified device for future use
-	dps.saveUnifiedDeviceToCache(cacheKey, device)
-
-	return &device, nil
-}
-
-// getUnifiedDeviceFromCache retrieves unified Device from cache
-func (dps *DeviceProfileService) getUnifiedDeviceFromCache(key string) (*models.Device, bool) {
-	dps.cacheLocker.RLock()
-	entry, ok := dps.cache[key]
-	dps.cacheLocker.RUnlock()
-
-	if ok && entry.device != nil {
-		deviceCopy := *entry.device
-		return &deviceCopy, true
-	}
-
-	// TODO: Add Redis support for unified Device model in future iteration
-	return nil, false
-}
-
-// saveUnifiedDeviceToCache saves unified Device to cache
-func (dps *DeviceProfileService) saveUnifiedDeviceToCache(key string, device models.Device) {
-	dps.cacheLocker.Lock()
-	if entry, exists := dps.cache[key]; exists {
-		entry.device = &device
-		dps.cache[key] = entry
-	} else {
-		dps.cache[key] = cacheEntry{
-			mapping: device.ToDeviceMapping(),
-			device:  &device,
-		}
-	}
-	dps.cacheLocker.Unlock()
-
-	// TODO: Add Redis support for unified Device model in future iteration
 }

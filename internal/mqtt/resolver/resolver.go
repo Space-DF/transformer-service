@@ -54,10 +54,19 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 	var err error
 
 	if devEUI != "" && r.deviceProfileService != nil {
-		requiresCalculation, profileErr := r.deviceProfileService.RequiresLocationCalculation(orgSlug, devEUI)
-		if profileErr != nil {
-			r.logTenant(orgSlug, vhost, "⚠️", "Could not get device profile for %s: %v. Proceeding with location calculation.", devEUI, profileErr)
-			requiresCalculation = true // Default to requiring calculation
+		mapping, mappingErr := r.deviceProfileService.GetDeviceMapping(orgSlug, devEUI)
+		if mappingErr != nil {
+			r.logTenant(orgSlug, vhost, "⚠️", "Could not get device mapping for %s: %v. Proceeding with location calculation.", devEUI, mappingErr)
+		}
+
+		deviceType := components.DeviceTypeUnknown
+		if mapping != nil {
+			deviceType = r.profileToDeviceType(mapping.Profile)
+		}
+
+		requiresCalculation := true
+		if components := registry.GetGlobalRegistry().GetComponentsForDevice(deviceType); len(components) > 0 {
+			requiresCalculation = !components[0].SupportsGPS(deviceType)
 		}
 
 		if requiresCalculation {
@@ -66,18 +75,17 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 			deviceLocation, err = r.locationService.CalculateDeviceLocation(locationPayload)
 			if err == nil && deviceLocation != nil {
 				// Set organization from device mapping if available
-				if _, mapping, mappingErr := r.deviceProfileService.GetDeviceProfile(orgSlug, devEUI); mappingErr == nil {
+				if mapping != nil {
 					deviceLocation.Organization = mapping.Organization
+					deviceLocation.Manufacture = mapping.Manufacture
 				}
 			}
 		} else {
 			// Device has GPS, extract coordinates using device-specific parser
 			r.logTenant(orgSlug, vhost, "🛰️", "Device %s has GPS capability, extracting GPS coordinates", devEUI)
-			if _, mapping, profileErr := r.deviceProfileService.GetDeviceProfile(orgSlug, devEUI); profileErr == nil {
-				deviceLocation, err = r.extractGPSFromDeviceParser(mapping.Profile, locationPayload, mapping.Organization)
-			} else {
-				r.logTenant(orgSlug, vhost, "⚠️", "Could not get device profile for %s: %v. Falling back to location calculation.", devEUI, profileErr)
-				deviceLocation, err = r.locationService.CalculateDeviceLocation(locationPayload)
+			deviceLocation, err = r.extractGPSFromDeviceParser(mapping.Profile, locationPayload, orgSlug)
+			if err == nil && deviceLocation != nil && mapping != nil {
+				deviceLocation.Manufacture = mapping.Manufacture
 			}
 		}
 	} else {

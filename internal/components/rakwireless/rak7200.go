@@ -163,7 +163,7 @@ func (p *RAK7200Parser) parseRAK7200Payload(data string) (*RAK7200ParsedValues, 
 
 	// Example RAK7200 payload format (simplified):
 	// Bytes 0-3: Latitude (int32)
-	// Bytes 4-7: Longitude (int32) 
+	// Bytes 4-7: Longitude (int32)
 	// Byte 8: Battery level (uint8)
 	// Bytes 9-10: Temperature (int16)
 

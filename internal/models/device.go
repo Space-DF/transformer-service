@@ -39,6 +39,7 @@ type DeviceLocationData struct {
 	Longitude    float64 `json:"longitude"`
 	DevEUI       string  `json:"dev_eui"`
 	Organization string  `json:"organization"`
+	Manufacture  string  `json:"manufacture,omitempty"`
 }
 
 // TransformedDeviceData represents the final transformed output (DEPRECATED: Use TelemetryPayload)
@@ -133,15 +134,26 @@ type LocationResult struct {
 	Accuracy  float64 `json:"accuracy"`
 }
 
-// DeviceProfile represents a device profile configuration
-type DeviceProfile struct {
-	Name                        string `json:"name"`
-	Description                 string `json:"description"`
-	HasGPS                      bool   `json:"has_gps"`
-	ParserType                  string `json:"parser_type"`
-	LocationCalculationRequired bool   `json:"location_calculation_required"`
-	SupportedPorts              []int  `json:"supported_ports"`
-	PayloadFormat               string `json:"payload_format"`
+// DeviceProfilePayload represents the device profile returned by device-service
+type DeviceProfilePayload struct {
+	ID                string                 `json:"id"`
+	Name              string                 `json:"name"`
+	DeviceType        string                 `json:"device_type"`
+	DeviceManufacture string                 `json:"device_manufacture"`
+	Manufacture       string                 `json:"manufacture"`
+	DefaultConfig     map[string]interface{} `json:"default_config,omitempty"`
+	Description       string                 `json:"description,omitempty"`
+	ImageURL          string                 `json:"image_url,omitempty"`
+}
+
+// DeviceLookupResponse represents the payload returned by the device lookup API
+type DeviceLookupResponse struct {
+	ID            string               `json:"id"`
+	DeviceProfile DeviceProfilePayload `json:"device_profile"`
+	DeviceID      string               `json:"device_id"`
+	SpaceSlug     string               `json:"space_slug"`
+	IsPublished   bool                 `json:"is_published"`
+	Skip          bool                 `json:"skip"`
 }
 
 // DeviceMapping represents a device EUI to profile mapping
@@ -151,6 +163,7 @@ type DeviceMapping struct {
 	Organization string `json:"organization"`
 	DeviceID     string `json:"id"`
 	DeviceName   string `json:"device_name"`
+	Manufacture  string `json:"manufacture"`
 	Description  string `json:"description"`
 	SpaceSlug    string `json:"space_slug"`
 	IsPublished  bool   `json:"is_published"`
@@ -344,10 +357,4 @@ func FromDeviceMapping(dm DeviceMapping, deviceEUI string) Device {
 	}
 
 	return device
-}
-
-// DeviceProfiles represents the complete device profiles configuration
-type DeviceProfiles struct {
-	DeviceProfiles map[string]DeviceProfile `json:"device_profiles"`
-	DeviceMappings map[string]DeviceMapping `json:"device_mappings"`
 }

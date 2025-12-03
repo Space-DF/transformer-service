@@ -3,6 +3,7 @@ package rakwireless
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -405,7 +406,23 @@ func (p *RAK4630Parser) decodeSensorReadings(payload *components.RawPayload) map
 		return nil
 	}
 
-	return decodeCayenneLPP(raw)
+	// Try CBOR map with "sensor" field first (ChirpStack relay format)
+	var m map[string]interface{}
+	if err := cbor.Unmarshal(raw, &m); err == nil {
+		if sensorStr, ok := m["sensor"].(string); ok {
+			if readings := parseSensorString(sensorStr); len(readings) > 0 {
+				return readings
+			}
+		}
+	}
+
+	// Try Cayenne LPP
+	if readings := decodeCayenneLPP(raw); len(readings) > 0 {
+		return readings
+	}
+
+	// Fallback: pull structured fields from metadata (uplinkEvent.object / decoded_payload)
+	return decodeFromMetadata(payload.Metadata)
 }
 
 // decodeCayenneLPP decodes a subset of Cayenne LPP payload (temperature, humidity, analog/battery)
@@ -457,5 +474,86 @@ func decodeCayenneLPP(data []byte) map[string]float64 {
 		return nil
 	}
 
+	return readings
+}
+
+// parseSensorString parses vendor-specific comma-separated sensor payloads from CBOR
+// The format contains many placeholder "*" values followed by numeric fields.
+// We currently map the last two numeric fields to humidity and temperature as a best-effort extraction.
+func parseSensorString(sensorStr string) map[string]float64 {
+	parts := strings.Split(sensorStr, ",")
+	values := make([]float64, 0, len(parts))
+	for _, p := range parts {
+		if v, err := strconv.ParseFloat(strings.TrimSpace(p), 64); err == nil {
+			values = append(values, v)
+		}
+	}
+
+	readings := make(map[string]float64)
+	if n := len(values); n >= 2 {
+		readings["humidity"] = values[n-2]
+		readings["temperature"] = values[n-1]
+	} else if n == 1 {
+		readings["temperature"] = values[0]
+	}
+
+	if len(readings) == 0 {
+		return nil
+	}
+	return readings
+}
+
+// decodeFromMetadata tries to extract sensor readings from structured payload metadata.
+// It looks for common keys like "object" or "decoded_payload" containing numeric fields.
+func decodeFromMetadata(metadata map[string]interface{}) map[string]float64 {
+	if len(metadata) == 0 {
+		return nil
+	}
+
+	readings := make(map[string]float64)
+
+	// Helper to pull a float64 from a map by key
+	extract := func(m map[string]interface{}, key string) (float64, bool) {
+		if v, ok := m[key]; ok {
+			switch t := v.(type) {
+			case float64:
+				return t, true
+			case float32:
+				return float64(t), true
+			case int:
+				return float64(t), true
+			case int64:
+				return float64(t), true
+			case json.Number:
+				if f, err := t.Float64(); err == nil {
+					return f, true
+				}
+			}
+		}
+		return 0, false
+	}
+
+	// Try known containers in order of preference
+	for _, key := range []string{"object", "decoded_payload", "decodedPayload"} {
+		if obj, ok := metadata[key].(map[string]interface{}); ok {
+			if v, ok := extract(obj, "temperature"); ok {
+				readings["temperature"] = v
+			}
+			if v, ok := extract(obj, "humidity"); ok {
+				readings["humidity"] = v
+			}
+			if v, ok := extract(obj, "battery"); ok {
+				readings["battery_v"] = v
+			}
+			// If we found any, return
+			if len(readings) > 0 {
+				return readings
+			}
+		}
+	}
+
+	if len(readings) == 0 {
+		return nil
+	}
 	return readings
 }

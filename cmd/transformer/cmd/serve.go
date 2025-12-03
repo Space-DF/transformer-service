@@ -56,16 +56,18 @@ func runServe(cmd *cobra.Command, args []string) error {
 	defer loggerService.Close()
 
 	// Create device profile service
-	deviceProfileService, err := services.NewDeviceProfileService("configs/device_profiles.json")
-	if err != nil {
-		log.Printf("Warning: Failed to load device profiles: %v. Proceeding without device profile mapping.", err)
-		deviceProfileService = nil
+	deviceProfileService, _ := services.NewDeviceProfileService()
+
+	// Create entity cache (optional)
+	entityCacheService := services.NewEntityCacheServiceFromEnv()
+	if entityCacheService == nil {
+		log.Printf("Entity cache not configured; entity caching disabled")
 	} else {
-		log.Printf("Device profiles loaded successfully")
+		log.Printf("Entity cache initialized")
 	}
 
 	// Create MQTT consumer with event-driven organization discovery
-	consumer := mqtt.NewConsumer(cfg.AMQP, cfg.OrgEvents, loggerService, deviceProfileService)
+	consumer := mqtt.NewConsumer(cfg.AMQP, cfg.OrgEvents, loggerService, deviceProfileService, entityCacheService)
 
 	// Connect to AMQP broker
 	if err := consumer.Connect(); err != nil {
