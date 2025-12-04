@@ -3,7 +3,6 @@ package rakwireless
 import (
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -140,7 +139,6 @@ func (p *RAK4630Parser) ParseToEntities(orgSlug string, payload *components.RawP
 			Name:        "Battery Level",
 			State:       batteryV,
 			UnitOfMeas:  "V",
-			Icon:        "mdi:battery",
 			Timestamp:   timestamp,
 			Enabled:     true,
 		}
@@ -160,7 +158,6 @@ func (p *RAK4630Parser) ParseToEntities(orgSlug string, payload *components.RawP
 			Name:        "Temperature",
 			State:       temp,
 			UnitOfMeas:  "°C",
-			Icon:        "mdi:thermometer",
 			Timestamp:   timestamp,
 			Enabled:     true,
 		}
@@ -180,11 +177,29 @@ func (p *RAK4630Parser) ParseToEntities(orgSlug string, payload *components.RawP
 			Name:        "Humidity",
 			State:       humidity,
 			UnitOfMeas:  "%",
-			Icon:        "mdi:water-percent",
 			Timestamp:   timestamp,
 			Enabled:     true,
 		}
 		entities = append(entities, humidityEntity)
+	}
+
+	// Pressure Entity
+	if pressure, ok := readings["pressure"]; ok {
+		pressureEntity := components.Entity{
+			UniqueID: components.GenerateUniqueID(orgSlug, devEUI, "pressure"),
+			EntityID: components.GenerateEntityID(
+				components.GetEntityDomain("pressure"),
+				orgSlug, "rakwireless", "rak4630", devEUI, "pressure",
+			),
+			EntityType:  "pressure",
+			DeviceClass: "pressure",
+			Name:        "Pressure",
+			State:       pressure,
+			UnitOfMeas:  "kPa",
+			Timestamp:   timestamp,
+			Enabled:     true,
+		}
+		entities = append(entities, pressureEntity)
 	}
 
 	return entities, nil
@@ -237,27 +252,36 @@ func (p *RAK4630Parser) parseSensorData(frame SensorFrame) (*components.Location
 	sensorData = strings.TrimPrefix(sensorData, "xs")
 
 	values := strings.Split(sensorData, ",")
-	if len(values) < 16 {
-		return nil, fmt.Errorf("insufficient sensor data values: %d", len(values))
+	indices := [][2]int{
+		{16, 17}, // Newer firmware positions
+		{14, 15}, // Backward-compatible ff
 	}
 
-	latStr := strings.TrimSpace(values[14])
-	lonStr := strings.TrimSpace(values[15])
+	for _, pair := range indices {
+		if len(values) <= pair[1] {
+			continue
+		}
 
-	lat, err1 := strconv.ParseFloat(latStr, 64)
-	lon, err2 := strconv.ParseFloat(lonStr, 64)
-	if err1 != nil || err2 != nil {
-		return nil, fmt.Errorf("failed to parse GPS coordinates from sensor data")
+		latStr := strings.TrimSpace(values[pair[0]])
+		lonStr := strings.TrimSpace(values[pair[1]])
+
+		lat, err1 := strconv.ParseFloat(latStr, 64)
+		lon, err2 := strconv.ParseFloat(lonStr, 64)
+		if err1 != nil || err2 != nil {
+			continue
+		}
+
+		if err := p.validateCoordinates(lat, lon); err != nil {
+			continue
+		}
+
+		return &components.Location{
+			Latitude:  lat,
+			Longitude: lon,
+		}, nil
 	}
 
-	if err := p.validateCoordinates(lat, lon); err != nil {
-		return nil, fmt.Errorf("sensor data does not contain valid GPS coordinates: %w", err)
-	}
-
-	return &components.Location{
-		Latitude:  lat,
-		Longitude: lon,
-	}, nil
+	return nil, fmt.Errorf("sensor data does not contain valid GPS coordinates")
 }
 
 // parseFromFrmPayload extracts GPS coordinates from hex frm_payload
@@ -381,10 +405,11 @@ func (p *RAK4630Parser) validateCoordinates(latitude, longitude float64) error {
 	return nil
 }
 
-// decodeSensorReadings decodes Cayenne LPP sensor values from base64 payload data
+// decodeSensorReadings decodes sensor values from base64 CBOR payload data
 func (p *RAK4630Parser) decodeSensorReadings(payload *components.RawPayload) map[string]float64 {
 	var encoded string
 
+	// Get the base64 data from payload
 	if payload.Data != "" {
 		encoded = payload.Data
 	} else {
@@ -397,18 +422,19 @@ func (p *RAK4630Parser) decodeSensorReadings(payload *components.RawPayload) map
 		}
 	}
 
-	if strings.TrimSpace(encoded) == "" {
-		return nil
-	}
+	// Decode base64 CBOR data
+	if strings.TrimSpace(encoded) != "" {
+		raw, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil {
+			return nil
+		}
 
-	raw, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		return nil
-	}
+		var m map[string]interface{}
+		if err := cbor.Unmarshal(raw, &m); err != nil {
+			return nil
+		}
 
-	// Try CBOR map with "sensor" field first (ChirpStack relay format)
-	var m map[string]interface{}
-	if err := cbor.Unmarshal(raw, &m); err == nil {
+		// Extract sensor string from CBOR
 		if sensorStr, ok := m["sensor"].(string); ok {
 			if readings := parseSensorString(sensorStr); len(readings) > 0 {
 				return readings
@@ -416,140 +442,56 @@ func (p *RAK4630Parser) decodeSensorReadings(payload *components.RawPayload) map
 		}
 	}
 
-	// Try Cayenne LPP
-	if readings := decodeCayenneLPP(raw); len(readings) > 0 {
-		return readings
-	}
-
-	// Fallback: pull structured fields from metadata (uplinkEvent.object / decoded_payload)
-	return decodeFromMetadata(payload.Metadata)
+	return nil
 }
 
-// decodeCayenneLPP decodes a subset of Cayenne LPP payload (temperature, humidity, analog/battery)
-func decodeCayenneLPP(data []byte) map[string]float64 {
-	readings := make(map[string]float64)
 
-	for i := 0; i < len(data); {
-		channel := data[i]
-		i++
-		if i >= len(data) {
-			break
-		}
-		dataType := data[i]
-		i++
-
-		switch dataType {
-		case 0x67: // Temperature (2 bytes, signed, 0.1°C)
-			if i+2 > len(data) {
-				return readings
-			}
-			raw := int16(data[i])<<8 | int16(data[i+1])
-			i += 2
-			readings["temperature"] = float64(raw) / 10.0
-		case 0x68: // Humidity (1 byte, 0.5% steps)
-			if i+1 > len(data) {
-				return readings
-			}
-			raw := data[i]
-			i++
-			readings["humidity"] = float64(raw) / 2.0
-		case 0x02, 0x03: // Analog input/output (2 bytes, 0.01 units)
-			if i+2 > len(data) {
-				return readings
-			}
-			raw := int16(data[i])<<8 | int16(data[i+1])
-			i += 2
-			value := float64(raw) / 100.0
-			readings[fmt.Sprintf("analog_input_ch%d", channel)] = value
-			if channel == 0 {
-				readings["battery_v"] = value
-			}
-		default:
-			// Unsupported type; stop decoding to avoid misalignment
-			return readings
-		}
-	}
-
-	if len(readings) == 0 {
-		return nil
-	}
-
-	return readings
-}
-
-// parseSensorString parses vendor-specific comma-separated sensor payloads from CBOR
-// The format contains many placeholder "*" values followed by numeric fields.
-// We currently map the last two numeric fields to humidity and temperature as a best-effort extraction.
+// parseSensorString parses vendor-specific comma-separated sensor payloads from CBOR.
 func parseSensorString(sensorStr string) map[string]float64 {
 	parts := strings.Split(sensorStr, ",")
-	values := make([]float64, 0, len(parts))
-	for _, p := range parts {
-		if v, err := strconv.ParseFloat(strings.TrimSpace(p), 64); err == nil {
-			values = append(values, v)
-		}
-	}
 
 	readings := make(map[string]float64)
-	if n := len(values); n >= 2 {
-		readings["humidity"] = values[n-2]
-		readings["temperature"] = values[n-1]
-	} else if n == 1 {
-		readings["temperature"] = values[0]
-	}
-
-	if len(readings) == 0 {
-		return nil
-	}
-	return readings
-}
-
-// decodeFromMetadata tries to extract sensor readings from structured payload metadata.
-// It looks for common keys like "object" or "decoded_payload" containing numeric fields.
-func decodeFromMetadata(metadata map[string]interface{}) map[string]float64 {
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	readings := make(map[string]float64)
-
-	// Helper to pull a float64 from a map by key
-	extract := func(m map[string]interface{}, key string) (float64, bool) {
-		if v, ok := m[key]; ok {
-			switch t := v.(type) {
-			case float64:
-				return t, true
-			case float32:
-				return float64(t), true
-			case int:
-				return float64(t), true
-			case int64:
-				return float64(t), true
-			case json.Number:
-				if f, err := t.Float64(); err == nil {
-					return f, true
-				}
-			}
+	get := func(idx int) (float64, bool) {
+		if idx < 0 || idx >= len(parts) {
+			return 0, false
 		}
-		return 0, false
+		v, err := strconv.ParseFloat(strings.TrimSpace(parts[idx]), 64)
+		if err != nil {
+			return 0, false
+		}
+		return v, true
 	}
 
-	// Try known containers in order of preference
-	for _, key := range []string{"object", "decoded_payload", "decodedPayload"} {
-		if obj, ok := metadata[key].(map[string]interface{}); ok {
-			if v, ok := extract(obj, "temperature"); ok {
-				readings["temperature"] = v
-			}
-			if v, ok := extract(obj, "humidity"); ok {
-				readings["humidity"] = v
-			}
-			if v, ok := extract(obj, "battery"); ok {
-				readings["battery_v"] = v
-			}
-			// If we found any, return
-			if len(readings) > 0 {
-				return readings
-			}
-		}
+	// Parse based on field positions
+	if v, ok := get(0); ok {
+		readings["temperature"] = v
+	}
+	if v, ok := get(1); ok {
+		readings["humidity"] = v
+	}
+	if v, ok := get(2); ok {
+		readings["pressure"] = v
+	}
+	// Index 3-15 are placeholders (*)
+	if v, ok := get(16); ok {
+		readings["latitude"] = v
+	}
+	if v, ok := get(17); ok {
+		readings["longitude"] = v
+	}
+	if v, ok := get(18); ok {
+		readings["snr_or_altitude"] = v
+	}
+	if v, ok := get(19); ok {
+		readings["raw_signal"] = v
+	}
+	if v, ok := get(20); ok {
+		readings["signal_quality"] = v
+	}
+	// Index 21-23 are additional fields
+	// I leave here for temporarily future use
+	if v, ok := get(24); ok {
+		readings["battery_v"] = v
 	}
 
 	if len(readings) == 0 {

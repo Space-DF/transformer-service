@@ -58,16 +58,8 @@ func runServe(cmd *cobra.Command, args []string) error {
 	// Create device profile service
 	deviceProfileService, _ := services.NewDeviceProfileService()
 
-	// Create entity cache (optional)
-	entityCacheService := services.NewEntityCacheServiceFromEnv()
-	if entityCacheService == nil {
-		log.Printf("Entity cache not configured; entity caching disabled")
-	} else {
-		log.Printf("Entity cache initialized")
-	}
-
 	// Create MQTT consumer with event-driven organization discovery
-	consumer := mqtt.NewConsumer(cfg.AMQP, cfg.OrgEvents, loggerService, deviceProfileService, entityCacheService)
+	consumer := mqtt.NewConsumer(cfg.AMQP, cfg.OrgEvents, loggerService, deviceProfileService)
 
 	// Connect to AMQP broker
 	if err := consumer.Connect(); err != nil {

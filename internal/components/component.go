@@ -64,6 +64,8 @@ type ParsedData struct {
 // ParseResult represents the result of parsing device data into multiple entities
 type ParseResult struct {
 	DeviceEUI  string     `json:"device_eui"`
+	DeviceID   string     `json:"device_id,omitempty"`
+	SpaceSlug  string     `json:"space_slug,omitempty"`
 	DeviceInfo DeviceInfo `json:"device_info"`
 	Entities   []Entity   `json:"entities"`
 	Timestamp  time.Time  `json:"timestamp"`
