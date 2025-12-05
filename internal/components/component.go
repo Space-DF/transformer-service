@@ -115,7 +115,7 @@ type DeviceComponent interface {
 	Parse(ctx context.Context, deviceType DeviceType, payload *RawPayload) (*ParsedData, error)
 
 	// ParseToEntities converts raw payload into multiple entities
-	ParseToEntities(ctx context.Context, orgSlug string, deviceType DeviceType, payload *RawPayload) (*ParseResult, error)
+	ParseToEntities(ctx context.Context, orgSlug, model string, deviceType DeviceType, payload *RawPayload) (*ParseResult, error)
 
 	// Validate performs device-specific validation on the parsed data
 	Validate(deviceType DeviceType, data *ParsedData) error
@@ -133,8 +133,8 @@ type DeviceComponent interface {
 // Helper functions for entity ID generation
 
 // GenerateUniqueID creates a simple unique ID for entity registry
-func GenerateUniqueID(orgSlug, devEUI, entityType string) string {
-	return fmt.Sprintf("%s_%s_%s", orgSlug, devEUI, entityType)
+func GenerateUniqueID(model, devEUI, entityType string) string {
+	return fmt.Sprintf("%s_%s_%s", model, devEUI, entityType)
 }
 
 // GenerateEntityID creates a descriptive entity ID with model information

@@ -556,7 +556,7 @@ func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]inte
 		return nil, nil, fmt.Errorf("no component found for device type: %s", deviceType)
 	}
 
-	parseResult, err := component.ParseToEntities(context.Background(), orgSlug, deviceType, raw)
+	parseResult, err := component.ParseToEntities(context.Background(), orgSlug, mapping.Profile, deviceType, raw)
 	return parseResult, mapping, err
 }
 
