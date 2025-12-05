@@ -123,7 +123,12 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 		return nil, err
 	}
 
-	profile := strings.TrimSpace(payload.DeviceProfile.DeviceType)
+	profile := ""
+	if rawProfile, ok := payload["device_profile"].(map[string]interface{}); ok {
+		if deviceType, ok := rawProfile["device_type"].(string); ok {
+			profile = strings.TrimSpace(deviceType)
+		}
+	}
 	if profile == "" {
 		return nil, fmt.Errorf("device mapping payload missing profile for %s", devEUI)
 	}
