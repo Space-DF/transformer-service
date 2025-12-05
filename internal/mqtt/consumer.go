@@ -499,7 +499,7 @@ func (c *Consumer) publishTelemetry(channel *amqp.Channel, data *models.Telemetr
 
 	telemetryQueue := "telemetry.transformer.queue"
 	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing telemetry payload to %s", telemetryQueue)
-	
+
 	return channel.PublishWithContext(
 		context.Background(),
 		tenant.Exchange,
@@ -534,7 +534,7 @@ func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]inte
 	}
 
 	// On production logs, the data field located at in decoded_raw_data array.
-	// Here, I will put it here temporarily find the data field from different possible locations. (For development case too.) 
+	// Here, I will put it here temporarily find the data field from different possible locations. (For development case too.)
 	if d, ok := payload["data"].(string); ok {
 		raw.Data = d
 	} else if ue, ok := payload["uplinkEvent"].(map[string]interface{}); ok {
@@ -633,7 +633,6 @@ func (c *Consumer) extractDeviceIdentifiers(payload map[string]interface{}, mapp
 
 	return deviceID, spaceSlug
 }
-
 
 // getKeys returns the keys of a map for debugging
 // func getKeys(m map[string]interface{}) []string {

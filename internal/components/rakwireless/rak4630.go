@@ -445,7 +445,6 @@ func (p *RAK4630Parser) decodeSensorReadings(payload *components.RawPayload) map
 	return nil
 }
 
-
 // parseSensorString parses vendor-specific comma-separated sensor payloads from CBOR.
 func parseSensorString(sensorStr string) map[string]float64 {
 	parts := strings.Split(sensorStr, ",")
