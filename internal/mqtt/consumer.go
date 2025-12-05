@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Space-DF/transformer-service/internal/components"
+	"github.com/Space-DF/transformer-service/internal/components/registry"
 	"github.com/Space-DF/transformer-service/internal/config"
 	"github.com/Space-DF/transformer-service/internal/models"
 	"github.com/Space-DF/transformer-service/internal/mqtt/helpers"
@@ -374,8 +376,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	}
 
 	// Extract devEUI first to check device profile
-	var devEUI string
-	devEUI = c.parser.ExtractDevEUI(payload, locationPayload)
+	var devEUI string = c.parser.ExtractDevEUI(payload, locationPayload)
 
 	// Check if device should be skipped
 	deviceLocation, processingInfo, err := c.resolver.Resolve(orgSlug, vhost, devEUI, payload, locationPayload)
@@ -394,6 +395,22 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	transformedData, err := c.transformService.TransformDeviceData(deviceLocation, processingInfo.GatewayCount, payload)
 	if err != nil {
 		return fmt.Errorf("failed to transform device data: %w", err)
+	}
+
+	// Try to parse sensor entities and publish telemetry payload
+	if parseResult, mapping, perr := c.parseEntities(orgSlug, devEUI, payload); perr == nil && parseResult != nil {
+		logging.Tenant(orgSlug, vhost, "", "Parsed %d telemetry entities for device %s", len(parseResult.Entities), devEUI)
+		if telemetryPayload, terr := c.buildTelemetryPayload(parseResult, orgSlug, payload, mapping); terr == nil {
+			if err := c.publishTelemetry(tenant.Channel, telemetryPayload, tenant); err != nil {
+				logging.Tenant(orgSlug, vhost, "⚠️", "Failed to publish telemetry payload: %v", err)
+			} else {
+				logging.Tenant(orgSlug, vhost, "✅", "Published telemetry payload with %d entities", len(parseResult.Entities))
+			}
+		} else {
+			logging.Tenant(orgSlug, vhost, "⚠️", "Failed to build telemetry payload: %v", terr)
+		}
+	} else if perr != nil {
+		logging.Tenant(orgSlug, vhost, "⚠️", "Failed to parse telemetry entities: %v", perr)
 	}
 
 	processingInfo.LocationResult = &models.LocationResult{
@@ -466,6 +483,155 @@ func (c *Consumer) publishTransformedData(channel *amqp.Channel, data *models.Tr
 		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "✅", "Published transformed data to topic: %s", topic)
 	}
 	return nil
+}
+
+// publishTelemetry publishes telemetry payloads (entities) to the telemetry queue
+func (c *Consumer) publishTelemetry(channel *amqp.Channel, data *models.TelemetryPayload, tenant *TenantConsumer) error {
+	if channel == nil {
+		return fmt.Errorf("tenant channel is nil")
+	}
+
+	body, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal telemetry payload: %w", err)
+	}
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "🔍", "Telemetry payload body: %s", string(body))
+
+	telemetryQueue := "telemetry.transformer.queue"
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing telemetry payload to %s", telemetryQueue)
+
+	return channel.PublishWithContext(
+		context.Background(),
+		tenant.Exchange,
+		telemetryQueue,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType:  "application/json",
+			Body:         body,
+			DeliveryMode: amqp.Persistent,
+			Timestamp:    time.Now(),
+		},
+	)
+}
+
+// parseEntities attempts to parse entities for telemetry and returns the device mapping
+func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]interface{}) (*components.ParseResult, *models.DeviceMapping, error) {
+	if devEUI == "" {
+		return nil, nil, fmt.Errorf("dev_eui missing")
+	}
+
+	mapping, err := c.deviceProfileService.GetDeviceMapping(orgSlug, devEUI)
+	if err != nil || mapping == nil {
+		return nil, nil, fmt.Errorf("device mapping not found: %w", err)
+	}
+
+	deviceType := components.DeviceType(strings.ToUpper(mapping.Profile))
+	raw := &components.RawPayload{
+		DeviceEUI: devEUI,
+		Timestamp: time.Now(),
+		Metadata:  payload,
+	}
+
+	// On production logs, the data field located at in decoded_raw_data array.
+	// Here, I will put it here temporarily find the data field from different possible locations. (For development case too.)
+	if d, ok := payload["data"].(string); ok {
+		raw.Data = d
+	} else if ue, ok := payload["uplinkEvent"].(map[string]interface{}); ok {
+		if d, ok := ue["data"].(string); ok {
+			raw.Data = d
+		}
+	} else if decoded, ok := payload["decoded_raw_data"].(map[string]interface{}); ok {
+		if d, ok := decoded["data"].(string); ok {
+			raw.Data = d
+		} else if ue, ok := decoded["uplinkEvent"].(map[string]interface{}); ok {
+			if d, ok := ue["data"].(string); ok {
+				raw.Data = d
+			}
+		}
+	}
+
+	component := registry.FindComponent(deviceType, raw)
+	if component == nil {
+		return nil, nil, fmt.Errorf("no component found for device type: %s", deviceType)
+	}
+
+	parseResult, err := component.ParseToEntities(context.Background(), orgSlug, deviceType, raw)
+	return parseResult, mapping, err
+}
+
+// buildTelemetryPayload converts parse result to telemetry payload
+func (c *Consumer) buildTelemetryPayload(parseResult *components.ParseResult, orgSlug string, originalPayload map[string]interface{}, mapping *models.DeviceMapping) (*models.TelemetryPayload, error) {
+	if parseResult == nil {
+		return nil, fmt.Errorf("parse result is nil")
+	}
+
+	deviceID, spaceSlug := c.extractDeviceIdentifiers(originalPayload, mapping, parseResult.DeviceEUI)
+
+	deviceInfo := models.TelemetryDeviceInfo{
+		Identifiers:  parseResult.DeviceInfo.Identifiers,
+		Name:         parseResult.DeviceInfo.Name,
+		Manufacturer: parseResult.DeviceInfo.Manufacturer,
+		Model:        parseResult.DeviceInfo.Model,
+		ModelID:      parseResult.DeviceInfo.ModelID,
+	}
+
+	var telemetryEntities []models.TelemetryEntity
+	for _, entity := range parseResult.Entities {
+		telemetryEntities = append(telemetryEntities, models.TelemetryEntity{
+			UniqueID:    entity.UniqueID,
+			EntityID:    entity.EntityID,
+			EntityType:  entity.EntityType,
+			DeviceClass: entity.DeviceClass,
+			Name:        entity.Name,
+			State:       entity.State,
+			Attributes:  entity.Attributes,
+			UnitOfMeas:  entity.UnitOfMeas,
+			Timestamp:   entity.Timestamp.Format(time.RFC3339),
+		})
+	}
+
+	return &models.TelemetryPayload{
+		Organization: orgSlug,
+		DeviceEUI:    parseResult.DeviceEUI,
+		DeviceID:     deviceID,
+		SpaceSlug:    spaceSlug,
+		DeviceInfo:   deviceInfo,
+		Entities:     telemetryEntities,
+		Timestamp:    time.Now().UTC().Format(time.RFC3339),
+		Source:       "transformer-service",
+	}, nil
+}
+
+// extractDeviceIdentifiers pulls device and space IDs from the device mapping (preferred) or payload.
+func (c *Consumer) extractDeviceIdentifiers(payload map[string]interface{}, mapping *models.DeviceMapping, devEUI string) (string, string) {
+	deviceID := "unknown"
+	spaceSlug := ""
+
+	if mapping != nil {
+		if mapping.DeviceID != "" {
+			deviceID = mapping.DeviceID
+		}
+		if mapping.SpaceSlug != "" {
+			spaceSlug = mapping.SpaceSlug
+		}
+	}
+
+	if deviceID == "unknown" {
+		if rawDeviceID, exists := payload["device_id"]; exists {
+			if strVal, ok := rawDeviceID.(string); ok && strVal != "" {
+				deviceID = strVal
+			}
+		}
+	}
+
+	if rawSpaceSlug, exists := payload["space_slug"]; exists {
+		if strVal, ok := rawSpaceSlug.(string); ok && strVal != "" {
+			spaceSlug = strVal
+		}
+	}
+
+	return deviceID, spaceSlug
 }
 
 // getKeys returns the keys of a map for debugging

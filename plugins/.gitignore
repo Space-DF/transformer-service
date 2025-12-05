@@ -1,0 +1,6 @@
+# Ignore all plugin files
+*.so
+*.dylib
+
+# But keep the README
+!README.md

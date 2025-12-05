@@ -56,13 +56,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	defer loggerService.Close()
 
 	// Create device profile service
-	deviceProfileService, err := services.NewDeviceProfileService("configs/device_profiles.json")
-	if err != nil {
-		log.Printf("Warning: Failed to load device profiles: %v. Proceeding without device profile mapping.", err)
-		deviceProfileService = nil
-	} else {
-		log.Printf("Device profiles loaded successfully")
-	}
+	deviceProfileService, _ := services.NewDeviceProfileService()
 
 	// Create MQTT consumer with event-driven organization discovery
 	consumer := mqtt.NewConsumer(cfg.AMQP, cfg.OrgEvents, loggerService, deviceProfileService)
