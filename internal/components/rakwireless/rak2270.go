@@ -39,14 +39,14 @@ func (p *RAK2270Parser) GetSupportedEntityTypes() []string {
 }
 
 // ParseToEntities creates entities for RAK2270 device
-func (p *RAK2270Parser) ParseToEntities(orgSlug string, payload *components.RawPayload) ([]components.Entity, error) {
+func (p *RAK2270Parser) ParseToEntities(orgSlug, model string, payload *components.RawPayload) ([]components.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI is required")
 	}
 
 	// Generate entity IDs using standard format
-	uniqueID := components.GenerateUniqueID(orgSlug, devEUI, "location")
+	uniqueID := components.GenerateUniqueID(model, devEUI, "location")
 	entityID := components.GenerateEntityID(
 		components.GetEntityDomain("location"), // "device_tracker"
 		orgSlug,

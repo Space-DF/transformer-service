@@ -54,7 +54,7 @@ func (p *RAK7200Parser) GetSupportedEntityTypes() []string {
 }
 
 // ParseToEntities creates entities for RAK7200 device
-func (p *RAK7200Parser) ParseToEntities(orgSlug string, payload *components.RawPayload) ([]components.Entity, error) {
+func (p *RAK7200Parser) ParseToEntities(orgSlug, model string, payload *components.RawPayload) ([]components.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI is required")

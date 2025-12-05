@@ -83,7 +83,7 @@ func (p *RAK4630Parser) GetSupportedEntityTypes() []string {
 }
 
 // ParseToEntities creates entities for RAK4630 device
-func (p *RAK4630Parser) ParseToEntities(orgSlug string, payload *components.RawPayload) ([]components.Entity, error) {
+func (p *RAK4630Parser) ParseToEntities(orgSlug, model string, payload *components.RawPayload) ([]components.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
 		devEUI = extractDevEUI(payload.Metadata)
@@ -104,7 +104,7 @@ func (p *RAK4630Parser) ParseToEntities(orgSlug string, payload *components.RawP
 	// Location Entity (GPS-capable)
 	if parsedData.Location != nil {
 		locationEntity := components.Entity{
-			UniqueID: components.GenerateUniqueID(orgSlug, devEUI, "location"),
+			UniqueID: components.GenerateUniqueID(model, devEUI, "location"),
 			EntityID: components.GenerateEntityID(
 				components.GetEntityDomain("location"),
 				orgSlug, "rakwireless", "rak4630", devEUI, "location",
@@ -129,7 +129,7 @@ func (p *RAK4630Parser) ParseToEntities(orgSlug string, payload *components.RawP
 	// Battery Entity
 	if batteryV, ok := readings["battery_v"]; ok {
 		batteryEntity := components.Entity{
-			UniqueID: components.GenerateUniqueID(orgSlug, devEUI, "battery"),
+			UniqueID: components.GenerateUniqueID(model, devEUI, "battery"),
 			EntityID: components.GenerateEntityID(
 				components.GetEntityDomain("battery"),
 				orgSlug, "rakwireless", "rak4630", devEUI, "battery",
@@ -148,7 +148,7 @@ func (p *RAK4630Parser) ParseToEntities(orgSlug string, payload *components.RawP
 	// Temperature Entity
 	if temp, ok := readings["temperature"]; ok {
 		tempEntity := components.Entity{
-			UniqueID: components.GenerateUniqueID(orgSlug, devEUI, "temperature"),
+			UniqueID: components.GenerateUniqueID(model, devEUI, "temperature"),
 			EntityID: components.GenerateEntityID(
 				components.GetEntityDomain("temperature"),
 				orgSlug, "rakwireless", "rak4630", devEUI, "temperature",
@@ -167,7 +167,7 @@ func (p *RAK4630Parser) ParseToEntities(orgSlug string, payload *components.RawP
 	// Humidity Entity
 	if humidity, ok := readings["humidity"]; ok {
 		humidityEntity := components.Entity{
-			UniqueID: components.GenerateUniqueID(orgSlug, devEUI, "humidity"),
+			UniqueID: components.GenerateUniqueID(model, devEUI, "humidity"),
 			EntityID: components.GenerateEntityID(
 				components.GetEntityDomain("humidity"),
 				orgSlug, "rakwireless", "rak4630", devEUI, "humidity",
@@ -186,7 +186,7 @@ func (p *RAK4630Parser) ParseToEntities(orgSlug string, payload *components.RawP
 	// Pressure Entity
 	if pressure, ok := readings["pressure"]; ok {
 		pressureEntity := components.Entity{
-			UniqueID: components.GenerateUniqueID(orgSlug, devEUI, "pressure"),
+			UniqueID: components.GenerateUniqueID(model, devEUI, "pressure"),
 			EntityID: components.GenerateEntityID(
 				components.GetEntityDomain("pressure"),
 				orgSlug, "rakwireless", "rak4630", devEUI, "pressure",
