@@ -12,30 +12,21 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Space-DF/transformer-service/internal/models"
 )
 
-type cacheEntry struct {
-	mapping models.DeviceMapping
-}
-
 // DeviceProfileService handles device profile management
 type DeviceProfileService struct {
-	httpClient  *http.Client
-	baseURL     string
-	cache       map[string]cacheEntry
-	cacheLocker sync.RWMutex
-	cacheStore  DeviceMappingCache
+	httpClient *http.Client
+	baseURL    string
+	cacheStore DeviceMappingCache
 }
 
 // NewDeviceProfileService creates a new device profile service
 func NewDeviceProfileService() (*DeviceProfileService, error) {
-	service := &DeviceProfileService{
-		cache: make(map[string]cacheEntry),
-	}
+	service := &DeviceProfileService{}
 
 	service.baseURL = strings.TrimSpace(os.Getenv("DEVICE_SERVICE_BASE_URL"))
 
@@ -167,41 +158,25 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 }
 
 func (dps *DeviceProfileService) getFromCache(key string) (*models.DeviceMapping, bool) {
-	dps.cacheLocker.RLock()
-	entry, ok := dps.cache[key]
-	dps.cacheLocker.RUnlock()
-	if !ok {
-		if dps.cacheStore != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
+	if dps.cacheStore != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
 
-			cached, err := dps.cacheStore.Get(ctx, key)
-			if err != nil {
-				if !errors.Is(err, ErrCacheMiss) {
-					log.Printf("device-profile redis get error: %v", err)
-				}
-				return nil, false
+		cached, err := dps.cacheStore.Get(ctx, key)
+		if err != nil {
+			if !errors.Is(err, ErrCacheMiss) {
+				log.Printf("device-profile redis get error: %v", err)
 			}
-
-			dps.cacheLocker.Lock()
-			dps.cache[key] = cacheEntry{mapping: *cached}
-			dps.cacheLocker.Unlock()
-			return cached, true
+			return nil, false
 		}
-		return nil, false
+
+		return cached, true
 	}
 
-	mappingCopy := entry.mapping
-	return &mappingCopy, true
+	return nil, false
 }
 
 func (dps *DeviceProfileService) saveToCache(key string, mapping models.DeviceMapping) {
-	entry := cacheEntry{mapping: mapping}
-
-	dps.cacheLocker.Lock()
-	dps.cache[key] = entry
-	dps.cacheLocker.Unlock()
-
 	if dps.cacheStore != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
