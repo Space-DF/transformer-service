@@ -497,13 +497,13 @@ func (c *Consumer) publishTelemetry(channel *amqp.Channel, data *models.Telemetr
 	}
 	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "🔍", "Telemetry payload body: %s", string(body))
 
-	telemetryQueue := "telemetry.transformer.queue"
-	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing telemetry payload to %s", telemetryQueue)
+	telemetryRoutingKey := fmt.Sprintf("tenant.%s.transformed.telemetry.device.location", tenant.OrgSlug)
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing telemetry payload to %s", telemetryRoutingKey)
 
 	return channel.PublishWithContext(
 		context.Background(),
 		tenant.Exchange,
-		telemetryQueue,
+		telemetryRoutingKey,
 		false,
 		false,
 		amqp.Publishing{
