@@ -34,8 +34,8 @@ COPY --from=builder /app/configs ./configs
 # No port exposure needed for MQTT consumer
 
 # Health check - verify main process is running
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD ps aux | grep -q '[m]ain serve' || exit 1
+# HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+#   CMD ps aux | grep -q '[m]ain serve' || exit 1
 
 # Command to run
 CMD ["./main", "serve"]
