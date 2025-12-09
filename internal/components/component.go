@@ -93,6 +93,7 @@ type Entity struct {
 	Name        string                 `json:"name"`                          // "Location", "Battery Level"
 	State       interface{}            `json:"state"`                         // "home", 85, 22.5
 	Attributes  map[string]interface{} `json:"attributes"`                    // Additional properties
+	DisplayType []string							 `json:"display_type,omitempty"` 
 	UnitOfMeas  string                 `json:"unit_of_measurement,omitempty"` // "%", "°C"
 	Icon        string                 `json:"icon,omitempty"`
 	Enabled     bool                   `json:"enabled"` // Default: true
