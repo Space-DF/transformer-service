@@ -65,6 +65,7 @@ func (p *RAK2270Parser) ParseToEntities(orgSlug, model string, payload *componen
 		DeviceClass: "location",
 		Name:        "Location",
 		State:       "unknown", // Will be updated by trilateration service
+		DisplayType: []string{"map"},
 		Attributes: map[string]interface{}{
 			"source":               "trilateration",
 			"requires_calculation": true,

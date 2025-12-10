@@ -86,6 +86,7 @@ type TelemetryEntity struct {
 	Name        string                 `json:"name"`                          // "Location", "Battery Level"
 	State       interface{}            `json:"state"`                         // "home", 85, 22.5
 	Attributes  map[string]interface{} `json:"attributes,omitempty"`          // Additional properties
+	DisplayType []string               `json:"display_type,omitempty"`        // UI hints (e.g., map, chart)
 	UnitOfMeas  string                 `json:"unit_of_measurement,omitempty"` // "%", "°C"
 	Icon        string                 `json:"icon,omitempty"`
 	Timestamp   string                 `json:"timestamp"`

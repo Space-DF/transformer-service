@@ -586,6 +586,7 @@ func (c *Consumer) buildTelemetryPayload(parseResult *components.ParseResult, or
 			Name:        entity.Name,
 			State:       entity.State,
 			Attributes:  entity.Attributes,
+			DisplayType: entity.DisplayType,
 			UnitOfMeas:  entity.UnitOfMeas,
 			Timestamp:   entity.Timestamp.Format(time.RFC3339),
 		})
