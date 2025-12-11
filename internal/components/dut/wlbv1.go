@@ -64,7 +64,7 @@ func (p *WLBV1Parser) GetSupportedPorts() []int {
 
 // GetSupportedEntityTypes returns entity types supported by WLB V1
 func (p *WLBV1Parser) GetSupportedEntityTypes() []string {
-	return []string{"location", "battery", "waterlevel_cm"} // WLB V1 environmental sensor
+	return []string{"location", "battery", "water_depth"} // WLB V1 environmental sensor
 }
 
 // ParseToEntities creates entities for WLB V1 device
@@ -133,17 +133,17 @@ func (p *WLBV1Parser) ParseToEntities(orgSlug, model string, payload *components
 	}
 
 	// Water Level Entity (waterlevel_cm from object)
-	if waterLevel, ok := objectData["waterlevel_cm"].(float64); ok {
+	if waterDepth, ok := objectData["waterlevel_cm"].(float64); ok {
 		waterLevelEntity := components.Entity{
-			UniqueID: components.GenerateUniqueID(model, devEUI, "water_level"),
+			UniqueID: components.GenerateUniqueID(model, devEUI, "water_depth"),
 			EntityID: components.GenerateEntityID(
-				components.GetEntityDomain("water_level"),
-				orgSlug, "dut", "wlb_v1", devEUI, "water_level",
+				components.GetEntityDomain("water_depth"),
+				orgSlug, "dut", "wlb_v1", devEUI, "water_depth",
 			),
-			EntityType:  "water_level",
+			EntityType:  "water_depth",
 			DeviceClass: "distance",
-			Name:        "Water Level",
-			State:       waterLevel,
+			Name:        "Water Depth",
+			State:       waterDepth,
 			DisplayType: []string{"chart"},
 			UnitOfMeas:  "cm",
 			Timestamp:   timestamp,
@@ -179,14 +179,14 @@ func (p *WLBV1Parser) parseFromFrmPayload(metadata map[string]interface{}) (*com
 		return nil, fmt.Errorf("payload too short for GPS data: %d bytes", len(payloadBytes))
 	}
 
-	lat, lon, err := p.parseGPSCoordinates(payloadBytes)
+	lat, lng, err := p.parseGPSCoordinates(payloadBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse GPS coordinates: %w", err)
 	}
 
 	return &components.Location{
 		Latitude:  lat,
-		Longitude: lon,
+		Longitude: lng,
 	}, nil
 }
 
@@ -201,19 +201,19 @@ func (p *WLBV1Parser) parseFromDecodedPayload(metadata map[string]interface{}) (
 		}
 	}
 
-	var lat, lon float64
+	var lat, lng float64
 	var found bool
 
 	if v, ok := decoded["latitude"].(float64); ok {
 		if w, ok := decoded["longitude"].(float64); ok {
-			lat, lon = v, w
+			lat, lng = v, w
 			found = true
 		}
 	}
 	if !found {
 		if v, ok := decoded["lat"].(float64); ok {
 			if w, ok := decoded["lng"].(float64); ok {
-				lat, lon = v, w
+				lat, lng = v, w
 				found = true
 			}
 		}
@@ -222,7 +222,7 @@ func (p *WLBV1Parser) parseFromDecodedPayload(metadata map[string]interface{}) (
 		if gps, ok := decoded["gps"].(map[string]interface{}); ok {
 			if v, ok := gps["latitude"].(float64); ok {
 				if w, ok := gps["longitude"].(float64); ok {
-					lat, lon = v, w
+					lat, lng = v, w
 					found = true
 				}
 			}
@@ -233,13 +233,13 @@ func (p *WLBV1Parser) parseFromDecodedPayload(metadata map[string]interface{}) (
 		return nil, fmt.Errorf("GPS coordinates not found in decoded payload")
 	}
 
-	if err := p.validateCoordinates(lat, lon); err != nil {
+	if err := p.validateCoordinates(lat, lng); err != nil {
 		return nil, err
 	}
 
 	return &components.Location{
 		Latitude:  lat,
-		Longitude: lon,
+		Longitude: lng,
 	}, nil
 }
 
@@ -253,13 +253,13 @@ func (p *WLBV1Parser) parseGPSCoordinates(payloadBytes []byte) (float64, float64
 	lonInt := int32(payloadBytes[4]) | int32(payloadBytes[5])<<8 | int32(payloadBytes[6])<<16 | int32(payloadBytes[7])<<24
 
 	lat := float64(latInt) / 10000000.0
-	lon := float64(lonInt) / 10000000.0
+	lng := float64(lonInt) / 10000000.0
 
-	if err := p.validateCoordinates(lat, lon); err != nil {
+	if err := p.validateCoordinates(lat, lng); err != nil {
 		return 0, 0, err
 	}
 
-	return lat, lon, nil
+	return lat, lng, nil
 }
 
 // validateCoordinates validates GPS coordinates
@@ -300,19 +300,19 @@ func (p *WLBV1Parser) parseFromObjectField(metadata map[string]interface{}) (*co
 
 	// Extract latitude and longitude
 	lat, latOk := objectData["latitude"].(float64)
-	lon, lonOk := objectData["longitude"].(float64)
+	lng, lngOk := objectData["longitude"].(float64)
 
-	if !latOk || !lonOk {
+	if !latOk || !lngOk {
 		return nil, fmt.Errorf("latitude or longitude not found in object")
 	}
 
-	if err := p.validateCoordinates(lat, lon); err != nil {
+	if err := p.validateCoordinates(lat, lng); err != nil {
 		return nil, err
 	}
 
 	return &components.Location{
 		Latitude:  lat,
-		Longitude: lon,
+		Longitude: lng,
 	}, nil
 }
 
