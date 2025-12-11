@@ -151,7 +151,7 @@ func GetEntityDomain(entityType string) string {
 	switch entityType {
 	case "location":
 		return "device_tracker"
-	case "battery", "temperature", "humidity", "pressure":
+	case "battery", "temperature", "humidity", "pressure", "water_depth":
 		return "sensor"
 	case "motion", "door", "window":
 		return "binary_sensor"
