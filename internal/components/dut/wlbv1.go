@@ -145,6 +145,9 @@ func (p *WLBV1Parser) ParseToEntities(orgSlug, model string, payload *components
 			Name:        "Water Depth",
 			State:       waterDepth,
 			DisplayType: []string{"chart"},
+			Attributes: map[string]interface{}{
+				"sensor_height_from_ground": 200,
+			},
 			UnitOfMeas:  "cm",
 			Timestamp:   timestamp,
 			Enabled:     true,
