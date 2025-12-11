@@ -13,6 +13,7 @@ const (
 	DeviceTypeRAK2270 DeviceType = "RAK2270"
 	DeviceTypeRAK7200 DeviceType = "RAK7200"
 	DeviceTypeRAK4630 DeviceType = "RAK4630"
+	DeviceTypeWLBV1   DeviceType = "WLBV1"
 	DeviceTypeUnknown DeviceType = "UNKNOWN"
 )
 
@@ -150,7 +151,7 @@ func GetEntityDomain(entityType string) string {
 	switch entityType {
 	case "location":
 		return "device_tracker"
-	case "battery", "temperature", "humidity", "pressure":
+	case "battery", "temperature", "humidity", "pressure", "water_depth":
 		return "sensor"
 	case "motion", "door", "window":
 		return "binary_sensor"
