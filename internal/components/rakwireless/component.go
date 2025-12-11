@@ -32,7 +32,7 @@ func NewRAKwirelessComponent() *RAKwirelessComponent {
 	component.parsers[components.DeviceTypeRAK2270] = NewRAK2270Parser()
 	component.parsers[components.DeviceTypeRAK7200] = NewRAK7200Parser()
 	component.parsers[components.DeviceTypeRAK4630] = NewRAK4630Parser()
-
+	component.parsers[components.DeviceTypeWLBV1] = NewWLBV1Parser()
 	return component
 }
 
@@ -47,6 +47,7 @@ func (c *RAKwirelessComponent) GetInfo() components.ComponentInfo {
 			components.DeviceTypeRAK2270,
 			components.DeviceTypeRAK7200,
 			components.DeviceTypeRAK4630,
+			components.DeviceTypeWLBV1,
 		},
 	}
 }
@@ -57,6 +58,7 @@ func (c *RAKwirelessComponent) GetSupportedDevices() []components.DeviceType {
 		components.DeviceTypeRAK2270,
 		components.DeviceTypeRAK7200,
 		components.DeviceTypeRAK4630,
+		components.DeviceTypeWLBV1,
 	}
 }
 

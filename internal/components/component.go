@@ -13,6 +13,7 @@ const (
 	DeviceTypeRAK2270 DeviceType = "RAK2270"
 	DeviceTypeRAK7200 DeviceType = "RAK7200"
 	DeviceTypeRAK4630 DeviceType = "RAK4630"
+	DeviceTypeWLBV1   DeviceType = "WLBV1"
 	DeviceTypeUnknown DeviceType = "UNKNOWN"
 )
 
