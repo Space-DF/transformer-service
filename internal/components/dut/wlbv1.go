@@ -1,4 +1,4 @@
-package rakwireless
+package dut
 
 import (
 	"encoding/hex"
@@ -40,7 +40,7 @@ func (p *WLBV1Parser) ParsePayload(payload *components.RawPayload) (*components.
 		return nil, fmt.Errorf("WLB V1 parsing not yet implemented: %w", err)
 	}
 
-  sensorData := p.extractObjectData(payload.Metadata)
+	sensorData := p.extractObjectData(payload.Metadata)
 
 	return &components.ParsedData{
 		DeviceEUI:  devEUI,
@@ -82,74 +82,74 @@ func (p *WLBV1Parser) ParseToEntities(orgSlug, model string, payload *components
 		return nil, err
 	}
 
-objectData := p.extractObjectData(payload.Metadata)
+	objectData := p.extractObjectData(payload.Metadata)
 	var entities []components.Entity
 	timestamp := payload.Timestamp
 
 	// Location Entity
 	if parsedData.Location != nil {
-			locationEntity := components.Entity{
-					UniqueID: components.GenerateUniqueID(model, devEUI, "location"),
-					EntityID: components.GenerateEntityID(
-							components.GetEntityDomain("location"),
-							orgSlug, "rakwireless", "wlb_v1", devEUI, "location",
-					),
-					EntityType:  "location",
-					DeviceClass: "location",
-					Name:        "Location",
-					State:       "home",
-					DisplayType: []string{"map"},
-					Attributes: map[string]interface{}{
-							"source":       "gps",
-							"gps_capable":  true,
-							"device_model": "WLB_V1",
-							"latitude":     parsedData.Location.Latitude,
-							"longitude":    parsedData.Location.Longitude,
-					},
-					Enabled:   true,
-					Timestamp: timestamp,
-			}
-			entities = append(entities, locationEntity)
+		locationEntity := components.Entity{
+			UniqueID: components.GenerateUniqueID(model, devEUI, "location"),
+			EntityID: components.GenerateEntityID(
+				components.GetEntityDomain("location"),
+				orgSlug, "dut", "wlb_v1", devEUI, "location",
+			),
+			EntityType:  "location",
+			DeviceClass: "location",
+			Name:        "Location",
+			State:       "home",
+			DisplayType: []string{"map"},
+			Attributes: map[string]interface{}{
+				"source":       "gps",
+				"gps_capable":  true,
+				"device_model": "WLB_V1",
+				"latitude":     parsedData.Location.Latitude,
+				"longitude":    parsedData.Location.Longitude,
+			},
+			Enabled:   true,
+			Timestamp: timestamp,
+		}
+		entities = append(entities, locationEntity)
 	}
 
 	// Battery Entity (vBat from object)
 	if vBat, ok := objectData["vBat"].(float64); ok {
-			batteryEntity := components.Entity{
-					UniqueID: components.GenerateUniqueID(model, devEUI, "battery"),
-					EntityID: components.GenerateEntityID(
-							components.GetEntityDomain("battery"),
-							orgSlug, "rakwireless", "wlb_v1", devEUI, "battery",
-					),
-					EntityType:  "battery",
-					DeviceClass: "battery",
-					Name:        "Battery Voltage",
-					State:       vBat,
-					DisplayType: []string{"chart"},
-					UnitOfMeas:  "V",
-					Timestamp:   timestamp,
-					Enabled:     true,
-			}
-			entities = append(entities, batteryEntity)
+		batteryEntity := components.Entity{
+			UniqueID: components.GenerateUniqueID(model, devEUI, "battery"),
+			EntityID: components.GenerateEntityID(
+				components.GetEntityDomain("battery"),
+				orgSlug, "dut", "wlb_v1", devEUI, "battery",
+			),
+			EntityType:  "battery",
+			DeviceClass: "battery",
+			Name:        "Battery Voltage",
+			State:       vBat,
+			DisplayType: []string{"chart"},
+			UnitOfMeas:  "V",
+			Timestamp:   timestamp,
+			Enabled:     true,
+		}
+		entities = append(entities, batteryEntity)
 	}
 
 	// Water Level Entity (waterlevel_cm from object)
 	if waterLevel, ok := objectData["waterlevel_cm"].(float64); ok {
-			waterLevelEntity := components.Entity{
-					UniqueID: components.GenerateUniqueID(model, devEUI, "water_level"),
-					EntityID: components.GenerateEntityID(
-							components.GetEntityDomain("water_level"),
-							orgSlug, "rakwireless", "wlb_v1", devEUI, "water_level",
-					),
-					EntityType:  "water_level",
-					DeviceClass: "distance",
-					Name:        "Water Level",
-					State:       waterLevel,
-					DisplayType: []string{"chart"},
-					UnitOfMeas:  "cm",
-					Timestamp:   timestamp,
-					Enabled:     true,
-			}
-			entities = append(entities, waterLevelEntity)
+		waterLevelEntity := components.Entity{
+			UniqueID: components.GenerateUniqueID(model, devEUI, "water_level"),
+			EntityID: components.GenerateEntityID(
+				components.GetEntityDomain("water_level"),
+				orgSlug, "dut", "wlb_v1", devEUI, "water_level",
+			),
+			EntityType:  "water_level",
+			DeviceClass: "distance",
+			Name:        "Water Level",
+			State:       waterLevel,
+			DisplayType: []string{"chart"},
+			UnitOfMeas:  "cm",
+			Timestamp:   timestamp,
+			Enabled:     true,
+		}
+		entities = append(entities, waterLevelEntity)
 	}
 
 	return entities, nil
@@ -278,65 +278,65 @@ func (p *WLBV1Parser) validateCoordinates(latitude, longitude float64) error {
 
 // parseFromObjectField extracts GPS coordinates from decoded_raw_data.object field
 func (p *WLBV1Parser) parseFromObjectField(metadata map[string]interface{}) (*components.Location, error) {
-    var objectData map[string]interface{}
-    
-    // Try decoded_raw_data.object first
-    if decodedRaw, ok := metadata["decoded_raw_data"].(map[string]interface{}); ok {
-        if obj, ok := decodedRaw["object"].(map[string]interface{}); ok {
-            objectData = obj
-        }
-    }
-    
-    // Try object directly
-    if objectData == nil {
-        if obj, ok := metadata["object"].(map[string]interface{}); ok {
-            objectData = obj
-        }
-    }
-    
-    if objectData == nil {
-        return nil, fmt.Errorf("object field not found")
-    }
-    
-    // Extract latitude and longitude
-    lat, latOk := objectData["latitude"].(float64)
-    lon, lonOk := objectData["longitude"].(float64)
-    
-    if !latOk || !lonOk {
-        return nil, fmt.Errorf("latitude or longitude not found in object")
-    }
-    
-    if err := p.validateCoordinates(lat, lon); err != nil {
-        return nil, err
-    }
-    
-    return &components.Location{
-        Latitude:  lat,
-        Longitude: lon,
-    }, nil
+	var objectData map[string]interface{}
+
+	// Try decoded_raw_data.object first
+	if decodedRaw, ok := metadata["decoded_raw_data"].(map[string]interface{}); ok {
+		if obj, ok := decodedRaw["object"].(map[string]interface{}); ok {
+			objectData = obj
+		}
+	}
+
+	// Try object directly
+	if objectData == nil {
+		if obj, ok := metadata["object"].(map[string]interface{}); ok {
+			objectData = obj
+		}
+	}
+
+	if objectData == nil {
+		return nil, fmt.Errorf("object field not found")
+	}
+
+	// Extract latitude and longitude
+	lat, latOk := objectData["latitude"].(float64)
+	lon, lonOk := objectData["longitude"].(float64)
+
+	if !latOk || !lonOk {
+		return nil, fmt.Errorf("latitude or longitude not found in object")
+	}
+
+	if err := p.validateCoordinates(lat, lon); err != nil {
+		return nil, err
+	}
+
+	return &components.Location{
+		Latitude:  lat,
+		Longitude: lon,
+	}, nil
 }
 
 // extractObjectData extracts all data from the "object" field
 func (p *WLBV1Parser) extractObjectData(metadata map[string]interface{}) map[string]interface{} {
-    var objectData map[string]interface{}
-    
-    // Try decoded_raw_data.object first
-    if decodedRaw, ok := metadata["decoded_raw_data"].(map[string]interface{}); ok {
-        if obj, ok := decodedRaw["object"].(map[string]interface{}); ok {
-            objectData = obj
-        }
-    }
-    
-    // Try object directly
-    if objectData == nil {
-        if obj, ok := metadata["object"].(map[string]interface{}); ok {
-            objectData = obj
-        }
-    }
-    
-    if objectData == nil {
-        return make(map[string]interface{})
-    }
-    
-    return objectData
+	var objectData map[string]interface{}
+
+	// Try decoded_raw_data.object first
+	if decodedRaw, ok := metadata["decoded_raw_data"].(map[string]interface{}); ok {
+		if obj, ok := decodedRaw["object"].(map[string]interface{}); ok {
+			objectData = obj
+		}
 	}
+
+	// Try object directly
+	if objectData == nil {
+		if obj, ok := metadata["object"].(map[string]interface{}); ok {
+			objectData = obj
+		}
+	}
+
+	if objectData == nil {
+		return make(map[string]interface{})
+	}
+
+	return objectData
+}

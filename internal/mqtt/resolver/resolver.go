@@ -13,6 +13,7 @@ import (
 	"github.com/Space-DF/transformer-service/internal/services"
 
 	// Import component packages to trigger registration
+	_ "github.com/Space-DF/transformer-service/internal/components/dut"
 	_ "github.com/Space-DF/transformer-service/internal/components/rakwireless"
 )
 
@@ -162,6 +163,8 @@ func (r *Resolver) profileToDeviceType(profile string) components.DeviceType {
 		return components.DeviceTypeRAK7200
 	case "RAK4630":
 		return components.DeviceTypeRAK4630
+	case "WLBV1":
+		return components.DeviceTypeWLBV1
 	default:
 		return components.DeviceTypeUnknown
 	}

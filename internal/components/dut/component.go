@@ -1,4 +1,4 @@
-package rakwireless
+package dut
 
 import (
 	"context"
@@ -7,9 +7,8 @@ import (
 	"github.com/Space-DF/transformer-service/internal/components"
 )
 
-// RAKwirelessComponent handles all RAKwireless devices
 // This follows a manufacturer-based component pattern
-type RAKwirelessComponent struct {
+type DUTComponent struct {
 	parsers map[components.DeviceType]DeviceParser
 }
 
@@ -22,51 +21,45 @@ type DeviceParser interface {
 	GetSupportedEntityTypes() []string
 }
 
-// NewRAKwirelessComponent creates a new RAKwireless component
-func NewRAKwirelessComponent() *RAKwirelessComponent {
-	component := &RAKwirelessComponent{
+// NewDUTComponent creates a new DUT component
+func NewDUTComponent() *DUTComponent {
+	component := &DUTComponent{
 		parsers: make(map[components.DeviceType]DeviceParser),
 	}
 
 	// Register device-specific parsers
-	component.parsers[components.DeviceTypeRAK2270] = NewRAK2270Parser()
-	component.parsers[components.DeviceTypeRAK7200] = NewRAK7200Parser()
-	component.parsers[components.DeviceTypeRAK4630] = NewRAK4630Parser()
+	component.parsers[components.DeviceTypeWLBV1] = NewWLBV1Parser()
 	return component
 }
 
 // GetInfo returns component metadata
-func (c *RAKwirelessComponent) GetInfo() components.ComponentInfo {
+func (c *DUTComponent) GetInfo() components.ComponentInfo {
 	return components.ComponentInfo{
-		Name:         "rakwireless",
-		Manufacturer: "RAKwireless",
+		Name:         "DUT",
+		Manufacturer: "DUT",
 		Version:      "1.0.0",
-		Description:  "Component for RAKwireless devices including RAK2270, RAK7200, and RAK4630",
+		Description:  "Component for WLBV1 devices",
 		DeviceTypes: []components.DeviceType{
-			components.DeviceTypeRAK2270,
-			components.DeviceTypeRAK7200,
-			components.DeviceTypeRAK4630,
+			components.DeviceTypeWLBV1,
 		},
 	}
 }
 
 // GetSupportedDevices returns the device types this component supports
-func (c *RAKwirelessComponent) GetSupportedDevices() []components.DeviceType {
+func (c *DUTComponent) GetSupportedDevices() []components.DeviceType {
 	return []components.DeviceType{
-		components.DeviceTypeRAK2270,
-		components.DeviceTypeRAK7200,
-		components.DeviceTypeRAK4630,
+		components.DeviceTypeWLBV1,
 	}
 }
 
 // CanHandle checks if this component can handle the given device type and payload
-func (c *RAKwirelessComponent) CanHandle(deviceType components.DeviceType, payload *components.RawPayload) bool {
+func (c *DUTComponent) CanHandle(deviceType components.DeviceType, payload *components.RawPayload) bool {
 	parser, exists := c.parsers[deviceType]
 	return exists && parser != nil
 }
 
 // Parse converts raw payload into structured ParsedData (DEPRECATED: Use ParseToEntities)
-func (c *RAKwirelessComponent) Parse(ctx context.Context, deviceType components.DeviceType, payload *components.RawPayload) (*components.ParsedData, error) {
+func (c *DUTComponent) Parse(ctx context.Context, deviceType components.DeviceType, payload *components.RawPayload) (*components.ParsedData, error) {
 	parser, exists := c.parsers[deviceType]
 	if !exists {
 		return nil, fmt.Errorf("no parser found for device type %s", deviceType)
@@ -76,7 +69,7 @@ func (c *RAKwirelessComponent) Parse(ctx context.Context, deviceType components.
 }
 
 // ParseToEntities converts raw payload into multiple entities
-func (c *RAKwirelessComponent) ParseToEntities(ctx context.Context, orgSlug, model string, deviceType components.DeviceType, payload *components.RawPayload) (*components.ParseResult, error) {
+func (c *DUTComponent) ParseToEntities(ctx context.Context, orgSlug, model string, deviceType components.DeviceType, payload *components.RawPayload) (*components.ParseResult, error) {
 	parser, exists := c.parsers[deviceType]
 	if !exists {
 		return nil, fmt.Errorf("no parser found for device type %s", deviceType)
@@ -90,8 +83,8 @@ func (c *RAKwirelessComponent) ParseToEntities(ctx context.Context, orgSlug, mod
 	// Create device info
 	deviceInfo := components.CreateDeviceInfo(
 		payload.DeviceEUI,
-		fmt.Sprintf("%s %s", string(deviceType), payload.DeviceEUI[12:]), // "RAK2270 b847"
-		"RAKwireless",
+		fmt.Sprintf("%s %s", string(deviceType), payload.DeviceEUI[12:]),
+		"DUT",
 		string(deviceType),
 		string(deviceType),
 	)
@@ -105,7 +98,7 @@ func (c *RAKwirelessComponent) ParseToEntities(ctx context.Context, orgSlug, mod
 }
 
 // Validate performs device-specific validation on the parsed data
-func (c *RAKwirelessComponent) Validate(deviceType components.DeviceType, data *components.ParsedData) error {
+func (c *DUTComponent) Validate(deviceType components.DeviceType, data *components.ParsedData) error {
 	// Basic validation
 	if data.DeviceEUI == "" {
 		return fmt.Errorf("device EUI is required")
@@ -120,7 +113,7 @@ func (c *RAKwirelessComponent) Validate(deviceType components.DeviceType, data *
 }
 
 // SupportsGPS returns true if the device has built-in GPS
-func (c *RAKwirelessComponent) SupportsGPS(deviceType components.DeviceType) bool {
+func (c *DUTComponent) SupportsGPS(deviceType components.DeviceType) bool {
 	parser, exists := c.parsers[deviceType]
 	if !exists {
 		return false
@@ -129,7 +122,7 @@ func (c *RAKwirelessComponent) SupportsGPS(deviceType components.DeviceType) boo
 }
 
 // GetSupportedPorts returns the fPorts this device type uses
-func (c *RAKwirelessComponent) GetSupportedPorts(deviceType components.DeviceType) []int {
+func (c *DUTComponent) GetSupportedPorts(deviceType components.DeviceType) []int {
 	parser, exists := c.parsers[deviceType]
 	if !exists {
 		return nil
@@ -138,7 +131,7 @@ func (c *RAKwirelessComponent) GetSupportedPorts(deviceType components.DeviceTyp
 }
 
 // GetSupportedEntityTypes returns the entity types this device supports
-func (c *RAKwirelessComponent) GetSupportedEntityTypes(deviceType components.DeviceType) []string {
+func (c *DUTComponent) GetSupportedEntityTypes(deviceType components.DeviceType) []string {
 	parser, exists := c.parsers[deviceType]
 	if !exists {
 		return nil
