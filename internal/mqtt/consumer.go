@@ -401,7 +401,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	if parseResult, mapping, perr := c.parseEntities(orgSlug, devEUI, payload); perr == nil && parseResult != nil {
 		logging.Tenant(orgSlug, vhost, "", "Parsed %d telemetry entities for device %s", len(parseResult.Entities), devEUI)
 		if telemetryPayload, terr := c.buildTelemetryPayload(parseResult, orgSlug, payload, mapping); terr == nil {
-			if err := c.publishTelemetry(tenant.Channel, telemetryPayload, tenant); err != nil {
+			if err := c.publishTelemetry(tenant.Channel, telemetryPayload, tenant, transformedData.IsPublished); err != nil {
 				logging.Tenant(orgSlug, vhost, "⚠️", "Failed to publish telemetry payload: %v", err)
 			} else {
 				logging.Tenant(orgSlug, vhost, "✅", "Published telemetry payload with %d entities", len(parseResult.Entities))
@@ -486,7 +486,7 @@ func (c *Consumer) publishTransformedData(channel *amqp.Channel, data *models.Tr
 }
 
 // publishTelemetry publishes telemetry payloads (entities) to the telemetry queue
-func (c *Consumer) publishTelemetry(channel *amqp.Channel, data *models.TelemetryPayload, tenant *TenantConsumer) error {
+func (c *Consumer) publishTelemetry(channel *amqp.Channel, data *models.TelemetryPayload, tenant *TenantConsumer, isPublished bool) error {
 	if channel == nil {
 		return fmt.Errorf("tenant channel is nil")
 	}
@@ -516,10 +516,10 @@ func (c *Consumer) publishTelemetry(channel *amqp.Channel, data *models.Telemetr
 		return err
 	}
 
-	return c.publishEntityTelemetry(channel, data, tenant)
+	return c.publishEntityTelemetry(channel, data, tenant, isPublished)
 }
 
-func (c *Consumer) publishEntityTelemetry(channel *amqp.Channel, data *models.TelemetryPayload, tenant *TenantConsumer) error {
+func (c *Consumer) publishEntityTelemetry(channel *amqp.Channel, data *models.TelemetryPayload, tenant *TenantConsumer, isPublished bool) error {
 	spaceSlug := data.SpaceSlug
 	if spaceSlug == "" {
 		spaceSlug = "unknown"
@@ -544,7 +544,7 @@ func (c *Consumer) publishEntityTelemetry(channel *amqp.Channel, data *models.Te
 			Entity:       entity,
 			Timestamp:    data.Timestamp,
 			Source:       data.Source,
-			IsPublished:  parsePublishedFlag(entity, data.Metadata),
+			IsPublished:  isPublished,
 			Metadata:     data.Metadata,
 		}
 
@@ -579,18 +579,6 @@ func (c *Consumer) publishEntityTelemetry(channel *amqp.Channel, data *models.Te
 	}
 
 	return nil
-}
-
-func parsePublishedFlag(entity models.TelemetryEntity, metadata map[string]interface{}) bool {
-	if metadata != nil {
-		if val, ok := metadata["is_published"]; ok {
-			if b, ok := val.(bool); ok {
-				return b
-			}
-		}
-	}
-	
-	return false
 }
 
 // parseEntities attempts to parse entities for telemetry and returns the device mapping
