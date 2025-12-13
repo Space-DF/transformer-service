@@ -544,6 +544,7 @@ func (c *Consumer) publishEntityTelemetry(channel *amqp.Channel, data *models.Te
 			Entity:       entity,
 			Timestamp:    data.Timestamp,
 			Source:       data.Source,
+			IsPublished:  parsePublishedFlag(entity, data.Metadata),
 			Metadata:     data.Metadata,
 		}
 
@@ -578,6 +579,18 @@ func (c *Consumer) publishEntityTelemetry(channel *amqp.Channel, data *models.Te
 	}
 
 	return nil
+}
+
+func parsePublishedFlag(entity models.TelemetryEntity, metadata map[string]interface{}) bool {
+	if metadata != nil {
+		if val, ok := metadata["is_published"]; ok {
+			if b, ok := val.(bool); ok {
+				return b
+			}
+		}
+	}
+	
+	return false
 }
 
 // parseEntities attempts to parse entities for telemetry and returns the device mapping
