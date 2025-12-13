@@ -68,6 +68,18 @@ type TelemetryPayload struct {
 	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 }
 
+// EntityTelemetryPayload represents telemetry for a single entity (no entities array)
+type EntityTelemetryPayload struct {
+	Organization string                 `json:"organization"`
+	DeviceEUI    string                 `json:"device_eui"`
+	DeviceID     string                 `json:"device_id,omitempty"`
+	SpaceSlug    string                 `json:"space_slug,omitempty"`
+	Entity       TelemetryEntity        `json:"entity"`
+	Timestamp    string                 `json:"timestamp"`
+	Source       string                 `json:"source"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
+}
+
 // TelemetryDeviceInfo represents device information for telemetry
 type TelemetryDeviceInfo struct {
 	Identifiers  []string `json:"identifiers"`  // ["70b3d57ed005b847"]

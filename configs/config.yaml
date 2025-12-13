@@ -10,6 +10,7 @@ amqp:
   output_topics:
     - "tenant.*.transformed.device.location"
     - "tenant.*.transformed.telemetry.device.location"
+  entity_bridge_routing_key: "tenant.%s.space.%s.entity.%s.telemetry"
   consumer_tag: "transformer-service"
   prefetch_count: 10
   auto_ack: false

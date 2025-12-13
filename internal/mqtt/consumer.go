@@ -500,7 +500,7 @@ func (c *Consumer) publishTelemetry(channel *amqp.Channel, data *models.Telemetr
 	telemetryRoutingKey := fmt.Sprintf("tenant.%s.transformed.telemetry.device.location", tenant.OrgSlug)
 	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing telemetry payload to %s", telemetryRoutingKey)
 
-	return channel.PublishWithContext(
+	if err := channel.PublishWithContext(
 		context.Background(),
 		tenant.Exchange,
 		telemetryRoutingKey,
@@ -512,7 +512,72 @@ func (c *Consumer) publishTelemetry(channel *amqp.Channel, data *models.Telemetr
 			DeliveryMode: amqp.Persistent,
 			Timestamp:    time.Now(),
 		},
-	)
+	); err != nil {
+		return err
+	}
+
+	return c.publishEntityTelemetry(channel, data, tenant)
+}
+
+func (c *Consumer) publishEntityTelemetry(channel *amqp.Channel, data *models.TelemetryPayload, tenant *TenantConsumer) error {
+	spaceSlug := data.SpaceSlug
+	if spaceSlug == "" {
+		spaceSlug = "unknown"
+	}
+
+	exchange := tenant.Exchange
+	if exchange == "" {
+		return fmt.Errorf("exchange not configured for entity telemetry")
+	}
+
+	for _, entity := range data.Entities {
+		entityID := entity.UniqueID
+		if entityID == "" {
+			entityID = "unknown"
+		}
+
+		entityPayload := models.EntityTelemetryPayload{
+			Organization: data.Organization,
+			DeviceEUI:    data.DeviceEUI,
+			DeviceID:     data.DeviceID,
+			SpaceSlug:    spaceSlug,
+			Entity:       entity,
+			Timestamp:    data.Timestamp,
+			Source:       data.Source,
+			Metadata:     data.Metadata,
+		}
+
+		body, err := json.Marshal(entityPayload)
+		if err != nil {
+			return fmt.Errorf("failed to marshal entity telemetry payload for %s: %w", entityID, err)
+		}
+
+		if c.config.EntityBridgeRoutingKey == "" {
+			return fmt.Errorf("entity_bridge_routing_key not configured")
+		}
+
+		routingKey := fmt.Sprintf(c.config.EntityBridgeRoutingKey, tenant.OrgSlug, spaceSlug, entityID)
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "🔍", "Entity telemetry payload for %s: %s", entityID, string(body))
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing entity telemetry to %s", routingKey)
+
+		if err := channel.PublishWithContext(
+			context.Background(),
+			exchange,
+			routingKey,
+			false,
+			false,
+			amqp.Publishing{
+				ContentType:  "application/json",
+				Body:         body,
+				DeliveryMode: amqp.Persistent,
+				Timestamp:    time.Now(),
+			},
+		); err != nil {
+			return fmt.Errorf("failed to publish entity telemetry for %s: %w", entityID, err)
+		}
+	}
+
+	return nil
 }
 
 // parseEntities attempts to parse entities for telemetry and returns the device mapping

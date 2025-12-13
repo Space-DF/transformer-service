@@ -26,9 +26,10 @@ type AMQPConfig struct {
 	Queue         string   `mapstructure:"queue" env:"AMQP_QUEUE"`
 	RoutingKey    string   `mapstructure:"routing_key" env:"AMQP_ROUTING_KEY"`
 	OutputTopics  []string `mapstructure:"output_topics" env:"AMQP_OUTPUT_TOPICS"`
-	ConsumerTag   string   `mapstructure:"consumer_tag" env:"AMQP_CONSUMER_TAG"`
-	PrefetchCount int      `mapstructure:"prefetch_count" env:"AMQP_PREFETCH_COUNT"`
-	AutoAck       bool     `mapstructure:"auto_ack" env:"AMQP_AUTO_ACK"`
+	EntityBridgeRoutingKey string `mapstructure:"entity_bridge_routing_key" env:"AMQP_ENTITY_BRIDGE_ROUTING_KEY"`
+	ConsumerTag            string `mapstructure:"consumer_tag" env:"AMQP_CONSUMER_TAG"`
+	PrefetchCount          int    `mapstructure:"prefetch_count" env:"AMQP_PREFETCH_COUNT"`
+	AutoAck                bool   `mapstructure:"auto_ack" env:"AMQP_AUTO_ACK"`
 }
 
 type OrgEventsConfig struct {
@@ -76,6 +77,7 @@ func New() (Config, error) {
 	_ = vp.BindEnv("amqp.prefetch_count", "AMQP_PREFETCH_COUNT")
 	_ = vp.BindEnv("amqp.auto_ack", "AMQP_AUTO_ACK")
 	_ = vp.BindEnv("amqp.allowed_vhosts", "AMQP_ALLOWED_VHOSTS")
+	_ = vp.BindEnv("amqp.entity_bridge_routing_key", "AMQP_ENTITY_BRIDGE_ROUTING_KEY")
 
 	// Bind org events environment variables
 	_ = vp.BindEnv("org_events.exchange", "ORG_EVENTS_EXCHANGE")
@@ -107,6 +109,7 @@ func setDefaults(vp *viper.Viper) {
 	vp.SetDefault("amqp.prefetch_count", 10)
 	vp.SetDefault("amqp.auto_ack", false)
 	vp.SetDefault("amqp.allowed_vhosts", "")
+	vp.SetDefault("amqp.entity_bridge_routing_key", "tenant.%s.space.%s.entity.%s.telemetry")
 
 	// Org events defaults
 	vp.SetDefault("org_events.exchange", "org.events")
