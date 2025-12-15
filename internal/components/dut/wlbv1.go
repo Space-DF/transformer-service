@@ -124,7 +124,7 @@ func (p *WLBV1Parser) ParseToEntities(orgSlug, model string, payload *components
 			DeviceClass: "battery",
 			Name:        "Battery Voltage",
 			State:       vBat,
-			DisplayType: []string{"chart"},
+			DisplayType: []string{"chart", "gauge", "value", "slider"},
 			UnitOfMeas:  "V",
 			Timestamp:   timestamp,
 			Enabled:     true,
@@ -144,7 +144,7 @@ func (p *WLBV1Parser) ParseToEntities(orgSlug, model string, payload *components
 			DeviceClass: "distance",
 			Name:        "Water Depth",
 			State:       waterDepth,
-			DisplayType: []string{"chart"},
+			DisplayType: []string{"chart", "gauge", "value", "slider"},
 			Attributes: map[string]interface{}{
 				"sensor_height_from_ground": 200,
 			},
