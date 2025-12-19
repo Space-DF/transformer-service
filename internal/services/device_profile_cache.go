@@ -17,6 +17,9 @@ import (
 // ErrCacheMiss indicates that the requested key is not cached
 var ErrCacheMiss = errors.New("cache miss")
 
+// DefaultCacheTTL is the default expiration time for all cache entries
+const DefaultCacheTTL = time.Hour
+
 // DeviceMappingCache defines the behaviour required for a cache backend
 type DeviceMappingCache interface {
 	Get(ctx context.Context, key string) (*models.DeviceMapping, error)
@@ -141,7 +144,7 @@ func (c *redisDeviceMappingCache) Set(ctx context.Context, key string, mapping m
 	if err != nil {
 		return err
 	}
-	return c.client.Set(ctx, key, payload, 0).Err()
+	return c.client.Set(ctx, key, payload, DefaultCacheTTL).Err()
 }
 
 // GetDevice fetches a unified Device from Redis
@@ -169,7 +172,7 @@ func (c *redisDeviceMappingCache) SetDevice(ctx context.Context, key string, dev
 	if err != nil {
 		return err
 	}
-	return c.client.Set(ctx, key, payload, 0).Err()
+	return c.client.Set(ctx, key, payload, DefaultCacheTTL).Err()
 }
 
 // Device Registry Cache Implementation with organization isolation
@@ -201,7 +204,7 @@ func (c *redisDeviceMappingCache) SetDeviceEntry(ctx context.Context, org, devic
 	if err != nil {
 		return err
 	}
-	return c.client.Set(ctx, key, data, 0).Err()
+	return c.client.Set(ctx, key, data, time.Hour).Err()
 }
 
 // DeleteDeviceEntry removes a device entry from Redis (org-aware)
@@ -226,7 +229,7 @@ func (c *redisDeviceMappingCache) GetDeviceByIdentifier(ctx context.Context, org
 // SetIdentifierMapping stores an org-specific identifier → device_id mapping
 func (c *redisDeviceMappingCache) SetIdentifierMapping(ctx context.Context, org, identifierType, key, value, deviceID string) error {
 	indexKey := c.identifierIndexKey(org, identifierType, key, value)
-	return c.client.Set(ctx, indexKey, deviceID, 0).Err()
+	return c.client.Set(ctx, indexKey, deviceID, time.Hour).Err()
 }
 
 // DeleteIdentifierMapping removes an org-specific identifier mapping
@@ -251,7 +254,7 @@ func (c *redisDeviceMappingCache) GetDeviceByConnection(ctx context.Context, org
 // SetConnectionMapping stores an org-specific connection → device_id mapping
 func (c *redisDeviceMappingCache) SetConnectionMapping(ctx context.Context, org, connectionType, value, deviceID string) error {
 	indexKey := c.connectionIndexKey(org, connectionType, value)
-	return c.client.Set(ctx, indexKey, deviceID, 0).Err()
+	return c.client.Set(ctx, indexKey, deviceID, time.Hour).Err()
 }
 
 // DeleteConnectionMapping removes an org-specific connection mapping

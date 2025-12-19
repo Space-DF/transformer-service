@@ -151,28 +151,30 @@ func (c *Consumer) subscribeToOrganization(parentCtx context.Context, orgSlug, v
 		return nil
 	}
 
-	c.tenantMu.RLock()
+	c.tenantMu.Lock()
 	if _, exists := c.tenantConsumers[orgSlug]; exists {
-		c.tenantMu.RUnlock()
+		c.tenantMu.Unlock()
 		logging.Tenant(orgSlug, vhost, "ℹ️", "Subscription already active")
 		return nil
 	}
-	c.tenantMu.RUnlock()
 
 	conn, err := c.vhostPool.Acquire(vhost)
 	if err != nil {
+		c.tenantMu.Unlock()
 		return err
 	}
 
 	channel, err := conn.Channel()
 	if err != nil {
 		c.vhostPool.Release(vhost)
+		c.tenantMu.Unlock()
 		return fmt.Errorf("failed to open channel for vhost %s: %w", vhost, err)
 	}
 
 	if err := channel.Qos(c.config.PrefetchCount, 0, false); err != nil {
 		_ = channel.Close()
 		c.vhostPool.Release(vhost)
+		c.tenantMu.Unlock()
 		return fmt.Errorf("failed to set QoS for vhost %s: %w", vhost, err)
 	}
 
@@ -190,6 +192,7 @@ func (c *Consumer) subscribeToOrganization(parentCtx context.Context, orgSlug, v
 	if err != nil {
 		_ = channel.Close()
 		c.vhostPool.Release(vhost)
+		c.tenantMu.Unlock()
 		return fmt.Errorf("failed to start consuming from queue '%s' in vhost '%s': %w", queueName, vhost, err)
 	}
 
@@ -204,7 +207,6 @@ func (c *Consumer) subscribeToOrganization(parentCtx context.Context, orgSlug, v
 		Cancel:      cancel,
 	}
 
-	c.tenantMu.Lock()
 	c.tenantConsumers[orgSlug] = consumer
 	c.tenantMu.Unlock()
 
@@ -400,7 +402,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	// Try to parse sensor entities and publish telemetry payload
 	if parseResult, mapping, perr := c.parseEntities(orgSlug, devEUI, payload); perr == nil && parseResult != nil {
 		logging.Tenant(orgSlug, vhost, "", "Parsed %d telemetry entities for device %s", len(parseResult.Entities), devEUI)
-		if telemetryPayload, terr := c.buildTelemetryPayload(parseResult, orgSlug, payload, mapping); terr == nil {
+		if telemetryPayload, terr := c.buildTelemetryPayload(parseResult, orgSlug, mapping); terr == nil {
 			if err := c.publishTelemetry(tenant.Channel, telemetryPayload, tenant); err != nil {
 				logging.Tenant(orgSlug, vhost, "⚠️", "Failed to publish telemetry payload: %v", err)
 			} else {
@@ -598,23 +600,8 @@ func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]inte
 		Metadata:  payload,
 	}
 
-	// On production logs, the data field located at in decoded_raw_data array.
-	// Here, I will put it here temporarily find the data field from different possible locations. (For development case too.)
-	if d, ok := payload["data"].(string); ok {
-		raw.Data = d
-	} else if ue, ok := payload["uplinkEvent"].(map[string]interface{}); ok {
-		if d, ok := ue["data"].(string); ok {
-			raw.Data = d
-		}
-	} else if decoded, ok := payload["decoded_raw_data"].(map[string]interface{}); ok {
-		if d, ok := decoded["data"].(string); ok {
-			raw.Data = d
-		} else if ue, ok := decoded["uplinkEvent"].(map[string]interface{}); ok {
-			if d, ok := ue["data"].(string); ok {
-				raw.Data = d
-			}
-		}
-	}
+	// Extract data field from the most likely location first
+	raw.Data = c.extractDataField(payload)
 
 	component := registry.FindComponent(deviceType, raw)
 	if component == nil {
@@ -626,12 +613,18 @@ func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]inte
 }
 
 // buildTelemetryPayload converts parse result to telemetry payload
-func (c *Consumer) buildTelemetryPayload(parseResult *components.ParseResult, orgSlug string, originalPayload map[string]interface{}, mapping *models.DeviceMapping) (*models.TelemetryPayload, error) {
+func (c *Consumer) buildTelemetryPayload(parseResult *components.ParseResult, orgSlug string, mapping *models.DeviceMapping) (*models.TelemetryPayload, error) {
 	if parseResult == nil {
 		return nil, fmt.Errorf("parse result is nil")
 	}
 
-	deviceID, spaceSlug := c.extractDeviceIdentifiers(originalPayload, mapping, parseResult.DeviceEUI)
+	// Get device identifiers from mapping (prefer mapping over payload)
+	deviceID := "unknown"
+	spaceSlug := ""
+	if mapping != nil {
+		deviceID = mapping.DeviceID
+		spaceSlug = mapping.SpaceSlug
+	}
 
 	deviceInfo := models.TelemetryDeviceInfo{
 		Identifiers:  parseResult.DeviceInfo.Identifiers,
@@ -669,42 +662,21 @@ func (c *Consumer) buildTelemetryPayload(parseResult *components.ParseResult, or
 	}, nil
 }
 
-// extractDeviceIdentifiers pulls device and space IDs from the device mapping (preferred) or payload.
-func (c *Consumer) extractDeviceIdentifiers(payload map[string]interface{}, mapping *models.DeviceMapping, devEUI string) (string, string) {
-	deviceID := "unknown"
-	spaceSlug := ""
-
-	if mapping != nil {
-		if mapping.DeviceID != "" {
-			deviceID = mapping.DeviceID
-		}
-		if mapping.SpaceSlug != "" {
-			spaceSlug = mapping.SpaceSlug
-		}
+// extractDataField extracts the data field from nested payload format
+func (c *Consumer) extractDataField(payload map[string]interface{}) string {
+	if payload == nil {
+		return ""
 	}
 
-	if deviceID == "unknown" {
-		if rawDeviceID, exists := payload["device_id"]; exists {
-			if strVal, ok := rawDeviceID.(string); ok && strVal != "" {
-				deviceID = strVal
+	// Get data from decoded_raw_data.uplinkEvent.data
+	if decoded, ok := payload["decoded_raw_data"].(map[string]interface{}); ok {
+		if uplinkEvent, ok := decoded["uplinkEvent"].(map[string]interface{}); ok {
+			if d, ok := uplinkEvent["data"].(string); ok {
+				return d
 			}
 		}
 	}
 
-	if rawSpaceSlug, exists := payload["space_slug"]; exists {
-		if strVal, ok := rawSpaceSlug.(string); ok && strVal != "" {
-			spaceSlug = strVal
-		}
-	}
-
-	return deviceID, spaceSlug
+	return ""
 }
 
-// getKeys returns the keys of a map for debugging
-// func getKeys(m map[string]interface{}) []string {
-// 	keys := make([]string, 0, len(m))
-// 	for k := range m {
-// 		keys = append(keys, k)
-// 	}
-// 	return keys
-// }
