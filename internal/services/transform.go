@@ -80,83 +80,21 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 		metadata["received_at"] = receivedAt
 	}
 
-	// Extract uplink message metadata - handle both formats
+
+	// Extract uplink message metadata - prioritize ChirpStack format
 	var uplinkMessage map[string]interface{}
-	if msg, ok := payload["uplink_message"].(map[string]interface{}); ok {
+
+	// Check for ChirpStack decoded_raw_data first
+	if decoded, ok := payload["decoded_raw_data"].(map[string]interface{}); ok {
+		uplinkMessage = decoded
+	} else if msg, ok := payload["uplink_message"].(map[string]interface{}); ok {
 		uplinkMessage = msg
 	} else {
 		uplinkMessage = payload
 	}
 
-	if len(uplinkMessage) > 0 {
-		// Add frequency information
-		if settings, ok := uplinkMessage["settings"].(map[string]interface{}); ok {
-			if frequency, exists := settings["frequency"]; exists {
-				metadata["frequency"] = frequency
-			}
-		}
-
-		// Add gateway information - try multiple possible locations
-		var rxMetadata []interface{}
-		var metadataOk bool
-
-		if rxMetadata, metadataOk = uplinkMessage["rx_metadata"].([]interface{}); !metadataOk {
-			if rxMetadata, metadataOk = uplinkMessage["gateways"].([]interface{}); !metadataOk {
-				if rxMetadata, metadataOk = uplinkMessage["gateway_info"].([]interface{}); !metadataOk {
-					// Try LoRaWAN rxInfo format
-					rxMetadata, metadataOk = uplinkMessage["rxInfo"].([]interface{})
-				}
-			}
-		}
-
-		if metadataOk {
-			var gateways []map[string]interface{}
-			for _, gw := range rxMetadata {
-				if gateway, ok := gw.(map[string]interface{}); ok {
-					gatewayInfo := make(map[string]interface{})
-
-					// Add gateway ID if available
-					if gatewayID, exists := gateway["gateway_ids"]; exists {
-						gatewayInfo["gateway_id"] = gatewayID
-					} else if gatewayID, exists := gateway["gatewayId"]; exists {
-						gatewayInfo["gateway_id"] = gatewayID
-					}
-
-					// Add RSSI
-					if rssi, exists := gateway["rssi"]; exists {
-						gatewayInfo["rssi"] = rssi
-					}
-
-					// Add SNR if available
-					if snr, exists := gateway["snr"]; exists {
-						gatewayInfo["snr"] = snr
-					}
-
-					// Add location if available
-					if location, exists := gateway["location"]; exists {
-						gatewayInfo["location"] = location
-					}
-
-					if len(gatewayInfo) > 0 {
-						gateways = append(gateways, gatewayInfo)
-					}
-				}
-			}
-			if len(gateways) > 0 {
-				metadata["gateways"] = gateways
-			}
-		}
-
-		// Add frame counter if available
-		if fCnt, exists := uplinkMessage["f_cnt"]; exists {
-			metadata["frame_counter"] = fCnt
-		}
-
-		// Add port information if available
-		if fPort, exists := uplinkMessage["f_port"]; exists {
-			metadata["port"] = fPort
-		}
-	}
+	// Extract basic LoRaWAN metadata
+	ts.extractLoRaWANMetadata(uplinkMessage, metadata)
 
 	// Add correlation IDs if available
 	if correlationIDs, exists := payload["correlation_ids"]; exists {
@@ -173,45 +111,84 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 	return metadata
 }
 
-// extractDeviceIdentifiers extracts device and space identifiers from mappings or payload.
-func (ts *TransformService) extractDeviceIdentifiers(payload map[string]interface{}, organization, devEUI string) (string, string, bool) {
+// extractLoRaWANMetadata extracts LoRaWAN-specific metadata from uplinkEvent
+func (ts *TransformService) extractLoRaWANMetadata(uplinkMessage map[string]interface{}, metadata map[string]interface{}) {
+	// For your data format, LoRaWAN data is consistently in uplinkEvent
+	uplinkEvent, ok := uplinkMessage["uplinkEvent"].(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	// Add frame counter
+	if fCnt, exists := uplinkEvent["fCnt"]; exists {
+		metadata["frame_counter"] = fCnt
+	}
+
+	// Add port information
+	if fPort, exists := uplinkEvent["fPort"]; exists {
+		metadata["port"] = fPort
+	}
+
+	// Add frequency information
+	if txInfo, ok := uplinkEvent["txInfo"].(map[string]interface{}); ok {
+		if frequency, exists := txInfo["frequency"]; exists {
+			metadata["frequency"] = frequency
+		}
+	}
+
+	// Add gateway information from rxInfo format
+	gateways := ts.extractGatewayInfo(uplinkEvent)
+	if len(gateways) > 0 {
+		metadata["gateways"] = gateways
+	}
+}
+
+// extractGatewayInfo extracts gateway information from rxInfo format
+func (ts *TransformService) extractGatewayInfo(uplinkMessage map[string]interface{}) []map[string]interface{} {
+	var gateways []map[string]interface{}
+
+	// Look for rxInfo in the uplinkMessage
+	if rxMetadata, ok := uplinkMessage["rxInfo"].([]interface{}); ok {
+		for _, gw := range rxMetadata {
+			if gateway, ok := gw.(map[string]interface{}); ok {
+				gatewayInfo := make(map[string]interface{})
+
+				// Extract gateway fields
+				if gatewayID, exists := gateway["gatewayId"]; exists {
+					gatewayInfo["gateway_id"] = gatewayID
+				}
+				if rssi, exists := gateway["rssi"]; exists {
+					gatewayInfo["rssi"] = rssi
+				}
+				if snr, exists := gateway["snr"]; exists {
+					gatewayInfo["snr"] = snr
+				}
+				if location, exists := gateway["location"]; exists {
+					gatewayInfo["location"] = location
+				}
+
+				if len(gatewayInfo) > 0 {
+					gateways = append(gateways, gatewayInfo)
+				}
+			}
+		}
+	}
+
+	return gateways
+}
+
+// extractDeviceIdentifiers extracts device and space identifiers from device profile service
+func (ts *TransformService) extractDeviceIdentifiers(_ map[string]interface{}, organization, devEUI string) (string, string, bool) {
 	deviceID := "unknown"
 	spaceSlug := ""
 	isPublished := false
 
+	// Get device identifiers from device profile service (authoritative source)
 	if ts.deviceProfileService != nil && organization != "" && devEUI != "" {
 		if mapping, err := ts.deviceProfileService.GetDeviceMapping(organization, devEUI); err == nil && mapping != nil {
-			if mapping.DeviceID != "" {
-				deviceID = mapping.DeviceID
-			}
-
-			if mapping.SpaceSlug != "" {
-				spaceSlug = mapping.SpaceSlug
-			}
-
-			if mapping.IsPublished {
-				isPublished = true
-			}
-		}
-	}
-
-	if deviceID == "unknown" {
-		if rawDeviceID, exists := payload["device_id"]; exists {
-			if strVal, ok := rawDeviceID.(string); ok && strVal != "" {
-				deviceID = strVal
-			}
-		}
-	}
-
-	if rawSpaceSlug, exists := payload["space_slug"]; exists {
-		if strVal, ok := rawSpaceSlug.(string); ok && strVal != "" {
-			spaceSlug = strVal
-		}
-	}
-
-	if rawIsPublished, exists := payload["is_published"]; exists {
-		if boolVal, ok := rawIsPublished.(bool); ok {
-			isPublished = boolVal
+			deviceID = mapping.DeviceID
+			spaceSlug = mapping.SpaceSlug
+			isPublished = mapping.IsPublished
 		}
 	}
 
