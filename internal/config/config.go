@@ -9,10 +9,11 @@ import (
 )
 
 type Config struct {
-	Server     ServerConfig     `mapstructure:"server"`
-	AMQP       AMQPConfig       `mapstructure:"amqp"`
-	OrgEvents  OrgEventsConfig  `mapstructure:"org_events"`
-	RawDataLog RawDataLogConfig `mapstructure:"raw_data_log"`
+	Server        ServerConfig        `mapstructure:"server"`
+	AMQP          AMQPConfig          `mapstructure:"amqp"`
+	OrgEvents     OrgEventsConfig     `mapstructure:"org_events"`
+	RawDataLog    RawDataLogConfig    `mapstructure:"raw_data_log"`
+	OpenTelemetry OpenTelemetryConfig `mapstructure:"opentelemetry"`
 }
 
 type ServerConfig struct {
@@ -44,6 +45,12 @@ type RawDataLogConfig struct {
 	EnableFileLog bool   `mapstructure:"enable_file_log" env:"RAW_DATA_ENABLE_FILE_LOG"`
 	EnableJSONLog bool   `mapstructure:"enable_json_log" env:"RAW_DATA_ENABLE_JSON_LOG"`
 	MaxFileSize   int64  `mapstructure:"max_file_size" env:"RAW_DATA_MAX_FILE_SIZE"`
+}
+
+type OpenTelemetryConfig struct {
+	Endpoint      string  `mapstructure:"endpoint" env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	Environment   string  `mapstructure:"environment" env:"OTEL_ENVIRONMENT"`
+	SamplingRatio float64 `mapstructure:"sampling_ratio" env:"OTEL_TRACES_SAMPLER_ARG"`
 }
 
 func New() (Config, error) {
@@ -90,6 +97,11 @@ func New() (Config, error) {
 	_ = vp.BindEnv("raw_data_log.enable_json_log", "RAW_DATA_ENABLE_JSON_LOG")
 	_ = vp.BindEnv("raw_data_log.max_file_size", "RAW_DATA_MAX_FILE_SIZE")
 
+	// OpenTelemetry environment variables
+	_ = vp.BindEnv("opentelemetry.endpoint", "OTEL_EXPORTER_OTLP_ENDPOINT")
+	_ = vp.BindEnv("opentelemetry.environment", "OTEL_ENVIRONMENT")
+	_ = vp.BindEnv("opentelemetry.sampling_ratio", "OTEL_TRACES_SAMPLER_ARG")
+
 	if err := vp.Unmarshal(&config); err != nil {
 		return config, err
 	}
@@ -120,6 +132,11 @@ func setDefaults(vp *viper.Viper) {
 	vp.SetDefault("raw_data_log.enable_file_log", true)
 	vp.SetDefault("raw_data_log.enable_json_log", true)
 	vp.SetDefault("raw_data_log.max_file_size", 104857600) // 100MB
+
+	// OpenTelemetry defaults
+	vp.SetDefault("opentelemetry.endpoint", "signoz-otel-collector:4317")
+	vp.SetDefault("opentelemetry.environment", "development")
+	vp.SetDefault("opentelemetry.sampling_ratio", 1.0)
 }
 
 func splitAndTrim(value string) []string {
