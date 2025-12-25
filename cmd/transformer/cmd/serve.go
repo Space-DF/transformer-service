@@ -31,15 +31,15 @@ func init() {
 }
 
 func runServe(cmd *cobra.Command, args []string) error {
-	// Initialize OpenTelemetry tracing
-	cleanup := telemetry.InitTracing("transformer-service")
-	defer cleanup()
-
 	// Load configuration
 	cfg, err := config.New()
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
+
+	// Initialize OpenTelemetry tracing
+	cleanup := telemetry.InitTracing("transformer-service", cfg.OpenTelemetry)
+	defer cleanup()
 
 	// Create logger service
 	loggerConfig := services.LoggerConfig{

@@ -21,3 +21,9 @@ org_events:
   queue: "transformer.org.events.queue"  # Transformer's queue for org events
   routing_key: "org.#"  # Listen to all org events
   consumer_tag: "transformer-org-events"
+
+# OpenTelemetry Configuration
+opentelemetry:
+  endpoint: "signoz-otel-collector:4317"
+  environment: "development"
+  sampling_ratio: 1.0

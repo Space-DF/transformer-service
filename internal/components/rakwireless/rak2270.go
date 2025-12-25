@@ -42,25 +42,22 @@ func (p *RAK2270Parser) GetSupportedEntityTypes() []string {
 func (p *RAK2270Parser) ParseToEntities(orgSlug, model string, payload *components.RawPayload) ([]components.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
+		devEUI = extractDevEUI(payload.Metadata)
+	}
+	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI is required")
 	}
 
-	// Generate entity IDs using standard format
-	uniqueID := components.GenerateUniqueID(model, devEUI, "location")
-	entityID := components.GenerateEntityID(
-		components.GetEntityDomain("location"), // "device_tracker"
-		orgSlug,
-		"rakwireless",
-		"rak2270",
-		devEUI,
-		"location",
-	)
+	var entities []components.Entity
+	timestamp := payload.Timestamp
 
-	// Create location entity
-	// Note: RAK2270 doesn't have GPS, so state will be set by location calculation service
+	// Location Entity - will be populated by trilateration service
 	locationEntity := components.Entity{
-		UniqueID:    uniqueID,
-		EntityID:    entityID,
+		UniqueID: components.GenerateUniqueID(model, devEUI, "location"),
+		EntityID: components.GenerateEntityID(
+			components.GetEntityDomain("location"),
+			orgSlug, "rakwireless", "rak2270", devEUI, "location",
+		),
 		EntityType:  "location",
 		DeviceClass: "location",
 		Name:        "Location",
@@ -73,8 +70,9 @@ func (p *RAK2270Parser) ParseToEntities(orgSlug, model string, payload *componen
 			"device_model":         "RAK2270",
 		},
 		Enabled:   true,
-		Timestamp: payload.Timestamp,
+		Timestamp: timestamp,
 	}
+	entities = append(entities, locationEntity)
 
-	return []components.Entity{locationEntity}, nil
+	return entities, nil
 }

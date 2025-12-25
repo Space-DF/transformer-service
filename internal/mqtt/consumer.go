@@ -21,7 +21,11 @@ import (
 	"github.com/Space-DF/transformer-service/internal/mqtt/resolver"
 	pool "github.com/Space-DF/transformer-service/internal/mqtt/vhostpool"
 	"github.com/Space-DF/transformer-service/internal/services"
+	"github.com/Space-DF/transformer-service/internal/telemetry"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	otellog "go.opentelemetry.io/otel/log"
 )
 
 // TenantConsumer represents a consumer for a specific tenant
@@ -361,8 +365,21 @@ func (c *Consumer) Stop() error {
 
 // handleMessage processes a single MQTT message
 func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) error {
+	ctx := context.Background()
 	orgSlug := tenant.OrgSlug
 	vhost := tenant.Vhost
+
+	// Create a span for the entire message processing
+	tracer := telemetry.GetTracer("transformer-service")
+	ctx, span := tracer.Start(ctx, "process_device_message")
+	defer span.End()
+
+	// Add span attributes
+	span.SetAttributes(
+		attribute.String("tenant", orgSlug),
+		attribute.String("vhost", vhost),
+		attribute.String("routing_key", msg.RoutingKey),
+	)
 
 	logging.Tenant(orgSlug, vhost, "⚙️", "Processing message from topic: %s", msg.RoutingKey)
 
@@ -374,19 +391,52 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	payload, locationPayload, err = c.parser.Parse(msg)
 	if err != nil {
 		logging.Tenant(orgSlug, vhost, "❌", "Failed to parse message: %v", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to parse message")
+		telemetry.LogError(ctx, fmt.Sprintf("[%s][VHOST:%s] Failed to parse message from routing key %s", orgSlug, vhost, msg.RoutingKey),
+			otellog.String("tenant", orgSlug),
+			otellog.String("vhost", vhost),
+			otellog.String("routing_key", msg.RoutingKey),
+			otellog.String("error", err.Error()),
+		)
 		return fmt.Errorf("failed to parse message: %w", err)
 	}
 
 	// Extract devEUI first to check device profile
 	var devEUI string = c.parser.ExtractDevEUI(payload, locationPayload)
 
+	// Add device_eui to span
+	span.SetAttributes(attribute.String("device_eui", devEUI))
+
+	// Log message received with structured data
+	telemetry.LogInfo(ctx, fmt.Sprintf("[%s][VHOST:%s] Processing device message from device %s", orgSlug, vhost, devEUI),
+		otellog.String("tenant", orgSlug),
+		otellog.String("vhost", vhost),
+		otellog.String("device_eui", devEUI),
+		otellog.String("routing_key", msg.RoutingKey),
+	)
+
 	// Check if device should be skipped
 	deviceLocation, processingInfo, err := c.resolver.Resolve(orgSlug, vhost, devEUI, payload, locationPayload)
 	if errors.Is(err, resolver.ErrDeviceSkipped) {
+		span.AddEvent("device_skipped")
+		telemetry.LogInfo(ctx, fmt.Sprintf("[%s][VHOST:%s] Device %s skipped by resolver (should_skip=true)", orgSlug, vhost, devEUI),
+			otellog.String("tenant", orgSlug),
+			otellog.String("vhost", vhost),
+			otellog.String("device_eui", devEUI),
+		)
 		return nil
 	}
 	if err != nil {
 		logging.Tenant(orgSlug, vhost, "❌", "Failed to resolve device %s: %v", devEUI, err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to resolve device")
+		telemetry.LogError(ctx, fmt.Sprintf("[%s][VHOST:%s] Failed to resolve device %s", orgSlug, vhost, devEUI),
+			otellog.String("tenant", orgSlug),
+			otellog.String("vhost", vhost),
+			otellog.String("device_eui", devEUI),
+			otellog.String("error", err.Error()),
+		)
 		if c.loggerService != nil {
 			_ = c.loggerService.LogRawData(payload, locationPayload, *processingInfo)
 		}
@@ -396,8 +446,23 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	// Transform data to output format
 	transformedData, err := c.transformService.TransformDeviceData(deviceLocation, processingInfo.GatewayCount, payload)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to transform device data")
+		telemetry.LogError(ctx, fmt.Sprintf("[%s][VHOST:%s] Failed to transform data for device %s", orgSlug, vhost, devEUI),
+			otellog.String("tenant", orgSlug),
+			otellog.String("vhost", vhost),
+			otellog.String("device_eui", devEUI),
+			otellog.String("error", err.Error()),
+		)
 		return fmt.Errorf("failed to transform device data: %w", err)
 	}
+
+	// Add processing info to span
+	span.SetAttributes(
+		attribute.Bool("location_calculated", processingInfo.LocationCalculated),
+		attribute.Int("gateway_count", processingInfo.GatewayCount),
+	)
+	span.AddEvent("device_data_transformed")
 
 	// Try to parse sensor entities and publish telemetry payload
 	if parseResult, mapping, perr := c.parseEntities(orgSlug, devEUI, payload); perr == nil && parseResult != nil {
@@ -423,7 +488,10 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 
 	// Publish transformed data to output topic
 	logging.Tenant(orgSlug, vhost, "📤", "Publishing transformed data for device %s", deviceLocation.DevEUI)
+	span.AddEvent("publishing_transformed_data")
 	if err := c.publishTransformedData(tenant.Channel, transformedData, tenant); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to publish transformed data")
 		return fmt.Errorf("failed to publish transformed data: %w", err)
 	}
 
@@ -431,10 +499,25 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 		logging.Tenant(orgSlug, vhost, "📝", "Logging raw data for device: %s, location calculated: %v", devEUI, processingInfo.LocationCalculated)
 		if logErr := c.loggerService.LogRawData(payload, locationPayload, *processingInfo); logErr != nil {
 			logging.Tenant(orgSlug, vhost, "❌", "Failed to log raw data: %v", logErr)
+			telemetry.LogError(ctx, fmt.Sprintf("[%s][VHOST:%s] Failed to log raw data for device %s", orgSlug, vhost, devEUI),
+				otellog.String("tenant", orgSlug),
+				otellog.String("vhost", vhost),
+				otellog.String("device_eui", devEUI),
+				otellog.String("error", logErr.Error()),
+			)
 		}
 	}
 
 	logging.Tenant(orgSlug, vhost, "✅", "Successfully processed device: %s", deviceLocation.DevEUI)
+	span.SetStatus(codes.Ok, "device message processed successfully")
+	span.AddEvent("processing_completed")
+	telemetry.LogInfo(ctx, fmt.Sprintf("[%s][VHOST:%s] Successfully processed device %s (gateways: %d, location: %v)", orgSlug, vhost, deviceLocation.DevEUI, processingInfo.GatewayCount, processingInfo.LocationCalculated),
+		otellog.String("tenant", orgSlug),
+		otellog.String("vhost", vhost),
+		otellog.String("device_eui", deviceLocation.DevEUI),
+		otellog.Bool("location_calculated", processingInfo.LocationCalculated),
+		otellog.Int("gateway_count", processingInfo.GatewayCount),
+	)
 	return nil
 }
 
@@ -679,4 +762,3 @@ func (c *Consumer) extractDataField(payload map[string]interface{}) string {
 
 	return ""
 }
-
