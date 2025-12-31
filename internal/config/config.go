@@ -48,6 +48,7 @@ type RawDataLogConfig struct {
 }
 
 type OpenTelemetryConfig struct {
+	Enabled       bool    `mapstructure:"enabled" env:"OTEL_ENABLED"`
 	Endpoint      string  `mapstructure:"endpoint" env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	Environment   string  `mapstructure:"environment" env:"OTEL_ENVIRONMENT"`
 	SamplingRatio float64 `mapstructure:"sampling_ratio" env:"OTEL_TRACES_SAMPLER_ARG"`
@@ -98,6 +99,7 @@ func New() (Config, error) {
 	_ = vp.BindEnv("raw_data_log.max_file_size", "RAW_DATA_MAX_FILE_SIZE")
 
 	// OpenTelemetry environment variables
+	_ = vp.BindEnv("opentelemetry.enabled", "OTEL_ENABLED")
 	_ = vp.BindEnv("opentelemetry.endpoint", "OTEL_EXPORTER_OTLP_ENDPOINT")
 	_ = vp.BindEnv("opentelemetry.environment", "OTEL_ENVIRONMENT")
 	_ = vp.BindEnv("opentelemetry.sampling_ratio", "OTEL_TRACES_SAMPLER_ARG")
@@ -134,6 +136,7 @@ func setDefaults(vp *viper.Viper) {
 	vp.SetDefault("raw_data_log.max_file_size", 104857600) // 100MB
 
 	// OpenTelemetry defaults
+	vp.SetDefault("opentelemetry.enabled", false)
 	vp.SetDefault("opentelemetry.endpoint", "signoz-otel-collector:4317")
 	vp.SetDefault("opentelemetry.environment", "development")
 	vp.SetDefault("opentelemetry.sampling_ratio", 1.0)
