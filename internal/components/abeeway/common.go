@@ -229,6 +229,16 @@ func parsePositionData(data []byte) (*PositionData, error) {
 	}
 }
 
+// bigEndianInt32 converts 4 bytes to int32 (big-endian, signed)
+func bigEndianInt32(b []byte) int32 {
+	return int32(b[0])<<24 | int32(b[1])<<16 | int32(b[2])<<8 | int32(b[3])
+}
+
+// bigEndianInt16 converts 2 bytes to int16 (big-endian, signed)
+func bigEndianInt16(b []byte) int16 {
+	return int16(b[0])<<8 | int16(b[1])
+}
+
 // parseGPSPosition parses GPS position data
 // Format: Type(1) + Status(1) + Lat(4) + Lon(4) + Alt(2) + Course(2) + Speed(2) + Satellites(1) + [HDOP(1)]
 func parseGPSPosition(data []byte) (*PositionData, error) {
@@ -237,9 +247,9 @@ func parseGPSPosition(data []byte) (*PositionData, error) {
 	}
 
 	status := data[1]
-	lat := int32(binary.BigEndian.Uint32(data[2:6]))
-	lon := int32(binary.BigEndian.Uint32(data[6:10]))
-	alt := int16(binary.BigEndian.Uint16(data[10:12]))
+	lat := bigEndianInt32(data[2:6])
+	lon := bigEndianInt32(data[6:10])
+	alt := bigEndianInt16(data[10:12])
 	course := binary.BigEndian.Uint16(data[12:14])
 	speed := binary.BigEndian.Uint16(data[14:16])
 
@@ -280,8 +290,8 @@ func parseWiFiPosition(data []byte) (*PositionData, error) {
 	}
 
 	status := data[1]
-	lat := int32(binary.BigEndian.Uint32(data[2:6]))
-	lon := int32(binary.BigEndian.Uint32(data[6:10]))
+	lat := bigEndianInt32(data[2:6])
+	lon := bigEndianInt32(data[6:10])
 	age := int(binary.BigEndian.Uint16(data[10:12]))
 	nbrBSSID := int(data[12])
 
@@ -319,8 +329,8 @@ func parseBLEPosition(data []byte) (*PositionData, error) {
 	}
 
 	status := data[1]
-	lat := int32(binary.BigEndian.Uint32(data[2:6]))
-	lon := int32(binary.BigEndian.Uint32(data[6:10]))
+	lat := bigEndianInt32(data[2:6])
+	lon := bigEndianInt32(data[6:10])
 	age := int(binary.BigEndian.Uint16(data[10:12]))
 	nbrBeacons := int(data[12])
 
