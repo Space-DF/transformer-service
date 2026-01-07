@@ -13,6 +13,7 @@ import (
 	"github.com/Space-DF/transformer-service/internal/services"
 
 	// Import component packages to trigger registration
+	_ "github.com/Space-DF/transformer-service/internal/components/abeeway"
 	_ "github.com/Space-DF/transformer-service/internal/components/dut"
 	_ "github.com/Space-DF/transformer-service/internal/components/rakwireless"
 )
