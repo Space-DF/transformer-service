@@ -465,7 +465,15 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	span.AddEvent("device_data_transformed")
 
 	// Try to parse sensor entities and publish telemetry payload
-	if parseResult, mapping, perr := c.parseEntities(orgSlug, devEUI, payload); perr == nil && parseResult != nil {
+	var entityLocation *components.Location
+	if deviceLocation != nil {
+		entityLocation = &components.Location{
+			Latitude:  deviceLocation.Latitude,
+			Longitude: deviceLocation.Longitude,
+		}
+	}
+	
+	if parseResult, mapping, perr := c.parseEntities(orgSlug, devEUI, payload, entityLocation); perr == nil && parseResult != nil {
 		logging.Tenant(orgSlug, vhost, "", "Parsed %d telemetry entities for device %s", len(parseResult.Entities), devEUI)
 		if telemetryPayload, terr := c.buildTelemetryPayload(parseResult, orgSlug, mapping); terr == nil {
 			if err := c.publishTelemetry(tenant.Channel, telemetryPayload, tenant); err != nil {
@@ -666,7 +674,7 @@ func (c *Consumer) publishEntityTelemetry(channel *amqp.Channel, data *models.Te
 }
 
 // parseEntities attempts to parse entities for telemetry and returns the device mapping
-func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]interface{}) (*components.ParseResult, *models.DeviceMapping, error) {
+func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]interface{}, deviceLocation *components.Location) (*components.ParseResult, *models.DeviceMapping, error) {
 	if devEUI == "" {
 		return nil, nil, fmt.Errorf("dev_eui missing")
 	}
@@ -691,7 +699,7 @@ func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]inte
 		return nil, nil, fmt.Errorf("no component found for device type: %s", deviceType)
 	}
 
-	parseResult, err := component.ParseToEntities(context.Background(), orgSlug, mapping.Profile, deviceType, raw)
+	parseResult, err := component.ParseToEntities(context.Background(), orgSlug, mapping.Profile, deviceType, raw, deviceLocation)
 	return parseResult, mapping, err
 }
 
