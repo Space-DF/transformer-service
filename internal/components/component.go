@@ -117,7 +117,8 @@ type DeviceComponent interface {
 	Parse(ctx context.Context, deviceType DeviceType, payload *RawPayload) (*ParsedData, error)
 
 	// ParseToEntities converts raw payload into multiple entities
-	ParseToEntities(ctx context.Context, orgSlug, model string, deviceType DeviceType, payload *RawPayload) (*ParseResult, error)
+	// deviceLocation is optional and can be nil (e.g., for GPS devices or when trilateration fails)
+	ParseToEntities(ctx context.Context, orgSlug, model string, deviceType DeviceType, payload *RawPayload, deviceLocation *Location) (*ParseResult, error)
 
 	// Validate performs device-specific validation on the parsed data
 	Validate(deviceType DeviceType, data *ParsedData) error

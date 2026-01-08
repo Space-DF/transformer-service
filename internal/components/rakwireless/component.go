@@ -16,7 +16,7 @@ type RAKwirelessComponent struct {
 // DeviceParser handles device-specific parsing logic
 type DeviceParser interface {
 	ParsePayload(payload *components.RawPayload) (*components.ParsedData, error)
-	ParseToEntities(orgSlug, model string, payload *components.RawPayload) ([]components.Entity, error)
+	ParseToEntities(orgSlug, model string, payload *components.RawPayload, deviceLocation *components.Location) ([]components.Entity, error)
 	SupportsGPS() bool
 	GetSupportedPorts() []int
 	GetSupportedEntityTypes() []string
@@ -76,13 +76,13 @@ func (c *RAKwirelessComponent) Parse(ctx context.Context, deviceType components.
 }
 
 // ParseToEntities converts raw payload into multiple entities
-func (c *RAKwirelessComponent) ParseToEntities(ctx context.Context, orgSlug, model string, deviceType components.DeviceType, payload *components.RawPayload) (*components.ParseResult, error) {
+func (c *RAKwirelessComponent) ParseToEntities(ctx context.Context, orgSlug, model string, deviceType components.DeviceType, payload *components.RawPayload, deviceLocation *components.Location) (*components.ParseResult, error) {
 	parser, exists := c.parsers[deviceType]
 	if !exists {
 		return nil, fmt.Errorf("no parser found for device type %s", deviceType)
 	}
 
-	entities, err := parser.ParseToEntities(orgSlug, model, payload)
+	entities, err := parser.ParseToEntities(orgSlug, model, payload, deviceLocation)
 	if err != nil {
 		return nil, err
 	}
