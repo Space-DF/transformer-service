@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Space-DF/transformer-service/internal/components"
+	"github.com/Space-DF/transformer-service/internal/components/gps"
 )
 
 // WLBV1Parser handles parsing of WLB V1 device payloads
@@ -182,7 +183,7 @@ func (p *WLBV1Parser) parseFromFrmPayload(metadata map[string]interface{}) (*com
 		return nil, fmt.Errorf("payload too short for GPS data: %d bytes", len(payloadBytes))
 	}
 
-	lat, lng, err := p.parseGPSCoordinates(payloadBytes)
+	lat, lng, err := gps.ParseGPSCoordinates(payloadBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse GPS coordinates: %w", err)
 	}
@@ -236,7 +237,7 @@ func (p *WLBV1Parser) parseFromDecodedPayload(metadata map[string]interface{}) (
 		return nil, fmt.Errorf("GPS coordinates not found in decoded payload")
 	}
 
-	if err := p.validateCoordinates(lat, lng); err != nil {
+	if err := gps.ValidateCoordinates(lat, lng); err != nil {
 		return nil, err
 	}
 
@@ -244,39 +245,6 @@ func (p *WLBV1Parser) parseFromDecodedPayload(metadata map[string]interface{}) (
 		Latitude:  lat,
 		Longitude: lng,
 	}, nil
-}
-
-// parseGPSCoordinates extracts GPS coordinates from WLB V1 payload bytes
-func (p *WLBV1Parser) parseGPSCoordinates(payloadBytes []byte) (float64, float64, error) {
-	if len(payloadBytes) < 8 {
-		return 0, 0, fmt.Errorf("insufficient data for GPS coordinates")
-	}
-
-	latInt := int32(payloadBytes[0]) | int32(payloadBytes[1])<<8 | int32(payloadBytes[2])<<16 | int32(payloadBytes[3])<<24
-	lonInt := int32(payloadBytes[4]) | int32(payloadBytes[5])<<8 | int32(payloadBytes[6])<<16 | int32(payloadBytes[7])<<24
-
-	lat := float64(latInt) / 10000000.0
-	lng := float64(lonInt) / 10000000.0
-
-	if err := p.validateCoordinates(lat, lng); err != nil {
-		return 0, 0, err
-	}
-
-	return lat, lng, nil
-}
-
-// validateCoordinates validates GPS coordinates
-func (p *WLBV1Parser) validateCoordinates(latitude, longitude float64) error {
-	if latitude == 0.0 && longitude == 0.0 {
-		return fmt.Errorf("GPS coordinates are 0,0 - no GPS fix available")
-	}
-	if latitude < -90 || latitude > 90 {
-		return fmt.Errorf("invalid latitude: %f", latitude)
-	}
-	if longitude < -180 || longitude > 180 {
-		return fmt.Errorf("invalid longitude: %f", longitude)
-	}
-	return nil
 }
 
 // parseFromObjectField extracts GPS coordinates from decoded_raw_data.object field
@@ -309,7 +277,7 @@ func (p *WLBV1Parser) parseFromObjectField(metadata map[string]interface{}) (*co
 		return nil, fmt.Errorf("latitude or longitude not found in object")
 	}
 
-	if err := p.validateCoordinates(lat, lng); err != nil {
+	if err := gps.ValidateCoordinates(lat, lng); err != nil {
 		return nil, err
 	}
 

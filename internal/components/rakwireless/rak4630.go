@@ -10,6 +10,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 
 	"github.com/Space-DF/transformer-service/internal/components"
+	"github.com/Space-DF/transformer-service/internal/components/gps"
 )
 
 // RAK4630Parser handles parsing of RAK4630 device payloads
@@ -268,7 +269,7 @@ func (p *RAK4630Parser) parseSensorData(frame SensorFrame) (*components.Location
 			continue
 		}
 
-		if err := p.validateCoordinates(lat, lon); err != nil {
+		if err := gps.ValidateCoordinates(lat, lon); err != nil {
 			continue
 		}
 
@@ -305,7 +306,7 @@ func (p *RAK4630Parser) parseFromFrmPayload(metadata map[string]interface{}) (*c
 		return nil, fmt.Errorf("payload too short for GPS data: %d bytes", len(payloadBytes))
 	}
 
-	lat, lon, err := p.parseGPSCoordinates(payloadBytes)
+	lat, lon, err := gps.ParseGPSCoordinates(payloadBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse GPS coordinates: %w", err)
 	}
@@ -359,7 +360,7 @@ func (p *RAK4630Parser) parseFromDecodedPayload(metadata map[string]interface{})
 		return nil, fmt.Errorf("GPS coordinates not found in decoded payload")
 	}
 
-	if err := p.validateCoordinates(lat, lon); err != nil {
+	if err := gps.ValidateCoordinates(lat, lon); err != nil {
 		return nil, err
 	}
 
@@ -369,37 +370,57 @@ func (p *RAK4630Parser) parseFromDecodedPayload(metadata map[string]interface{})
 	}, nil
 }
 
-// parseGPSCoordinates extracts GPS coordinates from RAK4630 payload bytes
-func (p *RAK4630Parser) parseGPSCoordinates(payloadBytes []byte) (float64, float64, error) {
-	if len(payloadBytes) < 8 {
-		return 0, 0, fmt.Errorf("insufficient data for GPS coordinates")
+// parseRAK4630SensorString parses RAK4630-specific comma-separated sensor payloads from CBOR.
+// Expected format: temperature,humidity,pressure,*,*,*,*,*,*,*,*,*,*,*,*,latitude,longitude,altitude,*,*,*,*,*,*,*,battery_v
+func parseRAK4630SensorString(sensorStr string) map[string]float64 {
+	parts := strings.Split(sensorStr, ",")
+
+	readings := make(map[string]float64)
+	get := func(idx int) (float64, bool) {
+		if idx < 0 || idx >= len(parts) {
+			return 0, false
+		}
+		v, err := strconv.ParseFloat(strings.TrimSpace(parts[idx]), 64)
+		if err != nil {
+			return 0, false
+		}
+		return v, true
 	}
 
-	latInt := int32(payloadBytes[0]) | int32(payloadBytes[1])<<8 | int32(payloadBytes[2])<<16 | int32(payloadBytes[3])<<24
-	lonInt := int32(payloadBytes[4]) | int32(payloadBytes[5])<<8 | int32(payloadBytes[6])<<16 | int32(payloadBytes[7])<<24
-
-	lat := float64(latInt) / 10000000.0
-	lon := float64(lonInt) / 10000000.0
-
-	if err := p.validateCoordinates(lat, lon); err != nil {
-		return 0, 0, err
+	// Parse based on field positions (RAK4630 standard format)
+	if v, ok := get(0); ok {
+		readings["temperature"] = v
+	}
+	if v, ok := get(1); ok {
+		readings["humidity"] = v
+	}
+	if v, ok := get(2); ok {
+		readings["pressure"] = v
+	}
+	// Index 3-15 are placeholders (*)
+	if v, ok := get(16); ok {
+		readings["latitude"] = v
+	}
+	if v, ok := get(17); ok {
+		readings["longitude"] = v
+	}
+	if v, ok := get(18); ok {
+		readings["altitude"] = v
+	}
+	if v, ok := get(19); ok {
+		readings["snr_or_altitude"] = v
+	}
+	if v, ok := get(20); ok {
+		readings["raw_signal"] = v
+	}
+	if v, ok := get(24); ok {
+		readings["battery_v"] = v
 	}
 
-	return lat, lon, nil
-}
-
-// validateCoordinates validates GPS coordinates
-func (p *RAK4630Parser) validateCoordinates(latitude, longitude float64) error {
-	if latitude == 0.0 && longitude == 0.0 {
-		return fmt.Errorf("GPS coordinates are 0,0 - no GPS fix available")
+	if len(readings) == 0 {
+		return nil
 	}
-	if latitude < -90 || latitude > 90 {
-		return fmt.Errorf("invalid latitude: %f", latitude)
-	}
-	if longitude < -180 || longitude > 180 {
-		return fmt.Errorf("invalid longitude: %f", longitude)
-	}
-	return nil
+	return readings
 }
 
 // decodeSensorReadings decodes sensor values from base64 CBOR payload data
@@ -433,7 +454,7 @@ func (p *RAK4630Parser) decodeSensorReadings(payload *components.RawPayload) map
 
 		// Extract sensor string from CBOR
 		if sensorStr, ok := m["sensor"].(string); ok {
-			if readings := parseSensorString(sensorStr); len(readings) > 0 {
+			if readings := parseRAK4630SensorString(sensorStr); len(readings) > 0 {
 				return readings
 			}
 		}
