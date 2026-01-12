@@ -10,11 +10,13 @@ import (
 type DeviceType string
 
 const (
-	DeviceTypeRAK2270 DeviceType = "RAK2270"
-	DeviceTypeRAK7200 DeviceType = "RAK7200"
-	DeviceTypeRAK4630 DeviceType = "RAK4630"
-	DeviceTypeWLBV1   DeviceType = "WLBV1"
-	DeviceTypeUnknown DeviceType = "UNKNOWN"
+	DeviceTypeRAK2270                  DeviceType = "RAK2270"
+	DeviceTypeRAK7200                  DeviceType = "RAK7200"
+	DeviceTypeRAK4630                  DeviceType = "RAK4630"
+	DeviceTypeWLBV1                    DeviceType = "WLBV1"
+	DeviceTypeAbeewayIndustrialTracker DeviceType = "Abeeway Industrial Tracker"
+	DeviceTypeSenseCAP_T1000           DeviceType = "SenseCAP T1000"
+	DeviceTypeUnknown                  DeviceType = "UNKNOWN"
 )
 
 // ComponentInfo provides metadata about a component
