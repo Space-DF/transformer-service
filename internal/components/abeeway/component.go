@@ -50,8 +50,8 @@ func (c *AbeewayComponent) Parse(ctx context.Context, deviceType components.Devi
 }
 
 // ParseToEntities converts raw payload into multiple entities
-func (c *AbeewayComponent) ParseToEntities(ctx context.Context, orgSlug, model string, deviceType components.DeviceType, payload *components.RawPayload) (*components.ParseResult, error) {
-	entities, err := c.parser.ParseToEntities(orgSlug, model, payload)
+func (c *AbeewayComponent) ParseToEntities(ctx context.Context, orgSlug, model string, deviceType components.DeviceType, payload *components.RawPayload, deviceLocation *components.Location) (*components.ParseResult, error) {
+	entities, err := c.parser.ParseToEntities(orgSlug, model, payload, deviceLocation)
 	if err != nil {
 		return nil, err
 	}

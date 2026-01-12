@@ -170,7 +170,7 @@ func (p *IndustrialTrackerParser) GetSupportedEntityTypes() []string {
 }
 
 // ParseToEntities creates entities for Industrial Tracker device
-func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload *components.RawPayload) ([]components.Entity, error) {
+func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload *components.RawPayload, deviceLocation *components.Location) ([]components.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
 		devEUI = extractDevEUI(payload.Metadata)
