@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trilateration Visualization Tool</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+          crossorigin="" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .controls {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            background-color: #f8f9fa;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            display: inline-block;
+            width: 120px;
+            font-weight: bold;
+        }
+        .control-group input, .control-group select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        .file-upload {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .file-upload:hover {
+            background-color: #2980b9;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #ecf0f1;
+            border-radius: 4px;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        #map {
+            height: 600px;
+            width: 100%;
+        }
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            border-radius: 50%;
+        }
+        .gateway-marker { background-color: #3498db; }
+        .device-marker { background-color: #2ecc71; }
+        .trilateration-marker { background-color: #9b59b6; }
+        .error-message {
+            color: #e74c3c;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #fadbd8;
+            border-radius: 4px;
+            display: none;
+        }
+        .success-message {
+            color: #27ae60;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #d5f4e6;
+            border-radius: 4px;
+            display: none;
+        }
+        .accuracy-indicator {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: bold;
+            color: white;
+        }
+        .accuracy-1 { background-color: #e74c3c; }
+        .accuracy-2 { background-color: #f39c12; }
+        .accuracy-3 { background-color: #2ecc71; }
+        .row-controls {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        .nav-button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .nav-button:hover {
+            background-color: #2980b9;
+        }
+        .nav-button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        .row-info {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .verification-mode {
+            margin-left: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .current-record-info {
+            margin-left: 20px;
+            padding: 8px 12px;
+            background-color: #ecf0f1;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #2c3e50;
+        }
+        .rssi-label {
+            position: absolute;
+            background: rgba(52, 152, 219, 0.9);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-top: -8px;
+            margin-left: 16px;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        .rssi-strong { background: rgba(46, 204, 113, 0.9) !important; }
+        .rssi-medium { background: rgba(243, 156, 18, 0.9) !important; }
+        .rssi-weak { background: rgba(231, 76, 60, 0.9) !important; }
+        .decoded-log-section {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #eee;
+        }
+        .decoded-log-content {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #34495e;
+        }
+        .decoded-log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+        .decoded-log-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .copy-button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .copy-button:hover {
+            background-color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Trilateration Visualization Tool</h1>
+            <p>Upload JSONL files to visualize gateway locations, RSSI circles, and trilateration results</p>
+        </div>
+        <div style="padding:16px;background:#fffbe6;border-left:4px solid #3498db;margin-bottom:8px;">
+            <b>How to use:</b>
+            <ul style="margin-top:8px;font-size:14px;">
+                <li>
+                    <b>Auto-loads latest log:</b> If running in a server environment that exposes <code>/logs/raw_data/</code>, this tool will automatically load the latest JSONL log file on page load.<br>
+                    <span style="font-size:12px;">(Requires backend to serve <code>/logs/raw_data/</code> and allow CORS. Otherwise, use manual upload.)</span>
+                </li>
+                <li>
+                    <b>Manual upload:</b> If auto-load fails, you can still upload a JSONL file from <code>transformer-service/logs/raw_data</code> (e.g., <code>raw_data_YYYYMMDD_HHMMSS.jsonl</code>).
+                </li>
+                <li>After loading, the tool will parse and display all records, gateways, and trilateration results.</li>
+            </ul>
+        </div>
+        <div class="controls">
+            <div class="control-group" id="autoLogLoaderGroup">
+                <label for="logFileSelect"><b>Auto-load Log File:</b></label>
+                <select id="logFileSelect" style="min-width:220px"></select>
+                <button onclick="reloadLogList()" class="file-upload" style="padding:6px 14px;font-size:14px;">Reload Logs</button>
+                <span id="autoLoadStatus" style="margin-left:10px;font-size:13px;color:#888;"></span>
+                <span style="margin-left:25px;">
+                    <label for="autoReloadInterval" style="font-weight:normal;">Auto reload (seconds):</label>
+                    <select id="autoReloadInterval" style="width:60px;">
+                        <option value="0">Off</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                        <option value="15">15</option>
+                        <option value="30">30</option>
+                        <option value="45">45</option>
+                        <option value="60">60</option>
+                    </select>
+                    <span id="autoReloadCountdown" style="margin-left:8px;color:#888;font-weight:bold;display:none;">(0s)</span>
+                </span>
+            </div>
+            <div class="control-group">
+                <label for="fileInput">JSONL Log File (from <code>transformer-service/logs/raw_data</code>):</label>
+                <input type="file" id="fileInput" accept=".jsonl,.json" class="file-upload">
+                <button onclick="loadFile()" class="file-upload">Load File</button>
+            </div>
+            
+            <div class="control-group">
+                <label for="deviceFilter">Device:</label>
+                <select id="deviceFilter">
+                    <option value="">All Devices</option>
+                </select>
+                
+                <label for="rssiCircles">Show RSSI Circles:</label>
+                <input type="checkbox" id="rssiCircles" checked>
+                
+                <label for="gatewayLabels">Show Gateway Labels:</label>
+                <input type="checkbox" id="gatewayLabels" checked>
+            </div>
+            
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="totalRecords">0</div>
+                    <div class="stat-label">Total Records</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="trilaterationCount">0</div>
+                    <div class="stat-label">Trilateration Results</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="gatewayCount">0</div>
+                    <div class="stat-label">Unique Gateways</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="deviceCount">0</div>
+                    <div class="stat-label">Unique Devices</div>
+                </div>
+            </div>
+            
+            <div class="error-message" id="errorMessage"></div>
+            <div class="success-message" id="successMessage"></div>
+        </div>
+        
+        <div class="row-controls" id="rowControls" style="display: none;">
+            <button class="nav-button" id="prevButton" onclick="navigateRow(-1)">⬅ Previous</button>
+            <span class="row-info">
+                Row <span id="currentRow">1</span> of <span id="totalRows">0</span>
+            </span>
+            <button class="nav-button" id="nextButton" onclick="navigateRow(1)">Next ➡</button>
+            
+            <div class="verification-mode">
+                <input type="checkbox" id="verificationMode" onchange="toggleVerificationMode()">
+                <label for="verificationMode">Row-by-Row Verification Mode</label>
+            </div>
+            
+            <div class="current-record-info" id="currentRecordInfo" style="display: none;">
+                Device: <span id="currentDevice">-</span> | 
+                Time: <span id="currentTime">-</span> | 
+                Gateways: <span id="currentGateways">-</span> | 
+                RSSI Range: <span id="currentRssiRange">-</span>
+            </div>
+        </div>
+        
+        <div id="map"></div>
+        
+        <div class="decoded-log-section" id="decodedLogSection" style="display: none;">
+            <div class="decoded-log-header">
+                <div class="decoded-log-title">Decoded Log - Current Record</div>
+                <button class="copy-button" onclick="copyDecodedLog()">Copy to Clipboard</button>
+            </div>
+            <div class="decoded-log-content" id="decodedLogContent">
+                No record selected
+            </div>
+        </div>
+        
+        <div class="legend">
+            <h4>Legend</h4>
+            <div class="legend-item">
+                <div class="legend-color gateway-marker"></div>
+                <span>Gateway</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color trilateration-marker"></div>
+                <span>Calculated Location</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #3498db; opacity: 0.3;"></div>
+                <span>RSSI Coverage</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" 
+            crossorigin=""></script>
+    
+    <script>
+        let map;
+        let data = [];
+        let gateways = new Map();
+        let circles = [];
+        let markers = [];
+        let currentRowIndex = 0;
+        let verificationMode = false;
+
+        // --- Auto-load log file support ---
+        const LOGS_API_PATH = "/logs/raw_data/";
+        let availableLogFiles = [];
+        let autoLogLoaded = false;
+
+        // --- Auto-reload support ---
+        let autoReloadTimer = null;
+        let autoReloadCountdownTimer = null;
+        let autoReloadIntervalSec = 0;
+        let autoReloadCountdown = 0;
+
+        function updateAutoReloadCountdownDisplay() {
+            const countdownSpan = document.getElementById("autoReloadCountdown");
+            if (!countdownSpan) return;
+            if (autoReloadIntervalSec > 0) {
+                countdownSpan.style.display = "inline";
+                countdownSpan.textContent = `(${autoReloadCountdown}s)`;
+            } else {
+                countdownSpan.style.display = "none";
+            }
+        }
+
+        function setAutoReloadInterval(newIntervalSec) {
+            if (autoReloadTimer) {
+                clearInterval(autoReloadTimer);
+                autoReloadTimer = null;
+            }
+            if (autoReloadCountdownTimer) {
+                clearInterval(autoReloadCountdownTimer);
+                autoReloadCountdownTimer = null;
+            }
+            autoReloadIntervalSec = Number(newIntervalSec);
+            autoReloadCountdown = autoReloadIntervalSec;
+            updateAutoReloadCountdownDisplay();
+            if (autoReloadIntervalSec > 0) {
+                // Main reload timer
+                autoReloadTimer = setInterval(() => {
+                    autoReloadCountdown = autoReloadIntervalSec;
+                    autoLoadLogFile();
+                }, autoReloadIntervalSec * 1000);
+                // Countdown timer
+                autoReloadCountdownTimer = setInterval(() => {
+                    if (autoReloadCountdown > 0) {
+                        autoReloadCountdown--;
+                        updateAutoReloadCountdownDisplay();
+                    }
+                }, 1000);
+            }
+        }
+
+        // Reset countdown after each reload
+        async function autoLoadLogFile() {
+            autoReloadCountdown = autoReloadIntervalSec;
+            updateAutoReloadCountdownDisplay();
+            const select = document.getElementById("logFileSelect");
+            const status = document.getElementById("autoLoadStatus");
+            const file = select.value;
+            if (!file) {
+                status.textContent = "No log file selected.";
+                autoLogLoaded = false;
+                return;
+            }
+            status.textContent = "Loading " + file + "...";
+            try {
+                const resp = await fetch(LOGS_API_PATH + file);
+                if (!resp.ok) throw new Error("HTTP " + resp.status);
+                const logdata = await resp.text();
+                processData(logdata);
+                showSuccess(`Auto-loaded ${file} (${data.length} records)`);
+                autoLogLoaded = true;
+            } catch (e) {
+                showError("Failed to load log file: " + e.message);
+                status.textContent = "Failed to load log file.";
+                autoLogLoaded = false;
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const intervalSel = document.getElementById("autoReloadInterval");
+            if (intervalSel) {
+                intervalSel.addEventListener("change", function() {
+                    setAutoReloadInterval(this.value);
+                });
+            }
+        });
+
+        // Try to fetch available JSONL files from logs directory
+        async function fetchLogFilesList() {
+            // Try to get file list as JSON (requires backend support, e.g. NGINX autoindex JSON, or custom endpoint)
+            // Fallback: try to parse HTML directory listing for .jsonl files
+            try {
+                // Try JSON endpoint first
+                const resp = await fetch(LOGS_API_PATH, { method: "GET" });
+                if (resp.headers.get("Content-Type")?.includes("application/json")) {
+                    const files = await resp.json();
+                    // Expecting array of filenames or objects with 'name'
+                    return files.map(f => typeof f === "string" ? f : f.name).filter(f => f.endsWith(".jsonl"));
+                } else {
+                    // Try to parse HTML directory listing
+                    const html = await resp.text();
+                    const re = /href="([^"]+\.jsonl)"/g;
+                    let match, files = [];
+                    while ((match = re.exec(html))) files.push(match[1]);
+                    return files;
+                }
+            } catch (err) {
+                return [];
+            }
+        }
+
+        // Populate dropdown and auto-load latest log file
+        async function loadAutoLogFileList() {
+            const select = document.getElementById("logFileSelect");
+            const status = document.getElementById("autoLoadStatus");
+            select.innerHTML = "";
+            status.textContent = "Loading log files...";
+            availableLogFiles = await fetchLogFilesList();
+            if (availableLogFiles.length === 0) {
+                status.textContent = "No log files found or server not reachable.";
+                select.innerHTML = '<option value="">(none)</option>';
+                autoLogLoaded = false;
+                return;
+            }
+            // Sort files by name descending (assuming name pattern includes datetime)
+            availableLogFiles.sort().reverse();
+            for (const f of availableLogFiles) {
+                const opt = document.createElement("option");
+                opt.value = f;
+                opt.textContent = f;
+                select.appendChild(opt);
+            }
+            status.textContent = "Select log to load or pick another.";
+            // Auto-select first (latest) and load
+            select.selectedIndex = 0;
+            await autoLoadLogFile();
+        }
+
+        // Load selected log file via fetch
+        async function autoLoadLogFile() {
+            const select = document.getElementById("logFileSelect");
+            const status = document.getElementById("autoLoadStatus");
+            const file = select.value;
+            if (!file) {
+                status.textContent = "No log file selected.";
+                autoLogLoaded = false;
+                return;
+            }
+            status.textContent = "Loading " + file + "...";
+            try {
+                const resp = await fetch(LOGS_API_PATH + file);
+                if (!resp.ok) throw new Error("HTTP " + resp.status);
+                const logdata = await resp.text();
+                processData(logdata);
+                showSuccess(`Auto-loaded ${file} (${data.length} records)`);
+                autoLogLoaded = true;
+            } catch (e) {
+                showError("Failed to load log file: " + e.message);
+                status.textContent = "Failed to load log file.";
+                autoLogLoaded = false;
+            }
+        }
+
+        // Allow user to reload log file list
+        async function reloadLogList() {
+            await loadAutoLogFileList();
+        }
+
+        // On dropdown change, auto-load the selected log file
+        document.addEventListener("DOMContentLoaded", function() {
+            const select = document.getElementById("logFileSelect");
+            if (select) {
+                select.addEventListener("change", autoLoadLogFile);
+            }
+        });
+
+        // On page load, try to auto-load logs
+        document.addEventListener("DOMContentLoaded", function() {
+            // Hide auto-loader group if running from file://
+            if (location.protocol === "file:") {
+                document.getElementById("autoLogLoaderGroup").style.display = "none";
+            } else {
+                loadAutoLogFileList();
+            }
+        });
+
+        // Initialize map
+        function initMap() {
+            map = L.map('map').setView([16.054, 108.220], 13);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+        }
+
+        // RSSI to distance approximation (rough estimation in meters)
+        function rssiToDistance(rssi) {
+            // Very rough approximation: stronger signal (higher RSSI) = shorter distance
+            // RSSI -30 = ~1m, RSSI -90 = ~100m, RSSI -120 = ~1000m
+            const rssiAbs = Math.abs(rssi);
+            if (rssiAbs < 50) return 10;
+            if (rssiAbs < 70) return 50;
+            if (rssiAbs < 90) return 150;
+            if (rssiAbs < 110) return 500;
+            return 1000;
+        }
+
+        // Get color based on RSSI strength
+        function getRSSIColor(rssi) {
+            const rssiAbs = Math.abs(rssi);
+            if (rssiAbs < 70) return '#2ecc71'; // Strong signal - green
+            if (rssiAbs < 90) return '#f39c12'; // Medium signal - orange
+            return '#e74c3c'; // Weak signal - red
+        }
+
+        // Clear all map elements
+        function clearMap() {
+            circles.forEach(circle => map.removeLayer(circle));
+            markers.forEach(marker => map.removeLayer(marker));
+            circles = [];
+            markers = [];
+        }
+
+        // Add gateway markers and RSSI circles (deduplicated)
+        function addGateways() {
+            const showCircles = document.getElementById('rssiCircles').checked;
+            const showLabels = document.getElementById('gatewayLabels').checked;
+            const seenCircles = new Set();
+            
+            gateways.forEach((gateway, gatewayId) => {
+                // Add gateway marker
+                const marker = L.marker([gateway.lat, gateway.lng], {
+                    icon: L.divIcon({
+                        className: 'custom-marker',
+                        html: `<div style="background-color: #3498db; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>`,
+                        iconSize: [16, 16],
+                        iconAnchor: [8, 8]
+                    })
+                }).addTo(map);
+                
+                if (showLabels) {
+                    marker.bindPopup(`
+                        <strong>Gateway: ${gatewayId}</strong><br>
+                        Lat: ${gateway.lat.toFixed(6)}<br>
+                        Lng: ${gateway.lng.toFixed(6)}<br>
+                        Unique signals received: ${getUniqueSignalsCount(gateway.signals)}
+                    `);
+                }
+                
+                markers.push(marker);
+                
+                // Add RSSI circles for each unique signal received by this gateway
+                if (showCircles) {
+                    const uniqueSignals = getUniqueSignals(gateway.signals);
+                    uniqueSignals.forEach(signal => {
+                        const distance = rssiToDistance(signal.rssi);
+                        const color = getRSSIColor(signal.rssi);
+                        
+                        // Create unique key for circle deduplication
+                        const circleKey = `${gatewayId}_${gateway.lat.toFixed(6)}_${gateway.lng.toFixed(6)}_${distance}_${color}`;
+                        
+                        if (seenCircles.has(circleKey)) {
+                            return; // Skip duplicate circle
+                        }
+                        seenCircles.add(circleKey);
+                        
+                        const circle = L.circle([gateway.lat, gateway.lng], {
+                            radius: distance,
+                            color: color,
+                            fillColor: color,
+                            fillOpacity: 0.1,
+                            opacity: 0.3,
+                            weight: 1
+                        }).addTo(map);
+                        
+                        circle.bindPopup(`
+                            <strong>RSSI Signal</strong><br>
+                            Gateway: ${gatewayId}<br>
+                            Device: ${signal.device}<br>
+                            RSSI: ${signal.rssi} dBm<br>
+                            SNR: ${signal.snr} dB<br>
+                            Distance (est.): ${distance}m
+                        `);
+                        
+                        circles.push(circle);
+                    });
+                }
+            });
+        }
+        
+        // Get unique signals (deduplicate by device + RSSI + SNR)
+        function getUniqueSignals(signals) {
+            const uniqueMap = new Map();
+            signals.forEach(signal => {
+                const key = `${signal.device}_${signal.rssi}_${signal.snr}`;
+                if (!uniqueMap.has(key)) {
+                    uniqueMap.set(key, signal);
+                }
+            });
+            return Array.from(uniqueMap.values());
+        }
+        
+        // Get count of unique signals
+        function getUniqueSignalsCount(signals) {
+            return getUniqueSignals(signals).length;
+        }
+
+        // Add trilateration results (deduplicated)
+        function addTrilaterationResults() {
+            const selectedDevice = document.getElementById('deviceFilter').value;
+            const seenResults = new Set();
+            
+            data.forEach(record => {
+                if (record.processing_info && record.processing_info.location_calculated && 
+                    record.processing_info.location_result) {
+                    
+                    if (selectedDevice && record.device_eui !== selectedDevice) {
+                        return;
+                    }
+                    
+                    const result = record.processing_info.location_result;
+                    const accuracy = record.processing_info.gateway_count;
+                    
+                    // Create unique key for deduplication (device + location + time rounded to nearest minute)
+                    const roundedTime = Math.floor(new Date(record.timestamp).getTime() / (60 * 1000)) * (60 * 1000);
+                    const resultKey = `${record.device_eui || 'unknown'}_${result.latitude.toFixed(6)}_${result.longitude.toFixed(6)}_${roundedTime}`;
+                    
+                    if (seenResults.has(resultKey)) {
+                        return; // Skip duplicate
+                    }
+                    seenResults.add(resultKey);
+                    
+                    // Create accuracy indicator
+                    let accuracyClass = 'accuracy-1';
+                    if (accuracy >= 3) accuracyClass = 'accuracy-3';
+                    else if (accuracy >= 2) accuracyClass = 'accuracy-2';
+                    
+                    const marker = L.marker([result.latitude, result.longitude], {
+                        icon: L.divIcon({
+                            className: 'custom-marker',
+                            html: `<div style="background-color: #9b59b6; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white;"></div>`,
+                            iconSize: [18, 18],
+                            iconAnchor: [9, 9]
+                        })
+                    }).addTo(map);
+                    
+                    marker.bindPopup(`
+                        <strong>Trilateration Result</strong><br>
+                        Device: ${record.device_name || record.device_eui}<br>
+                        Lat: ${result.latitude.toFixed(6)}<br>
+                        Lng: ${result.longitude.toFixed(6)}<br>
+                        <span class="accuracy-indicator ${accuracyClass}">
+                            ${accuracy} Gateway${accuracy > 1 ? 's' : ''}
+                        </span><br>
+                        Accuracy: ${result.accuracy}<br>
+                        Time: ${record.decoded_raw_data?.rxInfo?.[0]?.time ? new Date(record.decoded_raw_data.rxInfo[0].time).toLocaleString() : new Date(record.timestamp).toLocaleString()}
+                    `);
+                    
+                    markers.push(marker);
+                }
+            });
+        }
+
+        // Process JSONL data
+        function processData(jsonlText) {
+            const lines = jsonlText.trim().split('\n');
+            data = [];
+            gateways.clear();
+            
+            const devices = new Set();
+            const seenTrilaterationResults = new Set();
+            let trilaterationCount = 0;
+            
+            lines.forEach(line => {
+                try {
+                    const record = JSON.parse(line);
+                    data.push(record);
+                    
+                    devices.add(record.device_eui || 'unknown');
+                    
+                    // Extract gateway information
+                    if (record.decoded_raw_data && record.decoded_raw_data.rxInfo) {
+                        record.decoded_raw_data.rxInfo.forEach(rxInfo => {
+                            if (rxInfo.gatewayId && rxInfo.location) {
+                                const gatewayId = rxInfo.gatewayId;
+                                
+                                if (!gateways.has(gatewayId)) {
+                                    gateways.set(gatewayId, {
+                                        lat: rxInfo.location.latitude,
+                                        lng: rxInfo.location.longitude,
+                                        signals: []
+                                    });
+                                }
+                                
+                                gateways.get(gatewayId).signals.push({
+                                    device: record.device_eui || 'unknown',
+                                    rssi: rxInfo.rssi || 0,
+                                    snr: rxInfo.snr || 0,
+                                    timestamp: record.timestamp
+                                });
+                            }
+                        });
+                    }
+                    
+                    // Count unique trilateration results
+                    if (record.processing_info && record.processing_info.location_calculated && 
+                        record.processing_info.location_result) {
+                        const result = record.processing_info.location_result;
+                        const roundedTime = Math.floor(new Date(record.timestamp).getTime() / (60 * 1000)) * (60 * 1000);
+                        const resultKey = `${record.device_eui || 'unknown'}_${result.latitude.toFixed(6)}_${result.longitude.toFixed(6)}_${roundedTime}`;
+                        
+                        if (!seenTrilaterationResults.has(resultKey)) {
+                            seenTrilaterationResults.add(resultKey);
+                            trilaterationCount++;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to parse line:', line);
+                }
+            });
+            
+            // Update statistics
+            document.getElementById('totalRecords').textContent = data.length;
+            document.getElementById('trilaterationCount').textContent = trilaterationCount;
+            document.getElementById('gatewayCount').textContent = gateways.size;
+            document.getElementById('deviceCount').textContent = devices.size;
+            
+            // Update device filter
+            const deviceFilter = document.getElementById('deviceFilter');
+            deviceFilter.innerHTML = '<option value="">All Devices</option>';
+            devices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device;
+                option.textContent = device;
+                deviceFilter.appendChild(option);
+            });
+            
+            // Show row controls and reset verification mode
+            if (data.length > 0) {
+                document.getElementById('rowControls').style.display = 'flex';
+                document.getElementById('decodedLogSection').style.display = 'block';
+                currentRowIndex = 0;
+                updateRowControls();
+                updateDecodedLog();
+            }
+            
+            // Refresh map
+            refreshMap();
+            
+            // Fit map to show all points
+            if (gateways.size > 0) {
+                const bounds = L.latLngBounds();
+                gateways.forEach(gateway => {
+                    bounds.extend([gateway.lat, gateway.lng]);
+                });
+                data.forEach(record => {
+                    if (record.processing_info && record.processing_info.location_result) {
+                        const result = record.processing_info.location_result;
+                        bounds.extend([result.latitude, result.longitude]);
+                    }
+                });
+                map.fitBounds(bounds, { padding: [20, 20] });
+            }
+        }
+
+        // Refresh map display
+        function refreshMap() {
+            clearMap();
+            if (verificationMode) {
+                showSingleRow(currentRowIndex);
+            } else {
+                addGateways();
+                addTrilaterationResults();
+            }
+        }
+        
+        // Show single row in verification mode (isolated view)
+        function showSingleRow(index) {
+            if (index < 0 || index >= data.length) return;
+            
+            const record = data[index];
+            const currentRowGateways = new Map();
+            
+            // Extract ONLY gateways for this specific record
+            if (record.decoded_raw_data && record.decoded_raw_data.rxInfo) {
+                record.decoded_raw_data.rxInfo.forEach(rxInfo => {
+                    if (rxInfo.gatewayId && rxInfo.location) {
+                        const gatewayId = rxInfo.gatewayId;
+                        currentRowGateways.set(gatewayId, {
+                            lat: rxInfo.location.latitude,
+                            lng: rxInfo.location.longitude,
+                            signals: [{
+                                device: record.device_eui || 'unknown',
+                                rssi: rxInfo.rssi || 0,
+                                snr: rxInfo.snr || 0,
+                                timestamp: record.timestamp
+                            }]
+                        });
+                    }
+                });
+            }
+            
+            // Add gateway markers ONLY for current record
+            const showCircles = document.getElementById('rssiCircles').checked;
+            const showLabels = document.getElementById('gatewayLabels').checked;
+            
+            currentRowGateways.forEach((gateway, gatewayId) => {
+                const rssi = gateway.signals[0].rssi;
+                const snr = gateway.signals[0].snr;
+                
+                // Determine RSSI strength class
+                const rssiAbs = Math.abs(rssi);
+                let rssiClass = 'rssi-weak';
+                if (rssiAbs < 70) rssiClass = 'rssi-strong';
+                else if (rssiAbs < 90) rssiClass = 'rssi-medium';
+                
+                const marker = L.marker([gateway.lat, gateway.lng], {
+                    icon: L.divIcon({
+                        className: 'custom-marker',
+                        html: `
+                            <div style="background-color: #3498db; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>
+                            <div class="rssi-label ${rssiClass}">${rssi} dBm</div>
+                        `,
+                        iconSize: [16, 16],
+                        iconAnchor: [8, 8]
+                    })
+                }).addTo(map);
+                
+                if (showLabels) {
+                    marker.bindPopup(`
+                        <strong>Gateway: ${gatewayId}</strong><br>
+                        Lat: ${gateway.lat.toFixed(6)}<br>
+                        Lng: ${gateway.lng.toFixed(6)}<br>
+                        Device: ${record.device_eui || 'unknown'}<br>
+                        <strong style="color: ${rssiAbs < 70 ? '#2ecc71' : rssiAbs < 90 ? '#f39c12' : '#e74c3c'};">RSSI: ${rssi} dBm</strong><br>
+                        SNR: ${snr} dB<br>
+                        Signal Strength: ${rssiAbs < 70 ? 'Strong' : rssiAbs < 90 ? 'Medium' : 'Weak'}<br>
+                        Distance (est.): ${rssiToDistance(rssi)}m<br>
+                        <em>Row ${currentRowIndex + 1} only</em>
+                    `);
+                }
+                
+                markers.push(marker);
+                
+                // Add RSSI circles ONLY for current record
+                if (showCircles) {
+                    gateway.signals.forEach(signal => {
+                        const distance = rssiToDistance(signal.rssi);
+                        const color = getRSSIColor(signal.rssi);
+                        
+                        const circle = L.circle([gateway.lat, gateway.lng], {
+                            radius: distance,
+                            color: color,
+                            fillColor: color,
+                            fillOpacity: 0.1,
+                            opacity: 0.3,
+                            weight: 1
+                        }).addTo(map);
+                        
+                        const signalRssiAbs = Math.abs(signal.rssi);
+                        const signalStrength = signalRssiAbs < 70 ? 'Strong' : signalRssiAbs < 90 ? 'Medium' : 'Weak';
+                        const signalColor = signalRssiAbs < 70 ? '#2ecc71' : signalRssiAbs < 90 ? '#f39c12' : '#e74c3c';
+                        
+                        circle.bindPopup(`
+                            <strong>RSSI Coverage (Row ${currentRowIndex + 1})</strong><br>
+                            Gateway: ${gatewayId}<br>
+                            Device: ${signal.device}<br>
+                            <strong style="color: ${signalColor};">RSSI: ${signal.rssi} dBm (${signalStrength})</strong><br>
+                            SNR: ${signal.snr} dB<br>
+                            Coverage Radius: ${distance}m<br>
+                            <em>Signal strength determines circle size</em>
+                        `);
+                        
+                        circles.push(circle);
+                    });
+                }
+            });
+            
+            // Add trilateration result ONLY for this record
+            if (record.processing_info && record.processing_info.location_calculated && 
+                record.processing_info.location_result) {
+                
+                const result = record.processing_info.location_result;
+                const accuracy = record.processing_info.gateway_count;
+                
+                let accuracyClass = 'accuracy-1';
+                if (accuracy >= 3) accuracyClass = 'accuracy-3';
+                else if (accuracy >= 2) accuracyClass = 'accuracy-2';
+                
+                const marker = L.marker([result.latitude, result.longitude], {
+                    icon: L.divIcon({
+                        className: 'custom-marker',
+                        html: `<div style="background-color: #9b59b6; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white;"></div>`,
+                        iconSize: [18, 18],
+                        iconAnchor: [9, 9]
+                    })
+                }).addTo(map);
+                
+                marker.bindPopup(`
+                    <strong>Calculated Location (Row ${currentRowIndex + 1})</strong><br>
+                    Device: ${record.device_name || record.device_eui}<br>
+                    Lat: ${result.latitude.toFixed(6)}<br>
+                    Lng: ${result.longitude.toFixed(6)}<br>
+                    <span class="accuracy-indicator ${accuracyClass}">
+                        ${accuracy} Gateway${accuracy > 1 ? 's' : ''}
+                    </span><br>
+                    Accuracy: ${result.accuracy}<br>
+                    Time: ${record.decoded_raw_data?.rxInfo?.[0]?.time ? new Date(record.decoded_raw_data.rxInfo[0].time).toLocaleString() : new Date(record.timestamp).toLocaleString()}
+                `);
+                
+                markers.push(marker);
+            }
+            
+            // Fit map with more padding to zoom out and show wider area
+            if (currentRowGateways.size > 0 || (record.processing_info && record.processing_info.location_result)) {
+                const bounds = L.latLngBounds();
+                
+                // Add all gateway positions to bounds
+                currentRowGateways.forEach(gateway => {
+                    bounds.extend([gateway.lat, gateway.lng]);
+                });
+                
+                // Add calculated location to bounds
+                if (record.processing_info && record.processing_info.location_result) {
+                    const result = record.processing_info.location_result;
+                    bounds.extend([result.latitude, result.longitude]);
+                }
+                
+                // Zoom out more by increasing padding and setting max zoom
+                map.fitBounds(bounds, { 
+                    padding: [80, 80], // Increased padding for wider view
+                    maxZoom: 15 // Limit zoom level to show wider area
+                });
+            } else {
+                // If no data for this row, center on a default location with low zoom
+                map.setView([16.054, 108.220], 12);
+            }
+        }
+        
+        // Toggle verification mode
+        function toggleVerificationMode() {
+            verificationMode = document.getElementById('verificationMode').checked;
+            
+            if (verificationMode && data.length > 0) {
+                // Find first valid row (gateway count >= 2)
+                currentRowIndex = 0;
+                for (let i = 0; i < data.length; i++) {
+                    if (isValidRow(i)) {
+                        currentRowIndex = i;
+                        break;
+                    }
+                }
+                updateRowControls();
+                clearMap(); // Clear all existing markers/circles
+                showSingleRow(currentRowIndex); // Show ONLY current row data
+            } else {
+                refreshMap(); // Show all data normally
+            }
+        }
+        
+        // Navigate between rows
+        function navigateRow(direction) {
+            if (!verificationMode || data.length === 0) return;
+            
+            // Find next valid row (gateway count >= 2)
+            let newIndex = currentRowIndex;
+            let attempts = 0;
+            
+            do {
+                newIndex += direction;
+                attempts++;
+                
+                // Wrap around or stop at boundaries
+                if (newIndex < 0) newIndex = data.length - 1;
+                if (newIndex >= data.length) newIndex = 0;
+                
+                // Prevent infinite loop
+                if (attempts >= data.length) break;
+                
+            } while (newIndex !== currentRowIndex && !isValidRow(newIndex));
+            
+            // Only update if we found a valid row or if it's the first attempt
+            if (isValidRow(newIndex) || attempts === 1) {
+                currentRowIndex = newIndex;
+                updateRowControls();
+                updateDecodedLog();
+                clearMap(); // Clear previous row's data completely
+                showSingleRow(currentRowIndex); // Show ONLY new row's data
+            }
+        }
+        
+        // Check if row has gateway count >= 2
+        function isValidRow(index) {
+            if (index < 0 || index >= data.length) return false;
+            
+            const record = data[index];
+            let gatewayCount = 0;
+            
+            // First try to get from processing_info (processed gateway count)
+            if (record.processing_info && record.processing_info.gateway_count) {
+                gatewayCount = record.processing_info.gateway_count;
+            } 
+            // Fallback to raw data count
+            else if (record.decoded_raw_data && record.decoded_raw_data.rxInfo) {
+                gatewayCount = record.decoded_raw_data.rxInfo.length;
+            }
+            
+            return gatewayCount >= 2;
+        }
+        
+        // Update row control buttons and display
+        function updateRowControls() {
+            document.getElementById('currentRow').textContent = currentRowIndex + 1;
+            document.getElementById('totalRows').textContent = data.length;
+            
+            document.getElementById('prevButton').disabled = currentRowIndex === 0;
+            document.getElementById('nextButton').disabled = currentRowIndex === data.length - 1;
+            
+            // Update current record info
+            if (verificationMode && data.length > 0) {
+                const record = data[currentRowIndex];
+                document.getElementById('currentDevice').textContent = record.decoded_raw_data?.deviceInfo?.deviceName || record.device_name || record.device_eui || 'Unknown';
+                document.getElementById('currentTime').textContent = record.decoded_raw_data?.time ? new Date(record.decoded_raw_data.time).toLocaleString() : (record.decoded_raw_data?.rxInfo?.[0]?.time ? new Date(record.decoded_raw_data.rxInfo[0].time).toLocaleString() : new Date(record.timestamp).toLocaleString());
+                
+                let gatewayCount = 0;
+                let rssiValues = [];
+                if (record.decoded_raw_data && record.decoded_raw_data.rxInfo) {
+                    gatewayCount = record.decoded_raw_data.rxInfo.length;
+                    rssiValues = record.decoded_raw_data.rxInfo.map(rxInfo => rxInfo.rssi || 0);
+                }
+                document.getElementById('currentGateways').textContent = gatewayCount;
+                
+                // Show RSSI range
+                if (rssiValues.length > 0) {
+                    const minRssi = Math.min(...rssiValues);
+                    const maxRssi = Math.max(...rssiValues);
+                    const avgRssi = Math.round(rssiValues.reduce((a, b) => a + b, 0) / rssiValues.length);
+                    document.getElementById('currentRssiRange').textContent = `${minRssi} to ${maxRssi} dBm (avg: ${avgRssi})`;
+                } else {
+                    document.getElementById('currentRssiRange').textContent = 'No data';
+                }
+                
+                document.getElementById('currentRecordInfo').style.display = 'block';
+            } else {
+                document.getElementById('currentRecordInfo').style.display = 'none';
+            }
+        }
+        
+        // Update decoded log display
+        function updateDecodedLog() {
+            if (data.length === 0 || currentRowIndex < 0 || currentRowIndex >= data.length) {
+                document.getElementById('decodedLogContent').textContent = 'No record selected';
+                return;
+            }
+            
+            const record = data[currentRowIndex];
+            const logContent = JSON.stringify(record, null, 2);
+            document.getElementById('decodedLogContent').textContent = logContent;
+        }
+        
+        // Copy decoded log to clipboard
+        function copyDecodedLog() {
+            const logContent = document.getElementById('decodedLogContent').textContent;
+            navigator.clipboard.writeText(logContent).then(() => {
+                const button = document.querySelector('.copy-button');
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.style.backgroundColor = '#27ae60';
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.backgroundColor = '#3498db';
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy to clipboard:', err);
+                alert('Failed to copy to clipboard');
+            });
+        }
+
+        // Load file
+        function loadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showError('Please select a JSONL file');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    processData(e.target.result);
+                    showSuccess(`Loaded ${data.length} records successfully`);
+                } catch (error) {
+                    showError('Error processing file: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            const successDiv = document.getElementById('successMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            successDiv.style.display = 'none';
+        }
+
+        // Show success message
+        function showSuccess(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            errorDiv.style.display = 'none';
+        }
+
+        // Event listeners
+        document.getElementById('deviceFilter').addEventListener('change', refreshMap);
+        document.getElementById('rssiCircles').addEventListener('change', refreshMap);
+        document.getElementById('gatewayLabels').addEventListener('change', refreshMap);
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+        });
+    </script>
+</body>
+</html>
