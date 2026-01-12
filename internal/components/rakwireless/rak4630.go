@@ -423,59 +423,6 @@ func parseRAK4630SensorString(sensorStr string) map[string]float64 {
 	return readings
 }
 
-// parseRAK4630SensorString parses RAK4630-specific comma-separated sensor payloads from CBOR.
-// Expected format: temperature,humidity,pressure,*,*,*,*,*,*,*,*,*,*,*,*,latitude,longitude,altitude,*,*,*,*,*,*,*,battery_v
-func parseRAK4630SensorString(sensorStr string) map[string]float64 {
-	parts := strings.Split(sensorStr, ",")
-
-	readings := make(map[string]float64)
-	get := func(idx int) (float64, bool) {
-		if idx < 0 || idx >= len(parts) {
-			return 0, false
-		}
-		v, err := strconv.ParseFloat(strings.TrimSpace(parts[idx]), 64)
-		if err != nil {
-			return 0, false
-		}
-		return v, true
-	}
-
-	// Parse based on field positions (RAK4630 standard format)
-	if v, ok := get(0); ok {
-		readings["temperature"] = v
-	}
-	if v, ok := get(1); ok {
-		readings["humidity"] = v
-	}
-	if v, ok := get(2); ok {
-		readings["pressure"] = v
-	}
-	// Index 3-15 are placeholders (*)
-	if v, ok := get(16); ok {
-		readings["latitude"] = v
-	}
-	if v, ok := get(17); ok {
-		readings["longitude"] = v
-	}
-	if v, ok := get(18); ok {
-		readings["altitude"] = v
-	}
-	if v, ok := get(19); ok {
-		readings["snr_or_altitude"] = v
-	}
-	if v, ok := get(20); ok {
-		readings["raw_signal"] = v
-	}
-	if v, ok := get(24); ok {
-		readings["battery_v"] = v
-	}
-
-	if len(readings) == 0 {
-		return nil
-	}
-	return readings
-}
-
 // decodeSensorReadings decodes sensor values from base64 CBOR payload data
 func (p *RAK4630Parser) decodeSensorReadings(payload *components.RawPayload) map[string]float64 {
 	var encoded string
