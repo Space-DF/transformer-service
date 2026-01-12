@@ -148,9 +148,9 @@ func (p *WLBV1Parser) ParseToEntities(orgSlug, model string, payload *components
 			Attributes: map[string]interface{}{
 				"sensor_height_from_ground": 200,
 			},
-			UnitOfMeas:  "cm",
-			Timestamp:   timestamp,
-			Enabled:     true,
+			UnitOfMeas: "cm",
+			Timestamp:  timestamp,
+			Enabled:    true,
 		}
 		entities = append(entities, waterLevelEntity)
 	}

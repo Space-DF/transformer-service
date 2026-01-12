@@ -80,7 +80,6 @@ func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[
 		metadata["received_at"] = receivedAt
 	}
 
-
 	// Extract uplink message metadata - prioritize ChirpStack format
 	var uplinkMessage map[string]interface{}
 

@@ -65,7 +65,28 @@ LoRaWAN Device → MPA Service → EMQX → RabbitMQ → Transformer Service →
 The service can be configured via:
 1. `configs/config.yaml` (default configuration)
 2. Environment variables
-3. `.env` file
+3. Create a `.env` file with the following example settings:
+
+```bash
+# Server Configuration
+SERVER_LOG_LEVEL=info
+
+# AMQP Configuration
+AMQP_BROKER_URL=amqp://admin:password@rabbitmq:5672/
+AMQP_EXCHANGE=amq.topic
+AMQP_QUEUE=transformer_device_queue
+AMQP_ROUTING_KEY=device.data
+AMQP_OUTPUT_TOPIC=transformed/device/location
+AMQP_CONSUMER_TAG=transformer-service
+AMQP_PREFETCH_COUNT=10
+AMQP_AUTO_ACK=false
+
+# Raw Data Logging Configuration
+RAW_DATA_LOG_DIR=logs/raw_data
+RAW_DATA_ENABLE_FILE_LOG=true
+RAW_DATA_ENABLE_JSON_LOG=true
+RAW_DATA_MAX_FILE_SIZE=104857600
+```
 
 ### Configuration Options
 
@@ -268,8 +289,4 @@ make test
 5. Run `make test` and `make lint`
 6. Submit a pull request
 
-## License
-
-This project is part of the Space-DF platform.
-
-
+[![SpaceDF - A project from Digital Fortress](https://df.technology/images/SpaceDF.png)](https://df.technology/)

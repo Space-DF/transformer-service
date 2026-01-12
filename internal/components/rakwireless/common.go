@@ -7,4 +7,3 @@ type SensorFrame struct {
 	Fmt    string `cbor:"fmt"`
 	Sensor string `cbor:"sensor"`
 }
-

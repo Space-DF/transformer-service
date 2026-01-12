@@ -21,16 +21,16 @@ type ServerConfig struct {
 }
 
 type AMQPConfig struct {
-	BrokerURL     string   `mapstructure:"broker_url" env:"AMQP_BROKER_URL"`
-	AllowedVhosts []string `mapstructure:"allowed_vhosts" env:"AMQP_ALLOWED_VHOSTS"`
-	Exchange      string   `mapstructure:"exchange" env:"AMQP_EXCHANGE"`
-	Queue         string   `mapstructure:"queue" env:"AMQP_QUEUE"`
-	RoutingKey    string   `mapstructure:"routing_key" env:"AMQP_ROUTING_KEY"`
-	OutputTopics  []string `mapstructure:"output_topics" env:"AMQP_OUTPUT_TOPICS"`
-	EntityBridgeRoutingKey string `mapstructure:"entity_bridge_routing_key" env:"AMQP_ENTITY_BRIDGE_ROUTING_KEY"`
-	ConsumerTag            string `mapstructure:"consumer_tag" env:"AMQP_CONSUMER_TAG"`
-	PrefetchCount          int    `mapstructure:"prefetch_count" env:"AMQP_PREFETCH_COUNT"`
-	AutoAck                bool   `mapstructure:"auto_ack" env:"AMQP_AUTO_ACK"`
+	BrokerURL              string   `mapstructure:"broker_url" env:"AMQP_BROKER_URL"`
+	AllowedVhosts          []string `mapstructure:"allowed_vhosts" env:"AMQP_ALLOWED_VHOSTS"`
+	Exchange               string   `mapstructure:"exchange" env:"AMQP_EXCHANGE"`
+	Queue                  string   `mapstructure:"queue" env:"AMQP_QUEUE"`
+	RoutingKey             string   `mapstructure:"routing_key" env:"AMQP_ROUTING_KEY"`
+	OutputTopics           []string `mapstructure:"output_topics" env:"AMQP_OUTPUT_TOPICS"`
+	EntityBridgeRoutingKey string   `mapstructure:"entity_bridge_routing_key" env:"AMQP_ENTITY_BRIDGE_ROUTING_KEY"`
+	ConsumerTag            string   `mapstructure:"consumer_tag" env:"AMQP_CONSUMER_TAG"`
+	PrefetchCount          int      `mapstructure:"prefetch_count" env:"AMQP_PREFETCH_COUNT"`
+	AutoAck                bool     `mapstructure:"auto_ack" env:"AMQP_AUTO_ACK"`
 }
 
 type OrgEventsConfig struct {

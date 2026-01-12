@@ -472,7 +472,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 			Longitude: deviceLocation.Longitude,
 		}
 	}
-	
+
 	if parseResult, mapping, perr := c.parseEntities(orgSlug, devEUI, payload, entityLocation); perr == nil && parseResult != nil {
 		logging.Tenant(orgSlug, vhost, "", "Parsed %d telemetry entities for device %s", len(parseResult.Entities), devEUI)
 		if telemetryPayload, terr := c.buildTelemetryPayload(parseResult, orgSlug, mapping); terr == nil {

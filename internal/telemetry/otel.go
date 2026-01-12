@@ -166,4 +166,3 @@ func LogWarn(ctx context.Context, message string, attrs ...otellog.KeyValue) {
 	record.AddAttributes(attrs...)
 	logger.Emit(ctx, record)
 }
-
