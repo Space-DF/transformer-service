@@ -69,7 +69,7 @@ func (p *WLBV1Parser) GetSupportedEntityTypes() []string {
 }
 
 // ParseToEntities creates entities for WLB V1 device
-func (p *WLBV1Parser) ParseToEntities(orgSlug, model string, payload *components.RawPayload) ([]components.Entity, error) {
+func (p *WLBV1Parser) ParseToEntities(orgSlug, model string, payload *components.RawPayload, deviceLocation *components.Location) ([]components.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
 		devEUI = extractDevEUI(payload.Metadata)
