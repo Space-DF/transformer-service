@@ -462,9 +462,9 @@ func parseGNSSLocationSensor(data []byte) (*T1000Payload, error) {
 		EventStatus:   binary.BigEndian.Uint32(data[1:4]),
 		MotionSegment: data[4],
 		UTCTime:       binary.BigEndian.Uint32(data[5:9]),
-		Longitude:     float64(int32(binary.BigEndian.Uint32(data[9:13]))) / 1000000.0,
-		Latitude:      float64(int32(binary.BigEndian.Uint32(data[13:17]))) / 1000000.0,
-		Temperature:   float64(int16(binary.BigEndian.Uint16(data[17:19]))) / 10.0,
+		Longitude:     float64(int32(binary.BigEndian.Uint32(data[9:13]))) / 1000000.0,     // #nosec G115 
+		Latitude:      float64(int32(binary.BigEndian.Uint32(data[13:17]))) / 1000000.0,      // #nosec G115
+		Temperature:   float64(int16(binary.BigEndian.Uint16(data[17:19]))) / 10.0,          // #nosec G115
 		Light:         binary.BigEndian.Uint16(data[19:21]),
 		BatteryLevel:  data[21],
 	}
@@ -482,7 +482,7 @@ func parseWiFILocationSensor(data []byte) (*T1000Payload, error) {
 		EventStatus:   binary.BigEndian.Uint32(data[1:4]),
 		MotionSegment: data[4],
 		UTCTime:       binary.BigEndian.Uint32(data[5:9]),
-		Temperature:   float64(int16(binary.BigEndian.Uint16(data[36:38]))) / 10.0,
+		Temperature:   float64(int16(binary.BigEndian.Uint16(data[36:38]))) / 10.0, // #nosec G115
 		Light:         binary.BigEndian.Uint16(data[38:40]),
 		BatteryLevel:  data[41],
 	}
@@ -511,7 +511,7 @@ func parseBluetoothLocationSensor(data []byte) (*T1000Payload, error) {
 		EventStatus:   binary.BigEndian.Uint32(data[1:4]),
 		MotionSegment: data[4],
 		UTCTime:       binary.BigEndian.Uint32(data[5:9]),
-		Temperature:   float64(int16(binary.BigEndian.Uint16(data[29:31]))) / 10.0,
+		Temperature:   float64(int16(binary.BigEndian.Uint16(data[29:31]))) / 10.0, // #nosec G115
 		Light:         binary.BigEndian.Uint16(data[31:33]),
 		BatteryLevel:  data[34],
 	}
@@ -540,8 +540,8 @@ func parseGNSSLocationOnly(data []byte) (*T1000Payload, error) {
 		EventStatus:   binary.BigEndian.Uint32(data[1:4]),
 		MotionSegment: data[4],
 		UTCTime:       binary.BigEndian.Uint32(data[5:9]),
-		Longitude:     float64(int32(binary.BigEndian.Uint32(data[9:13]))) / 1000000.0,
-		Latitude:      float64(int32(binary.BigEndian.Uint32(data[13:17]))) / 1000000.0,
+		Longitude:     float64(int32(binary.BigEndian.Uint32(data[9:13]))) / 1000000.0, // #nosec G115
+		Latitude:      float64(int32(binary.BigEndian.Uint32(data[13:17]))) / 1000000.0,  // #nosec G115
 		BatteryLevel:  data[17],
 	}
 	return result, nil
@@ -625,7 +625,7 @@ func parsePositioningStatusSensor(data []byte) (*T1000Payload, error) {
 		PositionStatus: data[1],
 		EventStatus:    binary.BigEndian.Uint32(data[2:5]),
 		UTCTime:        binary.BigEndian.Uint32(data[5:9]),
-		Temperature:    float64(int16(binary.BigEndian.Uint16(data[9:11]))) / 10.0,
+		Temperature:    float64(int16(binary.BigEndian.Uint16(data[9:11]))) / 10.0, // #nosec G115
 		Light:          binary.BigEndian.Uint16(data[11:13]),
 		BatteryLevel:   data[13],
 	}
