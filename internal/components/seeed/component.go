@@ -44,7 +44,7 @@ func (c *SeeedComponent) CanHandle(deviceType components.DeviceType, payload *co
 func (c *SeeedComponent) Parse(ctx context.Context, deviceType components.DeviceType, payload *components.RawPayload) (*components.ParsedData, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = extractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI not found")
@@ -152,7 +152,7 @@ func (c *SeeedComponent) ParseToEntities(ctx context.Context, orgSlug, model str
 
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = extractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata)
 	}
 
 	return &components.ParseResult{

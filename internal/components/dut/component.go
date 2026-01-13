@@ -138,29 +138,3 @@ func (c *DUTComponent) GetSupportedEntityTypes(deviceType components.DeviceType)
 	}
 	return parser.GetSupportedEntityTypes()
 }
-
-// Helper function to extract DevEUI from various payload formats
-func extractDevEUI(payload map[string]interface{}) string {
-	// Try multiple locations for device EUI
-	if endDeviceIDs, ok := payload["end_device_ids"].(map[string]interface{}); ok {
-		if devEUI, ok := endDeviceIDs["dev_eui"].(string); ok {
-			return devEUI
-		}
-	}
-
-	if devEUI, ok := payload["dev_eui"].(string); ok {
-		return devEUI
-	}
-
-	if devEUI, ok := payload["devEui"].(string); ok {
-		return devEUI
-	}
-
-	if deviceInfo, ok := payload["deviceInfo"].(map[string]interface{}); ok {
-		if devEUI, ok := deviceInfo["devEui"].(string); ok {
-			return devEUI
-		}
-	}
-
-	return ""
-}

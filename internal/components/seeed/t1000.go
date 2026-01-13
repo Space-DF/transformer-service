@@ -98,7 +98,7 @@ const (
 func (p *T1000Parser) ParseToEntities(orgSlug, model string, payload *components.RawPayload, deviceLocation *components.Location) ([]components.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = extractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI is required")
@@ -214,7 +214,7 @@ func (p *T1000Parser) ParseToEntities(orgSlug, model string, payload *components
 		Timestamp: timestamp,
 	})
 
-	// Light Entity
+	// Light Entity (value is directly 0-100%)
 	entities = append(entities, components.Entity{
 		UniqueID: components.GenerateUniqueID(model, devEUI, "light"),
 		EntityID: components.GenerateEntityID(
@@ -710,30 +710,6 @@ func extractPayloadData(payload interface{}) string {
 			}
 		}
 	}
-	return ""
-}
-
-func extractDevEUI(metadata map[string]interface{}) string {
-	if metadata == nil {
-		return ""
-	}
-
-	// Try direct keys
-	for _, key := range []string{"device_eui", "devEui", "dev_eui", "deviceEui"} {
-		if val, ok := metadata[key].(string); ok && val != "" {
-			return val
-		}
-	}
-
-	// Try decoded_raw_data
-	if decoded, ok := metadata["decoded_raw_data"].(map[string]interface{}); ok {
-		if devInfo, ok := decoded["deviceInfo"].(map[string]interface{}); ok {
-			if devEui, ok := devInfo["devEui"].(string); ok && devEui != "" {
-				return devEui
-			}
-		}
-	}
-
 	return ""
 }
 
