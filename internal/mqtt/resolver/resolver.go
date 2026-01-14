@@ -15,6 +15,7 @@ import (
 	// Import component packages to trigger registration
 	_ "github.com/Space-DF/transformer-service/internal/components/dut"
 	_ "github.com/Space-DF/transformer-service/internal/components/rakwireless"
+	_ "github.com/Space-DF/transformer-service/internal/components/seeed"
 )
 
 var ErrDeviceSkipped = errors.New("device skipped")
@@ -165,6 +166,8 @@ func (r *Resolver) profileToDeviceType(profile string) components.DeviceType {
 		return components.DeviceTypeRAK4630
 	case "WLBV1":
 		return components.DeviceTypeWLBV1
+	case "SENSECAP_T1000":
+		return components.DeviceTypeSenseCAP_T1000
 	default:
 		return components.DeviceTypeUnknown
 	}

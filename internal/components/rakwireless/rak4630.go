@@ -24,7 +24,7 @@ func NewRAK4630Parser() *RAK4630Parser {
 func (p *RAK4630Parser) ParsePayload(payload *components.RawPayload) (*components.ParsedData, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = extractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI not found")
@@ -78,7 +78,7 @@ func (p *RAK4630Parser) GetSupportedEntityTypes() []string {
 func (p *RAK4630Parser) ParseToEntities(orgSlug, model string, payload *components.RawPayload, deviceLocation *components.Location) ([]components.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = extractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI is required")
