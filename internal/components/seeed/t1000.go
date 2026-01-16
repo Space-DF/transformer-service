@@ -1,6 +1,7 @@
 package seeed
 
 import (
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -451,45 +452,59 @@ func parseHeartbeat(data []byte) (*T1000Payload, error) {
 	return result, nil
 }
 
-// parseGNSSLocationSensor parses 0x06 packet (22 bytes)
+// parseGNSSLocationSensor parses 0x06 packet (21-22 bytes)
 func parseGNSSLocationSensor(data []byte) (*T1000Payload, error) {
-	if len(data) < 22 {
-		return nil, fmt.Errorf("packet too short for GNSS location sensor")
+	minLen := 20
+	if len(data) < minLen {
+		return nil, fmt.Errorf("packet too short for GNSS location sensor: got %d bytes, need at least %d", len(data), minLen)
 	}
 
 	result := &T1000Payload{
 		PacketID:      data[0],
-		EventStatus:   binary.BigEndian.Uint32(data[1:4]),
-		MotionSegment: data[4],
-		UTCTime:       binary.BigEndian.Uint32(data[5:9]),
-		Longitude:     float64(int32(binary.BigEndian.Uint32(data[9:13]))) / 1000000.0,     // #nosec G115 
-		Latitude:      float64(int32(binary.BigEndian.Uint32(data[13:17]))) / 1000000.0,      // #nosec G115
-		Temperature:   float64(int16(binary.BigEndian.Uint16(data[17:19]))) / 10.0,          // #nosec G115
-		Light:         binary.BigEndian.Uint16(data[19:21]),
-		BatteryLevel:  data[21],
+		EventStatus:   binary.BigEndian.Uint32(data[1:5]),  // 4 bytes (not 3 as per docs!)
+		MotionSegment: data[5],
+		UTCTime:       binary.BigEndian.Uint32(data[6:10]),
+		Longitude:     float64(int32(binary.BigEndian.Uint32(data[10:14]))) / 1000000.0, // #nosec G115
+		Latitude:      float64(int32(binary.BigEndian.Uint32(data[14:18]))) / 1000000.0,  // #nosec G115
+		Temperature:   float64(int16(binary.BigEndian.Uint16(data[18:20]))) / 10.0,       // #nosec G115
 	}
+
+	// Light field may be 1 or 2 bytes (at end of payload)
+	if len(data) >= 21 {
+		result.Light = uint16(data[20]) // 1 byte
+	}
+	if len(data) >= 22 {
+		result.Light = binary.BigEndian.Uint16(data[20:22]) // 2 bytes
+	}
+
+	// BatteryLevel is optional (byte after Light)
+	if len(data) >= 23 {
+		result.BatteryLevel = data[22]
+	}
+
 	return result, nil
 }
 
-// parseWiFILocationSensor parses 0x07 packet (42 bytes, 4 MACs)
+// parseWiFILocationSensor parses 0x07 packet (43 bytes, 4 MACs)
+// NOTE: Like GNSS, the actual device uses 4-byte EventStatus (not 3 as documented)
 func parseWiFILocationSensor(data []byte) (*T1000Payload, error) {
-	if len(data) < 42 {
-		return nil, fmt.Errorf("packet too short for WiFi location sensor")
+	if len(data) < 43 {
+		return nil, fmt.Errorf("packet too short for WiFi location sensor: got %d bytes, need at least 43", len(data))
 	}
 
 	result := &T1000Payload{
 		PacketID:      data[0],
-		EventStatus:   binary.BigEndian.Uint32(data[1:4]),
-		MotionSegment: data[4],
-		UTCTime:       binary.BigEndian.Uint32(data[5:9]),
-		Temperature:   float64(int16(binary.BigEndian.Uint16(data[36:38]))) / 10.0, // #nosec G115
-		Light:         binary.BigEndian.Uint16(data[38:40]),
-		BatteryLevel:  data[41],
+		EventStatus:   binary.BigEndian.Uint32(data[1:5]), // 4 bytes (actual device)
+		MotionSegment: data[5],
+		UTCTime:       binary.BigEndian.Uint32(data[6:10]),
+		Temperature:   float64(int16(binary.BigEndian.Uint16(data[37:39]))) / 10.0, // #nosec G115
+		Light:         binary.BigEndian.Uint16(data[39:41]),
+		BatteryLevel:  data[42],
 	}
 
-	// Parse 4 WiFi MAC addresses
+	// Parse 4 WiFi MAC addresses (each is 6 bytes MAC + 1 byte RSSI = 7 bytes)
 	for i := 0; i < 4; i++ {
-		offset := 9 + (i * 7)
+		offset := 10 + (i * 7) // Start at byte 10 (after UTCTime)
 		mac := fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
 			data[offset], data[offset+1], data[offset+2],
 			data[offset+3], data[offset+4], data[offset+5])
@@ -500,25 +515,25 @@ func parseWiFILocationSensor(data []byte) (*T1000Payload, error) {
 	return result, nil
 }
 
-// parseBluetoothLocationSensor parses 0x08 packet (35 bytes, 3 BLE MACs)
+// parseBluetoothLocationSensor parses 0x08 packet (36 bytes, 3 BLE MACs)
 func parseBluetoothLocationSensor(data []byte) (*T1000Payload, error) {
-	if len(data) < 35 {
-		return nil, fmt.Errorf("packet too short for Bluetooth location sensor")
+	if len(data) < 36 {
+		return nil, fmt.Errorf("packet too short for Bluetooth location sensor: got %d bytes, need at least 36", len(data))
 	}
 
 	result := &T1000Payload{
 		PacketID:      data[0],
-		EventStatus:   binary.BigEndian.Uint32(data[1:4]),
-		MotionSegment: data[4],
-		UTCTime:       binary.BigEndian.Uint32(data[5:9]),
-		Temperature:   float64(int16(binary.BigEndian.Uint16(data[29:31]))) / 10.0, // #nosec G115
-		Light:         binary.BigEndian.Uint16(data[31:33]),
-		BatteryLevel:  data[34],
+		EventStatus:   binary.BigEndian.Uint32(data[1:5]),
+		MotionSegment: data[5],
+		UTCTime:       binary.BigEndian.Uint32(data[6:10]),
+		Temperature:   float64(int16(binary.BigEndian.Uint16(data[30:32]))) / 10.0, // #nosec G115
+		Light:         binary.BigEndian.Uint16(data[32:34]),
+		BatteryLevel:  data[35],
 	}
 
-	// Parse 3 BLE MAC addresses
+	// Parse 3 BLE MAC addresses (each is 6 bytes MAC + 1 byte RSSI = 7 bytes)
 	for i := 0; i < 3; i++ {
-		offset := 9 + (i * 7)
+		offset := 10 + (i * 7) // Start at byte 10 (after UTCTime)
 		mac := fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
 			data[offset], data[offset+1], data[offset+2],
 			data[offset+3], data[offset+4], data[offset+5])
@@ -529,41 +544,41 @@ func parseBluetoothLocationSensor(data []byte) (*T1000Payload, error) {
 	return result, nil
 }
 
-// parseGNSSLocationOnly parses 0x09 packet (18 bytes)
+// parseGNSSLocationOnly parses 0x09 packet (19 bytes)
 func parseGNSSLocationOnly(data []byte) (*T1000Payload, error) {
-	if len(data) < 18 {
-		return nil, fmt.Errorf("packet too short for GNSS location only")
+	if len(data) < 19 {
+		return nil, fmt.Errorf("packet too short for GNSS location only: got %d bytes, need at least 19", len(data))
 	}
 
 	result := &T1000Payload{
 		PacketID:      data[0],
-		EventStatus:   binary.BigEndian.Uint32(data[1:4]),
-		MotionSegment: data[4],
-		UTCTime:       binary.BigEndian.Uint32(data[5:9]),
-		Longitude:     float64(int32(binary.BigEndian.Uint32(data[9:13]))) / 1000000.0, // #nosec G115
-		Latitude:      float64(int32(binary.BigEndian.Uint32(data[13:17]))) / 1000000.0,  // #nosec G115
-		BatteryLevel:  data[17],
+		EventStatus:   binary.BigEndian.Uint32(data[1:5]),
+		MotionSegment: data[5],
+		UTCTime:       binary.BigEndian.Uint32(data[6:10]),
+		Longitude:     float64(int32(binary.BigEndian.Uint32(data[10:14]))) / 1000000.0, // #nosec G115
+		Latitude:      float64(int32(binary.BigEndian.Uint32(data[14:18]))) / 1000000.0,  // #nosec G115
+		BatteryLevel:  data[18],
 	}
 	return result, nil
 }
 
-// parseWiFILocationOnly parses 0x0A packet (38 bytes, 4 MACs)
+// parseWiFILocationOnly parses 0x0A packet (39 bytes, 4 MACs)
 func parseWiFILocationOnly(data []byte) (*T1000Payload, error) {
-	if len(data) < 38 {
-		return nil, fmt.Errorf("packet too short for WiFi location only")
+	if len(data) < 39 {
+		return nil, fmt.Errorf("packet too short for WiFi location only: got %d bytes, need at least 39", len(data))
 	}
 
 	result := &T1000Payload{
 		PacketID:      data[0],
-		EventStatus:   binary.BigEndian.Uint32(data[1:4]),
-		MotionSegment: data[4],
-		UTCTime:       binary.BigEndian.Uint32(data[5:9]),
-		BatteryLevel:  data[37],
+		EventStatus:   binary.BigEndian.Uint32(data[1:5]),
+		MotionSegment: data[5],
+		UTCTime:       binary.BigEndian.Uint32(data[6:10]),
+		BatteryLevel:  data[38],
 	}
 
-	// Parse 4 WiFi MAC addresses
+	// Parse 4 WiFi MAC addresses (each is 6 bytes MAC + 1 byte RSSI = 7 bytes)
 	for i := 0; i < 4; i++ {
-		offset := 9 + (i * 7)
+		offset := 10 + (i * 7) // Start at byte 10 (after UTCTime)
 		mac := fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
 			data[offset], data[offset+1], data[offset+2],
 			data[offset+3], data[offset+4], data[offset+5])
@@ -574,23 +589,23 @@ func parseWiFILocationOnly(data []byte) (*T1000Payload, error) {
 	return result, nil
 }
 
-// parseBluetoothLocationOnly parses 0x0B packet (31 bytes, 3 BLE MACs)
+// parseBluetoothLocationOnly parses 0x0B packet (32 bytes, 3 BLE MACs)
 func parseBluetoothLocationOnly(data []byte) (*T1000Payload, error) {
-	if len(data) < 31 {
-		return nil, fmt.Errorf("packet too short for Bluetooth location only")
+	if len(data) < 32 {
+		return nil, fmt.Errorf("packet too short for Bluetooth location only: got %d bytes, need at least 32", len(data))
 	}
 
 	result := &T1000Payload{
 		PacketID:      data[0],
-		EventStatus:   binary.BigEndian.Uint32(data[1:4]),
-		MotionSegment: data[4],
-		UTCTime:       binary.BigEndian.Uint32(data[5:9]),
-		BatteryLevel:  data[30],
+		EventStatus:   binary.BigEndian.Uint32(data[1:5]),
+		MotionSegment: data[5],
+		UTCTime:       binary.BigEndian.Uint32(data[6:10]),
+		BatteryLevel:  data[31],
 	}
 
-	// Parse 3 BLE MAC addresses
+	// Parse 3 BLE MAC addresses (each is 6 bytes MAC + 1 byte RSSI = 7 bytes)
 	for i := 0; i < 3; i++ {
-		offset := 9 + (i * 7)
+		offset := 10 + (i * 7) // Start at byte 10 (after UTCTime)
 		mac := fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
 			data[offset], data[offset+1], data[offset+2],
 			data[offset+3], data[offset+4], data[offset+5])
@@ -614,20 +629,20 @@ func parseErrorCode(data []byte) (*T1000Payload, error) {
 	return result, nil
 }
 
-// parsePositioningStatusSensor parses 0x11 packet (14 bytes)
+// parsePositioningStatusSensor parses 0x11 packet (15 bytes)
 func parsePositioningStatusSensor(data []byte) (*T1000Payload, error) {
-	if len(data) < 14 {
-		return nil, fmt.Errorf("packet too short for positioning status sensor")
+	if len(data) < 15 {
+		return nil, fmt.Errorf("packet too short for positioning status sensor: got %d bytes, need at least 15", len(data))
 	}
 
 	result := &T1000Payload{
 		PacketID:       data[0],
 		PositionStatus: data[1],
-		EventStatus:    binary.BigEndian.Uint32(data[2:5]),
-		UTCTime:        binary.BigEndian.Uint32(data[5:9]),
-		Temperature:    float64(int16(binary.BigEndian.Uint16(data[9:11]))) / 10.0, // #nosec G115
-		Light:          binary.BigEndian.Uint16(data[11:13]),
-		BatteryLevel:   data[13],
+		EventStatus:    binary.BigEndian.Uint32(data[2:6]),
+		UTCTime:        binary.BigEndian.Uint32(data[6:10]),
+		Temperature:    float64(int16(binary.BigEndian.Uint16(data[10:12]))) / 10.0, // #nosec G115
+		Light:          binary.BigEndian.Uint16(data[12:14]),
+		BatteryLevel:   data[14],
 	}
 	return result, nil
 }
@@ -723,7 +738,12 @@ func decodePayloadBytes(encoded string) ([]byte, error) {
 		return decoded, nil
 	}
 
-	return nil, fmt.Errorf("failed to decode payload as hex")
+	// Try base64 decode
+	if decoded, err := base64.StdEncoding.DecodeString(encoded); err == nil && len(decoded) > 0 {
+		return decoded, nil
+	}
+
+	return nil, fmt.Errorf("failed to decode payload as hex or base64")
 }
 
 // validateCoordinates validates that coordinates are reasonable
