@@ -13,6 +13,7 @@ import (
 	"github.com/Space-DF/transformer-service/internal/services"
 
 	// Import component packages to trigger registration
+	_ "github.com/Space-DF/transformer-service/internal/components/abeeway"
 	_ "github.com/Space-DF/transformer-service/internal/components/dut"
 	_ "github.com/Space-DF/transformer-service/internal/components/rakwireless"
 	_ "github.com/Space-DF/transformer-service/internal/components/seeed"
@@ -168,6 +169,8 @@ func (r *Resolver) profileToDeviceType(profile string) components.DeviceType {
 		return components.DeviceTypeWLBV1
 	case "SENSECAP_T1000":
 		return components.DeviceTypeSenseCAP_T1000
+	case "ABEEWAY_INDUSTRIAL_TRACKER":
+		return components.DeviceTypeAbeewayIndustrialTracker
 	default:
 		return components.DeviceTypeUnknown
 	}
