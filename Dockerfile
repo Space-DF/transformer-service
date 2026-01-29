@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24.4-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.24.4-alpine AS builder
 
 # Install dependencies
 RUN apk add --no-cache git
@@ -16,8 +16,16 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/transformer
+# Build args from buildx
+ARG TARGETOS
+ARG TARGETARCH
+
+# Build static binary for correct platform
+RUN CGO_ENABLED=0 \
+    GOOS=$TARGETOS \
+    GOARCH=$TARGETARCH \
+    go build -trimpath -ldflags="-s -w" \
+    -o main ./cmd/transformer
 
 # Final stage
 FROM alpine:latest
