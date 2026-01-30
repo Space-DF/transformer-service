@@ -473,24 +473,25 @@ func (p *RAK4630Parser) decodeSensorReadings(payload *components.RawPayload) map
 	}
 
 	// Decode base64 CBOR data
-	if strings.TrimSpace(encoded) != "" {
-		raw, err := base64.StdEncoding.DecodeString(encoded)
-		if err != nil {
-			return nil
-		}
-
-		var m map[string]interface{}
-		if err := cbor.Unmarshal(raw, &m); err != nil {
-			return nil
-		}
-
-		// Extract sensor string from CBOR
-		if sensorStr, ok := m["sensor"].(string); ok {
-			if readings := parseRAK4630SensorString(sensorStr); len(readings) > 0 {
-				return readings
-			}
-		}
+	if strings.TrimSpace(encoded) == "" {
+		return nil
 	}
 
-	return nil
+	raw, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil
+	}
+
+	var m map[string]interface{}
+	if err := cbor.Unmarshal(raw, &m); err != nil {
+		return nil
+	}
+
+	// Extract sensor string from CBOR
+	sensorStr, ok := m["sensor"].(string)
+	if !ok {
+		return nil
+	}
+
+	return parseRAK4630SensorString(sensorStr)
 }

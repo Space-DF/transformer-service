@@ -14,8 +14,8 @@ const (
 	DeviceTypeRAK7200                  DeviceType = "RAK7200"
 	DeviceTypeRAK4630                  DeviceType = "RAK4630"
 	DeviceTypeWLBV1                    DeviceType = "WLBV1"
-	DeviceTypeAbeewayIndustrialTracker DeviceType = "Abeeway Industrial Tracker"
-	DeviceTypeSenseCAP_T1000           DeviceType = "SenseCAP T1000"
+	DeviceTypeAbeewayIndustrialTracker DeviceType = "ABEEWAY_INDUSTRIAL_TRACKER"
+	DeviceTypeSenseCAP_T1000           DeviceType = "SENSECAP_T1000"
 	DeviceTypeUnknown                  DeviceType = "UNKNOWN"
 )
 

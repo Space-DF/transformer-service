@@ -19,7 +19,7 @@ func NewIndustrialTrackerParser() *IndustrialTrackerParser {
 func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (*components.ParsedData, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = extractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI not found")
@@ -43,18 +43,20 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 
 	// Parse based on message type
 	switch abeewayPayload.MessageType {
-	case MsgTypePositioningStatus:
-		// Positioning Status message (0x01) - contains GPS data
-		// Data format: Type(1) + Status(1) + Lat(4) + Lon(4) + Alt(2) + Course(2) + Speed(2)
+	case MsgTypePosition:
+		// Position message (0x03) - GPS, WiFi, BLE or low power GPS position data
+		// Format: Header(5) + Type(1) + Status(1) + [Position data...]
 		if len(abeewayPayload.Data) >= 2 {
 			posType := abeewayPayload.Data[0]
-			status := abeewayPayload.Data[1]
+			posStatus := abeewayPayload.Data[1]
 
-			sensorData["positioning_status_type"] = fmt.Sprintf("0x%02X", posType)
-			sensorData["positioning_status"] = status
+			sensorData["position_type"] = fmt.Sprintf("0x%02X", posType)
+			sensorData["position_status"] = posStatus
 
-			// Parse GPS coordinates if data is long enough (min 17 bytes after type/status)
-			if len(abeewayPayload.Data) >= 17 {
+			// Parse GPS position data if available
+			if (posType == 0x00 || posType == 0x01 || posType == 0x04) && len(abeewayPayload.Data) >= 17 {
+				// GPS or Low Power GPS position
+				// Format: Type(1) + Status(1) + Lat(4) + Lon(4) + Alt(2) + Course(2) + Speed(2) + [Satellites(1)] + [HDOP(1)]
 				lat := bigEndianInt32(abeewayPayload.Data[2:6])
 				lon := bigEndianInt32(abeewayPayload.Data[6:10])
 				alt := bigEndianInt16(abeewayPayload.Data[10:12])
@@ -72,6 +74,9 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 					sensorData["speed"] = float64(speed)
 					sensorData["heading"] = float64(course)
 
+					// Check for GPS fix validity (bit 0 of status)
+					sensorData["gps_fix_valid"] = (posStatus & 0x01) != 0
+
 					if validateCoordinates(latitude, longitude) == nil {
 						location = &components.Location{
 							Latitude:  latitude,
@@ -81,7 +86,101 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 					}
 				}
 
-				sensorData["gps_fix_valid"] = (status & 0x01) != 0
+				// Extract satellites if available
+				if len(abeewayPayload.Data) >= 18 {
+					sensorData["satellites"] = int(abeewayPayload.Data[17])
+				}
+				// Extract HDOP for accuracy if available
+				if len(abeewayPayload.Data) >= 19 {
+					hdop := float64(abeewayPayload.Data[18]) / 10.0
+					sensorData["hdop"] = hdop
+					sensorData["accuracy"] = hdop * 5
+				}
+			} else if posType == 0x09 && len(abeewayPayload.Data) >= 13 {
+				// WiFi fingerprinting position
+				// Format: Type(1) + Status(1) + Lat(4) + Lon(4) + Age(2) + NbrBSSID(1) + BSSIDList...
+				lat := bigEndianInt32(abeewayPayload.Data[2:6])
+				lon := bigEndianInt32(abeewayPayload.Data[6:10])
+				age := int(binary.BigEndian.Uint16(abeewayPayload.Data[10:12]))
+				nbrBSSID := int(abeewayPayload.Data[12])
+
+				sensorData["position_age"] = age
+				sensorData["wifi_bssid_count"] = nbrBSSID
+
+				// Check if WiFi fix is valid
+				if (posStatus & 0x01) != 0 && lat != 0 && lon != 0 {
+					latitude := float64(lat) / 10000000.0
+					longitude := float64(lon) / 10000000.0
+					sensorData["latitude"] = latitude
+					sensorData["longitude"] = longitude
+					sensorData["accuracy"] = 100
+
+					if validateCoordinates(latitude, longitude) == nil {
+						location = &components.Location{
+							Latitude:  latitude,
+							Longitude: longitude,
+						}
+					}
+				}
+
+				// Parse BSSID list (each BSSID is 6 bytes)
+				offset := 13
+				bssids := make([]string, 0)
+				for i := 0; i < nbrBSSID && offset+6 <= len(abeewayPayload.Data); i++ {
+					bssid := fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
+						abeewayPayload.Data[offset], abeewayPayload.Data[offset+1], abeewayPayload.Data[offset+2],
+						abeewayPayload.Data[offset+3], abeewayPayload.Data[offset+4], abeewayPayload.Data[offset+5])
+					bssids = append(bssids, bssid)
+					offset += 6
+				}
+				if len(bssids) > 0 {
+					sensorData["wifi_bssids"] = bssids
+				}
+			} else if posType == 0x07 && len(abeewayPayload.Data) >= 13 {
+				// BLE beacon position
+				// Format: Type(1) + Status(1) + Lat(4) + Lon(4) + Age(2) + NbrBeacons(1) + Beacons...
+				lat := bigEndianInt32(abeewayPayload.Data[2:6])
+				lon := bigEndianInt32(abeewayPayload.Data[6:10])
+				age := int(binary.BigEndian.Uint16(abeewayPayload.Data[10:12]))
+				nbrBeacons := int(abeewayPayload.Data[12])
+
+				sensorData["position_age"] = age
+				sensorData["ble_beacon_count"] = nbrBeacons
+
+				// Check if BLE fix is valid
+				if (posStatus & 0x01) != 0 && lat != 0 && lon != 0 {
+					latitude := float64(lat) / 10000000.0
+					longitude := float64(lon) / 10000000.0
+					sensorData["latitude"] = latitude
+					sensorData["longitude"] = longitude
+					sensorData["accuracy"] = 50
+
+					if validateCoordinates(latitude, longitude) == nil {
+						location = &components.Location{
+							Latitude:  latitude,
+							Longitude: longitude,
+						}
+					}
+				}
+
+				// Parse beacon list
+				offset := 13
+				beacons := make([]map[string]interface{}, 0)
+				for i := 0; i < nbrBeacons && offset+14 <= len(abeewayPayload.Data); i++ {
+					beacon := map[string]interface{}{
+						"mac": fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
+							abeewayPayload.Data[offset], abeewayPayload.Data[offset+1], abeewayPayload.Data[offset+2],
+							abeewayPayload.Data[offset+3], abeewayPayload.Data[offset+4], abeewayPayload.Data[offset+5]),
+						"rssi":  int(int8(abeewayPayload.Data[offset+6])),
+						"major": int(binary.BigEndian.Uint16(abeewayPayload.Data[offset+7:offset+9])),
+						"minor": int(binary.BigEndian.Uint16(abeewayPayload.Data[offset+9:offset+11])),
+					}
+					beacons = append(beacons, beacon)
+					offset += 14
+				}
+				if len(beacons) > 0 {
+					sensorData["ble_beacons"] = beacons
+				}
 			}
 		}
 
@@ -91,55 +190,9 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 		sensorData["temperature"] = decodeTemperature(abeewayPayload.Temperature)
 		sensorData["status"] = decodeStatus(abeewayPayload.Status)
 
-	case MsgTypeHeartbeat:
-		// Heartbeat message - basic status
-		sensorData["message_type"] = GetMessageTypeName(abeewayPayload.MessageType)
-		sensorData["battery_voltage"] = decodeBattery(abeewayPayload.Battery)
-		sensorData["battery_percent"] = decodeBatteryPercent(abeewayPayload.Battery)
-		sensorData["temperature"] = decodeTemperature(abeewayPayload.Temperature)
-		sensorData["status"] = decodeStatus(abeewayPayload.Status)
-
-	case MsgTypePosition:
-		// Position message - contains GPS/WiFi/BLE data
-		posData, err := parsePositionData(abeewayPayload.Data)
-		if err == nil && posData != nil {
-			sensorData["position_type"] = posData.Type
-			sensorData["position_source"] = posData.Type
-
-			if posData.Latitude != 0 || posData.Longitude != 0 {
-				if validateCoordinates(posData.Latitude, posData.Longitude) == nil {
-					location = &components.Location{
-						Latitude:  posData.Latitude,
-						Longitude: posData.Longitude,
-						Altitude:  posData.Altitude,
-					}
-					sensorData["latitude"] = posData.Latitude
-					sensorData["longitude"] = posData.Longitude
-					sensorData["altitude"] = posData.Altitude
-					sensorData["accuracy"] = posData.Accuracy
-					sensorData["speed"] = posData.Speed
-					sensorData["heading"] = posData.Heading
-					sensorData["satellites"] = posData.Satellites
-				}
-			}
-
-			if len(posData.BSSIDList) > 0 {
-				sensorData["wifi_bssids"] = posData.BSSIDList
-			}
-
-			if len(posData.BLEData) > 0 {
-				sensorData["ble_beacons"] = posData.BLEData
-			}
-		}
-
-		// Also include battery and temp from header
-		sensorData["battery_voltage"] = decodeBattery(abeewayPayload.Battery)
-		sensorData["battery_percent"] = decodeBatteryPercent(abeewayPayload.Battery)
-		sensorData["temperature"] = decodeTemperature(abeewayPayload.Temperature)
-		sensorData["status"] = decodeStatus(abeewayPayload.Status)
-
-	case MsgTypeEnergyStatus:
-		// Energy status message - detailed battery info
+	case MsgTypeStatus:
+		// Status message (0x04) - power and health status of the tracker
+		// Format: BatteryMv(2) + Temperature(1) + MainSupply(1) + PowerMode(1)
 		energyData, err := parseEnergyStatus(abeewayPayload.Data)
 		if err == nil {
 			sensorData["battery_voltage"] = energyData.BatteryVoltage
@@ -150,26 +203,80 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 			sensorData["power_consumption"] = energyData.PowerConsumption
 		}
 
-	case MsgTypeActivityConfig:
-		// Activity status or configuration message
-		// Differentiate by checking data length
+	case MsgTypeHeartbeat:
+		// Heartbeat message (0x05) - notify that tracker is operational
+		// Format: Header(5) + ResetCause(1) + FirmwareVer(3)
+		sensorData["message_type"] = GetMessageTypeName(abeewayPayload.MessageType)
+		sensorData["battery_voltage"] = decodeBattery(abeewayPayload.Battery)
+		sensorData["battery_percent"] = decodeBatteryPercent(abeewayPayload.Battery)
+		sensorData["temperature"] = decodeTemperature(abeewayPayload.Temperature)
+		sensorData["status"] = decodeStatus(abeewayPayload.Status)
+
+		// Parse heartbeat-specific data if available
+		if len(abeewayPayload.Data) >= 1 {
+			sensorData["reset_cause"] = abeewayPayload.Data[0]
+		}
 		if len(abeewayPayload.Data) >= 4 {
-			// Could be activity counter or configuration
-			sensorData["message_type"] = "Activity/Configuration"
-			sensorData["battery_voltage"] = decodeBattery(abeewayPayload.Battery)
-			sensorData["battery_percent"] = decodeBatteryPercent(abeewayPayload.Battery)
-			sensorData["temperature"] = decodeTemperature(abeewayPayload.Temperature)
-			sensorData["status"] = decodeStatus(abeewayPayload.Status)
+			sensorData["firmware_version"] = fmt.Sprintf("%d.%d.%d",
+				abeewayPayload.Data[1], abeewayPayload.Data[2], abeewayPayload.Data[3])
+		}
+
+	case MsgTypeActivityStatus:
+		// Activity Status/Config/Shock/BLE MAC address message (0x07)
+		// Multiple sub-types share this message type
+		sensorData["message_type"] = "Activity Status/Configuration"
+		sensorData["battery_voltage"] = decodeBattery(abeewayPayload.Battery)
+		sensorData["battery_percent"] = decodeBatteryPercent(abeewayPayload.Battery)
+		sensorData["temperature"] = decodeTemperature(abeewayPayload.Temperature)
+		sensorData["status"] = decodeStatus(abeewayPayload.Status)
+
+		// Parse activity data if available
+		if len(abeewayPayload.Data) >= 4 {
+			// Could be activity counter, configuration, shock data, or BLE MAC
+			sensorData["activity_data"] = fmt.Sprintf("%x", abeewayPayload.Data[:min(4, len(abeewayPayload.Data))])
 		}
 
 	case MsgTypeShutdown:
+		// Shutdown message (0x09) - sent when tracker is set off
 		sensorData["message_type"] = "Shutdown"
-		sensorData["shutdown_reason"] = fmt.Sprintf("0x%02X", abeewayPayload.Data)
+		sensorData["shutdown"] = true
+		if len(abeewayPayload.Data) >= 1 {
+			sensorData["shutdown_reason"] = abeewayPayload.Data[0]
+		}
 
-	case MsgTypeGeolocStart:
-		sensorData["message_type"] = "Geolocation Start"
+	case MsgTypeEvent:
+		// Event message (0x0A) - sends event information about tracker
+		sensorData["message_type"] = "Event"
+		if len(abeewayPayload.Data) >= 1 {
+			sensorData["event_type"] = abeewayPayload.Data[0]
+		}
+
+	case MsgTypeCollectionScan:
+		// Collection scan message (0x0B) - WIFI or BLE collection scan data
+		sensorData["message_type"] = "Collection Scan"
+
+	case MsgTypeExtendedPosition:
+		// Extended Position message (0x0E) - GPS, WiFi, or BLE position
+		sensorData["message_type"] = "Extended Position"
+		// Parse as regular position for now
+		posData, err := parsePositionData(abeewayPayload.Data)
+		if err == nil && posData != nil {
+			if posData.Latitude != 0 || posData.Longitude != 0 {
+				if validateCoordinates(posData.Latitude, posData.Longitude) == nil {
+					location = &components.Location{
+						Latitude:  posData.Latitude,
+						Longitude: posData.Longitude,
+						Altitude:  posData.Altitude,
+					}
+					sensorData["latitude"] = posData.Latitude
+					sensorData["longitude"] = posData.Longitude
+					sensorData["altitude"] = posData.Altitude
+				}
+			}
+		}
 
 	case MsgTypeFramePending:
+		// Frame pending message (0x00) - trigger sending
 		sensorData["message_type"] = "Frame Pending"
 
 	default:
@@ -221,7 +328,7 @@ func (p *IndustrialTrackerParser) GetSupportedEntityTypes() []string {
 func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload *components.RawPayload, deviceLocation *components.Location) ([]components.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = extractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI is required")
@@ -262,6 +369,7 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 		Name:        "Battery Voltage",
 		State:       batteryVoltage,
 		UnitOfMeas:  "V",
+		Icon:        "mdi:battery",
 		DisplayType: []string{"chart", "gauge", "value"},
 		Attributes: map[string]interface{}{
 			"device_model": "Abeeway Industrial Tracker",
@@ -282,6 +390,7 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 		Name:        "Battery Level",
 		State:       batteryPercent,
 		UnitOfMeas:  "%",
+		Icon:        "mdi:battery",
 		DisplayType: []string{"chart", "gauge", "value", "slider"},
 		Attributes: map[string]interface{}{
 			"device_model": "Abeeway Industrial Tracker",
@@ -302,6 +411,7 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 		Name:        "Temperature",
 		State:       temperature,
 		UnitOfMeas:  "°C",
+		Icon:        "mdi:thermometer",
 		DisplayType: []string{"chart", "gauge", "value"},
 		Attributes: map[string]interface{}{
 			"device_model": "Abeeway Industrial Tracker",
@@ -329,6 +439,7 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 		DeviceClass: "status",
 		Name:        "Status",
 		State:       GetMessageTypeName(abeewayPayload.MessageType),
+		Icon:        "mdi:information",
 		Attributes:  statusAttrs,
 		Enabled:     true,
 		Timestamp:   timestamp,
@@ -346,6 +457,7 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 			DeviceClass: "safety",
 			Name:        "SOS Alert",
 			State:       sosActive,
+			Icon:        "mdi:alert-circle",
 			Attributes: map[string]interface{}{
 				"device_model": "Abeeway Industrial Tracker",
 			},
@@ -366,6 +478,7 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 			DeviceClass: "motion",
 			Name:        "Motion",
 			State:       isMoving,
+			Icon:        "mdi:run-fast",
 			Attributes: map[string]interface{}{
 				"device_model": "Abeeway Industrial Tracker",
 			},
@@ -374,125 +487,8 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 		})
 	}
 
-	// Parse message-specific data
+	// Parse message-specific data for entities
 	switch abeewayPayload.MessageType {
-	case MsgTypePositioningStatus:
-		// Positioning Status message (0x01) - parse GPS data directly
-		if len(abeewayPayload.Data) >= 17 {
-			posType := abeewayPayload.Data[0]
-			posStatus := abeewayPayload.Data[1]
-
-			lat := bigEndianInt32(abeewayPayload.Data[2:6])
-			lon := bigEndianInt32(abeewayPayload.Data[6:10])
-			alt := bigEndianInt16(abeewayPayload.Data[10:12])
-			course := binary.BigEndian.Uint16(abeewayPayload.Data[12:14])
-			speed := binary.BigEndian.Uint16(abeewayPayload.Data[14:16])
-
-			latitude := float64(lat) / 10000000.0
-			longitude := float64(lon) / 10000000.0
-
-			// Positioning Status Type Entity
-			entities = append(entities, components.Entity{
-				UniqueID: components.GenerateUniqueID(model, devEUI, "positioning_status_type"),
-				EntityID: components.GenerateEntityID(
-					"sensor",
-					orgSlug, "abeeway", modelID, devEUI, "positioning_status_type",
-				),
-				EntityType:  "sensor",
-				DeviceClass: "position_type",
-				Name:        "Positioning Status Type",
-				State:       fmt.Sprintf("0x%02X", posType),
-				Attributes: map[string]interface{}{
-					"device_model": "Abeeway Industrial Tracker",
-					"gps_fix_valid": (posStatus & 0x01) != 0,
-				},
-				Enabled:   true,
-				Timestamp: timestamp,
-			})
-
-			// Location Entity (if we have valid coordinates)
-			if latitude != 0 || longitude != 0 {
-				if validateCoordinates(latitude, longitude) == nil {
-					locationAttrs := map[string]interface{}{
-						"source":       "positioning_status",
-						"gps_capable":  true,
-						"device_model": "Abeeway Industrial Tracker",
-						"latitude":     latitude,
-						"longitude":    longitude,
-						"altitude":     float64(alt),
-						"gps_fix_valid": (posStatus & 0x01) != 0,
-					}
-
-					if course > 0 {
-						locationAttrs["heading"] = float64(course)
-					}
-					if speed > 0 {
-						locationAttrs["speed"] = float64(speed)
-					}
-
-					entities = append(entities, components.Entity{
-						UniqueID: components.GenerateUniqueID(model, devEUI, "location"),
-						EntityID: components.GenerateEntityID(
-							components.GetEntityDomain("location"),
-							orgSlug, "abeeway", modelID, devEUI, "location",
-						),
-						EntityType:  "location",
-						DeviceClass: "location",
-						Name:        "Location",
-						State:       "home",
-						DisplayType: []string{"map"},
-						Attributes:  locationAttrs,
-						Enabled:     true,
-						Timestamp:   timestamp,
-					})
-				}
-			}
-
-			// Speed Entity (if available)
-			if speed > 0 {
-				entities = append(entities, components.Entity{
-					UniqueID: components.GenerateUniqueID(model, devEUI, "speed"),
-					EntityID: components.GenerateEntityID(
-						"sensor",
-						orgSlug, "abeeway", modelID, devEUI, "speed",
-					),
-					EntityType:  "sensor",
-					DeviceClass: "speed",
-					Name:        "Speed",
-					State:       float64(speed),
-					UnitOfMeas:  "km/h",
-					DisplayType: []string{"gauge", "value"},
-					Attributes: map[string]interface{}{
-						"device_model": "Abeeway Industrial Tracker",
-					},
-					Enabled:   true,
-					Timestamp: timestamp,
-				})
-			}
-
-			// Heading Entity (if available)
-			if course > 0 {
-				entities = append(entities, components.Entity{
-					UniqueID: components.GenerateUniqueID(model, devEUI, "heading"),
-					EntityID: components.GenerateEntityID(
-						"sensor",
-						orgSlug, "abeeway", modelID, devEUI, "heading",
-					),
-					EntityType:  "sensor",
-					DeviceClass: "heading",
-					Name:        "Heading",
-					State:       float64(course),
-					UnitOfMeas:  "deg",
-					DisplayType: []string{"value"},
-					Attributes: map[string]interface{}{
-						"device_model": "Abeeway Industrial Tracker",
-					},
-					Enabled:   true,
-					Timestamp: timestamp,
-				})
-			}
-		}
-
 	case MsgTypePosition:
 		posData, err := parsePositionData(abeewayPayload.Data)
 		if err == nil && posData != nil {
@@ -507,6 +503,7 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 				DeviceClass: "position_type",
 				Name:        "Position Type",
 				State:       posData.Type,
+				Icon:        "mdi:crosshairs-gps",
 				Attributes: map[string]interface{}{
 					"device_model": "Abeeway Industrial Tracker",
 					"age_seconds":  posData.Age,
@@ -554,6 +551,7 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 						DeviceClass: "location",
 						Name:        "Location",
 						State:       "home", // Using "home" as default for Home Assistant compatibility
+						Icon:        "mdi:map-marker",
 						DisplayType: []string{"map"},
 						Attributes:  locationAttrs,
 						Enabled:     true,
@@ -575,6 +573,7 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 					Name:        "Speed",
 					State:       posData.Speed,
 					UnitOfMeas:  "km/h",
+					Icon:        "mdi:speedometer",
 					DisplayType: []string{"gauge", "value"},
 					Attributes: map[string]interface{}{
 						"device_model": "Abeeway Industrial Tracker",
@@ -597,6 +596,7 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 					Name:        "Heading",
 					State:       posData.Heading,
 					UnitOfMeas:  "deg",
+					Icon:        "mdi:compass",
 					DisplayType: []string{"value"},
 					Attributes: map[string]interface{}{
 						"device_model": "Abeeway Industrial Tracker",
@@ -607,7 +607,7 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 			}
 		}
 
-	case MsgTypeEnergyStatus:
+	case MsgTypeStatus:
 		energyData, err := parseEnergyStatus(abeewayPayload.Data)
 		if err == nil {
 			// Main Supply Entity
@@ -621,6 +621,7 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 				DeviceClass: "power",
 				Name:        "Main Supply",
 				State:       energyData.MainSupply,
+				Icon:        "mdi:power",
 				Attributes: map[string]interface{}{
 					"device_model": "Abeeway Industrial Tracker",
 				},
@@ -639,6 +640,7 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 				DeviceClass: "battery_charging",
 				Name:        "Charging",
 				State:       energyData.Charging,
+				Icon:        "mdi:battery-charging",
 				Attributes: map[string]interface{}{
 					"device_model": "Abeeway Industrial Tracker",
 				},
@@ -649,35 +651,6 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 	}
 
 	return entities, nil
-}
-
-// extractDevEUI extracts DevEUI from various payload formats
-func extractDevEUI(payload map[string]interface{}) string {
-	// Try TTN format: end_device_ids.dev_eui
-	if endDeviceIDs, ok := payload["end_device_ids"].(map[string]interface{}); ok {
-		if devEUI, ok := endDeviceIDs["dev_eui"].(string); ok {
-			return devEUI
-		}
-	}
-
-	// Try top-level dev_eui (snake_case)
-	if devEUI, ok := payload["dev_eui"].(string); ok {
-		return devEUI
-	}
-
-	// Try top-level devEui (camelCase)
-	if devEUI, ok := payload["devEui"].(string); ok {
-		return devEUI
-	}
-
-	// Try ChirpStack format: deviceInfo.devEui
-	if deviceInfo, ok := payload["deviceInfo"].(map[string]interface{}); ok {
-		if devEUI, ok := deviceInfo["devEui"].(string); ok {
-			return devEUI
-		}
-	}
-
-	return ""
 }
 
 // parseFromDecodedPayload extracts Abeeway data from pre-decoded payload metadata
@@ -699,11 +672,16 @@ func (p *IndustrialTrackerParser) parseFromDecodedPayload(metadata map[string]in
 	}
 
 	result := &AbeewayPayload{
-		MessageType: MsgTypePositioningStatus, // Default message type
+		MessageType: MsgTypePosition, // Default message type for position data
 	}
 
 	// Extract GPS data
 	if gps, ok := decoded["gps"].(map[string]interface{}); ok {
+		// For pre-decoded GPS data, we need to add type/status prefix bytes
+		// to match the PositioningStatus format: Type(1) + Status(1) + Lat(4) + Lon(4) + Alt(2) + Course(2) + Speed(2)
+		// Use GPS position type (0x01) and valid fix status (0x01)
+		result.Data = append(result.Data, 0x01, 0x01) // Type + Status prefix (2 bytes)
+
 		if lat, ok := gps["latitude"].(float64); ok {
 			latInt := int32(lat * 10000000)
 			result.Data = append(result.Data, byte(latInt>>24), byte(latInt>>16), byte(latInt>>8), byte(latInt))
@@ -716,14 +694,20 @@ func (p *IndustrialTrackerParser) parseFromDecodedPayload(metadata map[string]in
 			altInt := uint16(alt)
 			result.Data = append(result.Data, byte(altInt>>8), byte(altInt))
 		}
+		// Pad with zeros for course (2 bytes) + speed (2 bytes) to reach 16+ bytes total
+		result.Data = append(result.Data, 0x00, 0x00, 0x00, 0x00)
+		// Ensure we have at least 17 bytes by adding one more byte if needed
+		if len(result.Data) < 17 {
+			result.Data = append(result.Data, 0x00)
+		}
 	}
 
 	// Extract battery voltage
 	if battV, ok := decoded["battery_voltage"].(float64); ok {
-		// Convert voltage back to battery code (simplified)
-		result.Battery = byte((battV - 2.0) / 0.1)
-		if result.Battery > 100 {
-			result.Battery = 100
+		// Convert voltage back to battery code
+		result.Battery = byte((battV - 2.0) / 0.01)
+		if result.Battery > 255 {
+			result.Battery = 255
 		}
 	}
 
@@ -736,8 +720,8 @@ func (p *IndustrialTrackerParser) parseFromDecodedPayload(metadata map[string]in
 
 	// Extract temperature
 	if temp, ok := decoded["temperature"].(float64); ok {
-		// Convert temp back to temperature code (simplified)
-		result.Temperature = byte((temp + 20) * 2)
+		// Convert temp back to temperature code
+		result.Temperature = byte(temp * 2.0)
 	}
 
 	// Extract speed

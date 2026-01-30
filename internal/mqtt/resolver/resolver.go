@@ -119,7 +119,7 @@ func (r *Resolver) extractGPSFromDeviceParser(profile string, payload map[string
 
 	// Create raw payload structure for component system
 	rawPayload := &components.RawPayload{
-		DeviceEUI: extractDevEUIFromPayload(payload),
+		DeviceEUI: components.ExtractDevEUI(payload),
 		Timestamp: time.Now(),
 		Metadata:  payload,
 	}
@@ -141,16 +141,15 @@ func (r *Resolver) extractGPSFromDeviceParser(profile string, payload map[string
 		return nil, fmt.Errorf("failed to parse GPS data with component: %w", err)
 	}
 
-	// Convert to DeviceLocationData
-	if parsedData.Location == nil {
-		return nil, fmt.Errorf("no GPS location found in parsed data")
-	}
-
 	locationData := &models.DeviceLocationData{
-		Latitude:     parsedData.Location.Latitude,
-		Longitude:    parsedData.Location.Longitude,
 		DevEUI:       parsedData.DeviceEUI,
 		Organization: organization,
+	}
+
+	// Only set coordinates if they exist
+	if parsedData.Location != nil {
+		locationData.Latitude = parsedData.Location.Latitude
+		locationData.Longitude = parsedData.Location.Longitude
 	}
 
 	return locationData, nil
@@ -174,32 +173,6 @@ func (r *Resolver) profileToDeviceType(profile string) components.DeviceType {
 	default:
 		return components.DeviceTypeUnknown
 	}
-}
-
-// extractDevEUIFromPayload extracts DevEUI from various payload formats
-func extractDevEUIFromPayload(payload map[string]interface{}) string {
-	// Try multiple locations for device EUI
-	if endDeviceIDs, ok := payload["end_device_ids"].(map[string]interface{}); ok {
-		if devEUI, ok := endDeviceIDs["dev_eui"].(string); ok {
-			return devEUI
-		}
-	}
-
-	if devEUI, ok := payload["dev_eui"].(string); ok {
-		return devEUI
-	}
-
-	if devEUI, ok := payload["devEui"].(string); ok {
-		return devEUI
-	}
-
-	if deviceInfo, ok := payload["deviceInfo"].(map[string]interface{}); ok {
-		if devEUI, ok := deviceInfo["devEui"].(string); ok {
-			return devEUI
-		}
-	}
-
-	return ""
 }
 
 // ctx returns a background context for component operations
