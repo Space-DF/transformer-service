@@ -12,6 +12,8 @@ import (
 	"github.com/Space-DF/transformer-service/internal/components"
 )
 
+const coordScaleRAK = 1e7
+
 // RAK4630Parser handles parsing of RAK4630 device payloads
 type RAK4630Parser struct{}
 
@@ -378,8 +380,8 @@ func (p *RAK4630Parser) parseGPSCoordinates(payloadBytes []byte) (float64, float
 	latInt := int32(payloadBytes[0]) | int32(payloadBytes[1])<<8 | int32(payloadBytes[2])<<16 | int32(payloadBytes[3])<<24
 	lonInt := int32(payloadBytes[4]) | int32(payloadBytes[5])<<8 | int32(payloadBytes[6])<<16 | int32(payloadBytes[7])<<24
 
-	lat := float64(latInt) / 10000000.0
-	lon := float64(lonInt) / 10000000.0
+	lat := float64(latInt) / coordScaleRAK
+	lon := float64(lonInt) / coordScaleRAK
 
 	if err := p.validateCoordinates(lat, lon); err != nil {
 		return 0, 0, err
@@ -473,24 +475,25 @@ func (p *RAK4630Parser) decodeSensorReadings(payload *components.RawPayload) map
 	}
 
 	// Decode base64 CBOR data
-	if strings.TrimSpace(encoded) != "" {
-		raw, err := base64.StdEncoding.DecodeString(encoded)
-		if err != nil {
-			return nil
-		}
-
-		var m map[string]interface{}
-		if err := cbor.Unmarshal(raw, &m); err != nil {
-			return nil
-		}
-
-		// Extract sensor string from CBOR
-		if sensorStr, ok := m["sensor"].(string); ok {
-			if readings := parseRAK4630SensorString(sensorStr); len(readings) > 0 {
-				return readings
-			}
-		}
+	if strings.TrimSpace(encoded) == "" {
+		return nil
 	}
 
-	return nil
+	raw, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil
+	}
+
+	var m map[string]interface{}
+	if err := cbor.Unmarshal(raw, &m); err != nil {
+		return nil
+	}
+
+	// Extract sensor string from CBOR
+	sensorStr, ok := m["sensor"].(string)
+	if !ok {
+		return nil
+	}
+
+	return parseRAK4630SensorString(sensorStr)
 }

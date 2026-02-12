@@ -403,7 +403,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	}
 
 	// Extract devEUI first to check device profile
-	var devEUI string = c.parser.ExtractDevEUI(payload, locationPayload)
+	var devEUI string = components.ExtractDevEUI(payload)
 
 	// Add device_eui to span
 	span.SetAttributes(attribute.String("device_eui", devEUI))
@@ -766,6 +766,13 @@ func (c *Consumer) extractDataField(payload map[string]interface{}) string {
 				return d
 			}
 		}
+		if d, ok := decoded["data"].(string); ok && d != "" {
+			return d
+		}
+	}
+
+	if d, ok := payload["data"].(string); ok && d != "" {
+		return d
 	}
 
 	return ""

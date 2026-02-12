@@ -6,20 +6,24 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
-	"strings"
 )
 
-// Message type constants for Abeeway trackers
+// Message type constants for Abeeway Industrial Tracker AT2 v2.5
 const (
-	MsgTypePositioningStatus = 0x01 // GPS positioning status message
-	MsgTypeFramePending      = 0x00
-	MsgTypePosition          = 0x03
-	MsgTypeEnergyStatus      = 0x04
-	MsgTypeHeartbeat         = 0x05
-	MsgTypeActivityConfig    = 0x07
-	MsgTypeShutdown          = 0x09
-	MsgTypeGeolocStart       = 0x0A
-	MsgTypeDebug             = 0xFF
+	MsgTypeFramePending      = 0x00 // Frame pending - trigger sending
+	MsgTypePosition          = 0x03 // Position - GPS, low power GPS, WIFI or BLE position data
+	MsgTypeStatus            = 0x04 // Status - Power and health status of the tracker (was EnergyStatus)
+	MsgTypeHeartbeat         = 0x05 // Heartbeat - Notify that tracker is operational
+	MsgTypeActivityStatus    = 0x07 // Activity Status, Configuration, Shock detection, or BLE MAC address
+	MsgTypeShutdown          = 0x09 // Shutdown - Sent when tracker is set off
+	MsgTypeEvent             = 0x0A // Event - Sends event information about tracker (was GeolocStart)
+	MsgTypeCollectionScan    = 0x0B // Collection scan - WIFI or BLE collection scan data
+	MsgTypeExtendedPosition  = 0x0E // Extended Position - GPS, WiFi, BLE position
+	MsgTypeDebug             = 0x0F // Debug - Internal use only
+
+	// Legacy aliases for backward compatibility
+	MsgTypeEnergyStatus      = 0x04 // Deprecated: Use MsgTypeStatus
+	MsgTypeGeolocStart       = 0x0A // Deprecated: Use MsgTypeEvent
 )
 
 // Position data type constants
@@ -30,17 +34,20 @@ const (
 	PosTypeLowPower = 0x04
 )
 
+const coordScale = 1e7
+
 // Message type names
 var messageTypeNames = map[byte]string{
-	MsgTypePositioningStatus: "Positioning Status",
-	MsgTypeFramePending:      "Frame pending",
-	MsgTypePosition:          "Position message",
-	MsgTypeEnergyStatus:      "Energy status",
-	MsgTypeHeartbeat:         "Heartbeat",
-	MsgTypeActivityConfig:    "Activity/Config",
-	MsgTypeShutdown:          "Shutdown",
-	MsgTypeGeolocStart:       "Geolocation start",
-	MsgTypeDebug:             "Debug",
+	MsgTypeFramePending:     "Frame Pending",
+	MsgTypePosition:         "Position",
+	MsgTypeStatus:           "Status",
+	MsgTypeHeartbeat:        "Heartbeat",
+	MsgTypeActivityStatus:   "Activity Status/Config/Shock/BLE",
+	MsgTypeShutdown:         "Shutdown",
+	MsgTypeEvent:            "Event",
+	MsgTypeCollectionScan:   "Collection Scan",
+	MsgTypeExtendedPosition: "Extended Position",
+	MsgTypeDebug:            "Debug",
 }
 
 // Status bit masks
@@ -150,25 +157,13 @@ func decodePayloadBytes(encoded string) ([]byte, error) {
 		return nil, fmt.Errorf("empty payload data")
 	}
 
-	// Check for base64 padding first (= or == at the end)
-	// Base64 encoded payloads typically end with = for padding
-	if strings.HasSuffix(encoded, "=") {
-		// Remove all trailing padding to handle both valid and invalid padding
-		// Some payloads may have extra padding that makes Go's decoder fail
-		cleaned := strings.TrimRight(encoded, "=")
-		decoded, err := base64.StdEncoding.DecodeString(cleaned)
-		if err != nil {
-			// If still fails, try RawStdEncoding (no padding expected)
-			decoded, err = base64.RawStdEncoding.DecodeString(cleaned)
-			if err != nil {
-				return nil, fmt.Errorf("failed to decode base64 payload: %w", err)
-			}
-		}
+	// Try hex decode first
+	if decoded, err := hex.DecodeString(encoded); err == nil && len(decoded) > 0 {
 		return decoded, nil
 	}
 
-	// Try as hex for non-padded payloads
-	if decoded, err := hex.DecodeString(encoded); err == nil && len(decoded) > 0 {
+	// Try base64 decode with standard encoding
+	if decoded, err := base64.StdEncoding.DecodeString(encoded); err == nil && len(decoded) > 0 {
 		return decoded, nil
 	}
 
@@ -283,8 +278,8 @@ func parseGPSPosition(data []byte) (*PositionData, error) {
 
 	pos := &PositionData{
 		Type:     "gps",
-		Latitude: float64(lat) / 10000000.0,
-		Longitude: float64(lon) / 10000000.0,
+		Latitude: float64(lat) / coordScale,
+		Longitude: float64(lon) / coordScale,
 		Altitude: float64(alt),
 		Heading:  float64(course),
 		Speed:    float64(speed),
@@ -331,8 +326,8 @@ func parseWiFiPosition(data []byte) (*PositionData, error) {
 
 	// Check if WiFi fix is valid (bit 0 of status)
 	if status&0x01 != 0 && lat != 0 && lon != 0 {
-		pos.Latitude = float64(lat) / 10000000.0
-		pos.Longitude = float64(lon) / 10000000.0
+		pos.Latitude = float64(lat) / coordScale
+		pos.Longitude = float64(lon) / coordScale
 		pos.Accuracy = 100 
 	}
 
@@ -370,8 +365,8 @@ func parseBLEPosition(data []byte) (*PositionData, error) {
 
 	// Check if BLE fix is valid (bit 0 of status)
 	if status&0x01 != 0 && lat != 0 && lon != 0 {
-		pos.Latitude = float64(lat) / 10000000.0
-		pos.Longitude = float64(lon) / 10000000.0
+		pos.Latitude = float64(lat) / coordScale
+		pos.Longitude = float64(lon) / coordScale
 		pos.Accuracy = 50 // BLE positioning typically has ~50m accuracy
 	}
 

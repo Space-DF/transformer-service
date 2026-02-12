@@ -163,7 +163,7 @@ func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{
 
 // findDistance calculates distance based on RSSI and frequency
 func (ls *LocationService) findDistance(rssi int, frequency float64) float64 {
-	freqMHz := frequency / 1e6
+	freqMHz := frequency / 1_000_000
 	plD0 := 32.45 + 20*math.Log10(freqMHz)
 	pl := DefaultTxPower - float64(rssi)
 	logD := (pl - plD0) / (10 * DefaultPathLossExponent)
@@ -586,7 +586,7 @@ func (ls *LocationService) calculateIntersectionConfidence(d, r1, r2, area float
 
 // findDistanceImproved calculates distance with environmental factors consideration
 // func (ls *LocationService) findDistanceImproved(rssi int, frequency float64, environment string) float64 {
-// 	freqMHz := frequency / 1e6
+// 	freqMHz := frequency / 1_000_000
 // 	plD0 := 32.45 + 20*math.Log10(freqMHz)
 
 // 	// Adjust path loss exponent based on environment

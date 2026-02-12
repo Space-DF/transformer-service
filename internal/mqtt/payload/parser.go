@@ -46,18 +46,3 @@ func (p *Parser) Parse(msg amqp.Delivery) (payload map[string]interface{}, locat
 
 	return payload, locationPayload, nil
 }
-
-func (p *Parser) ExtractDevEUI(payload map[string]interface{}, locationPayload map[string]interface{}) string {
-	// For your data format, devEUI is consistently in decoded_raw_data.deviceInfo.devEui
-	if locationPayload == nil {
-		return ""
-	}
-
-	if deviceInfo, ok := locationPayload["deviceInfo"].(map[string]interface{}); ok {
-		if eui, ok := deviceInfo["devEui"].(string); ok && eui != "" {
-			return eui
-		}
-	}
-
-	return ""
-}
