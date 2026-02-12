@@ -12,6 +12,8 @@ import (
 	"github.com/Space-DF/transformer-service/internal/components"
 )
 
+const coordScaleRAK = 1e7
+
 // RAK4630Parser handles parsing of RAK4630 device payloads
 type RAK4630Parser struct{}
 
@@ -378,8 +380,8 @@ func (p *RAK4630Parser) parseGPSCoordinates(payloadBytes []byte) (float64, float
 	latInt := int32(payloadBytes[0]) | int32(payloadBytes[1])<<8 | int32(payloadBytes[2])<<16 | int32(payloadBytes[3])<<24
 	lonInt := int32(payloadBytes[4]) | int32(payloadBytes[5])<<8 | int32(payloadBytes[6])<<16 | int32(payloadBytes[7])<<24
 
-	lat := float64(latInt) / 10000000.0
-	lon := float64(lonInt) / 10000000.0
+	lat := float64(latInt) / coordScaleRAK
+	lon := float64(lonInt) / coordScaleRAK
 
 	if err := p.validateCoordinates(lat, lon); err != nil {
 		return 0, 0, err

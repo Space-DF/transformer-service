@@ -7,6 +7,8 @@ import (
 	"github.com/Space-DF/transformer-service/internal/components"
 )
 
+const coordScaleIT = 1e7
+
 // IndustrialTrackerParser handles parsing of Abeeway Industrial Tracker payloads
 type IndustrialTrackerParser struct{}
 
@@ -63,8 +65,8 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 				course := binary.BigEndian.Uint16(abeewayPayload.Data[12:14])
 				speed := binary.BigEndian.Uint16(abeewayPayload.Data[14:16])
 
-				latitude := float64(lat) / 10000000.0
-				longitude := float64(lon) / 10000000.0
+				latitude := float64(lat) / coordScaleIT
+				longitude := float64(lon) / coordScaleIT
 
 				// Only set location if we have valid coordinates (not 0,0)
 				if latitude != 0 || longitude != 0 {
@@ -109,8 +111,8 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 
 				// Check if WiFi fix is valid
 				if (posStatus & 0x01) != 0 && lat != 0 && lon != 0 {
-					latitude := float64(lat) / 10000000.0
-					longitude := float64(lon) / 10000000.0
+					latitude := float64(lat) / coordScaleIT
+					longitude := float64(lon) / coordScaleIT
 					sensorData["latitude"] = latitude
 					sensorData["longitude"] = longitude
 					sensorData["accuracy"] = 100
@@ -149,8 +151,8 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 
 				// Check if BLE fix is valid
 				if (posStatus & 0x01) != 0 && lat != 0 && lon != 0 {
-					latitude := float64(lat) / 10000000.0
-					longitude := float64(lon) / 10000000.0
+					latitude := float64(lat) / coordScaleIT
+					longitude := float64(lon) / coordScaleIT
 					sensorData["latitude"] = latitude
 					sensorData["longitude"] = longitude
 					sensorData["accuracy"] = 50

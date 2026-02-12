@@ -144,9 +144,9 @@ const (
 
 // Scaling constants
 const (
-	CoordinateScale = 10000000.0 // Coordinates are stored as int32 degrees * 1e8
-	TemperatureScale = 10.0     // Temperature is stored as int16 * 0.1°C
-	LightMaxValue   = 10000     // Light sensor max value (0-100% range)
+	CoordinateScale = 1e7
+	TemperatureScale = 10.0 // Temperature is stored as int16 * 0.1°C
+	LightMaxValue   = 10000 // Light sensor max value (0-100% range)
 )
 
 // ParseToEntities creates entities for T1000 device
@@ -646,8 +646,8 @@ func parseDeviceStatusEventMode(data []byte) (*T1000Payload, error) {
 		EnableTemperatureEvent:     data[27],
 		TemperatureEventUplinkInterval: binary.BigEndian.Uint16(data[28:30]),
 		TemperatureSampleInterval:   binary.BigEndian.Uint16(data[30:32]),
-		TemperatureThresholdMax:     int16(binary.BigEndian.Uint16(data[32:34])),
-		TemperatureThresholdMin:     int16(binary.BigEndian.Uint16(data[34:36])),
+		TemperatureThresholdMax:     int16(binary.BigEndian.Uint16(data[32:34])), // #nosec G115
+		TemperatureThresholdMin:     int16(binary.BigEndian.Uint16(data[34:36])), // #nosec G115
 		TemperatureWarningType:      data[36],
 		EnableLightEvent:           data[37],
 		LightEventUplinkInterval:   binary.BigEndian.Uint16(data[38:40]),
@@ -718,8 +718,8 @@ func parseGNSSLocationSensor(data []byte) (*T1000Payload, error) {
 		return nil, fmt.Errorf("packet too short for GNSS location sensor: got %d bytes, need at least %d", len(data), minLen)
 	}
 
-	rawLat := int32(binary.BigEndian.Uint32(data[9:13]))
-	rawLon := int32(binary.BigEndian.Uint32(data[13:17]))
+	rawLat := int32(binary.BigEndian.Uint32(data[9:13])) // #nosec G115
+	rawLon := int32(binary.BigEndian.Uint32(data[13:17])) // #nosec G115
 
 	lat := float64(rawLat) / CoordinateScale
 	lon := float64(rawLon) / CoordinateScale
@@ -852,8 +852,8 @@ func parseGNSSLocationOnly(data []byte) (*T1000Payload, error) {
 		return nil, fmt.Errorf("packet too short for GNSS location only: got %d bytes, need at least 18", len(data))
 	}
 
-	rawLat := int32(binary.BigEndian.Uint32(data[9:13]))
-	rawLon := int32(binary.BigEndian.Uint32(data[13:17]))
+	rawLat := int32(binary.BigEndian.Uint32(data[9:13])) // #nosec G115
+	rawLon := int32(binary.BigEndian.Uint32(data[13:17])) // #nosec G115
 
 	lat := float64(rawLat) / CoordinateScale
 	lon := float64(rawLon) / CoordinateScale

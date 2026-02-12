@@ -7,6 +7,8 @@ import (
 	"github.com/Space-DF/transformer-service/internal/components"
 )
 
+const coordScaleWLB = 1e7
+
 // WLBV1Parser handles parsing of WLB V1 device payloads
 type WLBV1Parser struct{}
 
@@ -255,8 +257,8 @@ func (p *WLBV1Parser) parseGPSCoordinates(payloadBytes []byte) (float64, float64
 	latInt := int32(payloadBytes[0]) | int32(payloadBytes[1])<<8 | int32(payloadBytes[2])<<16 | int32(payloadBytes[3])<<24
 	lonInt := int32(payloadBytes[4]) | int32(payloadBytes[5])<<8 | int32(payloadBytes[6])<<16 | int32(payloadBytes[7])<<24
 
-	lat := float64(latInt) / 10000000.0
-	lng := float64(lonInt) / 10000000.0
+	lat := float64(latInt) / coordScaleWLB
+	lng := float64(lonInt) / coordScaleWLB
 
 	if err := p.validateCoordinates(lat, lng); err != nil {
 		return 0, 0, err
