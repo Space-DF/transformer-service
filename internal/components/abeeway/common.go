@@ -374,7 +374,7 @@ func parseBLEPosition(data []byte) (*PositionData, error) {
 			MAC: fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
 				data[offset], data[offset+1], data[offset+2],
 				data[offset+3], data[offset+4], data[offset+5]),
-			RSSI:  int(int16(data[offset+6])),
+			RSSI:  int(int8(data[offset+6])),
 			Major: int(binary.BigEndian.Uint16(data[offset+7 : offset+9])),
 			Minor: int(binary.BigEndian.Uint16(data[offset+9 : offset+11])),
 		}
@@ -409,7 +409,7 @@ func parseEnergyStatus(data []byte) (*EnergyData, error) {
 
 // calculateBatteryPercent converts voltage to approximate percentage
 func calculateBatteryPercent(voltage float64) float64 {
-	const minVoltage = 3.0
+	const minVoltage = 2.8
 	const maxVoltage = 4.2
 	percent := ((voltage - minVoltage) / (maxVoltage - minVoltage)) * 100.0
 	return math.Max(0, math.Min(100, percent))

@@ -69,10 +69,7 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 				latitude := float64(lat) / coordScaleIT
 				longitude := float64(lon) / coordScaleIT
 
-				// Only set location if we have valid coordinates (not 0,0)
 				if latitude != 0 || longitude != 0 {
-					sensorData["latitude"] = latitude
-					sensorData["longitude"] = longitude
 					sensorData["altitude"] = float64(alt)
 					sensorData["speed"] = float64(speed)
 					sensorData["heading"] = float64(course)
@@ -81,6 +78,8 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 					sensorData["gps_fix_valid"] = (posStatus & 0x01) != 0
 
 					if validateCoordinates(latitude, longitude) == nil {
+						sensorData["latitude"] = latitude
+						sensorData["longitude"] = longitude
 						location = &components.Location{
 							Latitude:  latitude,
 							Longitude: longitude,
@@ -114,11 +113,11 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 				if (posStatus&0x01) != 0 && lat != 0 && lon != 0 {
 					latitude := float64(lat) / coordScaleIT
 					longitude := float64(lon) / coordScaleIT
-					sensorData["latitude"] = latitude
-					sensorData["longitude"] = longitude
 					sensorData["accuracy"] = 100
 
 					if validateCoordinates(latitude, longitude) == nil {
+						sensorData["latitude"] = latitude
+						sensorData["longitude"] = longitude
 						location = &components.Location{
 							Latitude:  latitude,
 							Longitude: longitude,
@@ -154,11 +153,11 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 				if (posStatus&0x01) != 0 && lat != 0 && lon != 0 {
 					latitude := float64(lat) / coordScaleIT
 					longitude := float64(lon) / coordScaleIT
-					sensorData["latitude"] = latitude
-					sensorData["longitude"] = longitude
 					sensorData["accuracy"] = 50
 
 					if validateCoordinates(latitude, longitude) == nil {
+						sensorData["latitude"] = latitude
+						sensorData["longitude"] = longitude
 						location = &components.Location{
 							Latitude:  latitude,
 							Longitude: longitude,
@@ -194,16 +193,37 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 		sensorData["status"] = decodeStatus(abeewayPayload.Status)
 
 	case MsgTypeStatus:
-		// Status message (0x04) - power and health status of the tracker
-		// Format: BatteryMv(2) + Temperature(1) + MainSupply(1) + PowerMode(1)
-		energyData, err := parseEnergyStatus(abeewayPayload.Data)
-		if err == nil {
-			sensorData["battery_voltage"] = energyData.BatteryVoltage
-			sensorData["battery_percent"] = energyData.BatteryLevel
-			sensorData["temperature"] = energyData.Temperature
-			sensorData["main_supply"] = energyData.MainSupply
-			sensorData["charging"] = energyData.Charging
-			sensorData["power_consumption"] = energyData.PowerConsumption
+		// Status message (0x04)
+		// In AT2 v2.5, battery/temp are present in the common header.
+		// The ACK low nibble identifies status subtype (0: basic, 1: health payload).
+		statusType := abeewayPayload.Ack & 0x0F
+		sensorData["message_type"] = GetMessageTypeName(abeewayPayload.MessageType)
+		sensorData["status_type"] = int(statusType)
+		sensorData["battery_voltage"] = decodeBattery(abeewayPayload.Battery)
+		sensorData["battery_percent"] = decodeBatteryPercent(abeewayPayload.Battery)
+		sensorData["temperature"] = decodeTemperature(abeewayPayload.Temperature)
+		sensorData["status"] = decodeStatus(abeewayPayload.Status)
+
+		// Health status subtype payload:
+		// TotalPower(2) + MaxTemp(1) + MinTemp(1) + LoRa(2) + BLE(2) + GPS(2) + WiFi(2) + BattMv(2)
+		if statusType == 0x01 && len(abeewayPayload.Data) >= 14 {
+			totalPower := int(binary.BigEndian.Uint16(abeewayPayload.Data[0:2]))
+			maxTemp := decodeTemperature(abeewayPayload.Data[2])
+			minTemp := decodeTemperature(abeewayPayload.Data[3])
+			loraPower := int(binary.BigEndian.Uint16(abeewayPayload.Data[4:6]))
+			blePower := int(binary.BigEndian.Uint16(abeewayPayload.Data[6:8]))
+			gpsPower := int(binary.BigEndian.Uint16(abeewayPayload.Data[8:10]))
+			wifiPower := int(binary.BigEndian.Uint16(abeewayPayload.Data[10:12]))
+			battMV := int(binary.BigEndian.Uint16(abeewayPayload.Data[12:14]))
+
+			sensorData["total_power"] = totalPower
+			sensorData["max_temperature"] = maxTemp
+			sensorData["min_temperature"] = minTemp
+			sensorData["lora_power"] = loraPower
+			sensorData["ble_power"] = blePower
+			sensorData["gps_power"] = gpsPower
+			sensorData["wifi_power"] = wifiPower
+			sensorData["battery_mv"] = battMV
 		}
 
 	case MsgTypeHeartbeat:
@@ -611,46 +631,8 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 		}
 
 	case MsgTypeStatus:
-		energyData, err := parseEnergyStatus(abeewayPayload.Data)
-		if err == nil {
-			// Main Supply Entity
-			entities = append(entities, components.Entity{
-				UniqueID: components.GenerateUniqueID(model, devEUI, "main_supply"),
-				EntityID: components.GenerateEntityID(
-					"binary_sensor",
-					orgSlug, "abeeway", modelID, devEUI, "main_supply",
-				),
-				EntityType:  "binary_sensor",
-				DeviceClass: "power",
-				Name:        "Main Supply",
-				State:       energyData.MainSupply,
-				Icon:        "mdi:power",
-				Attributes: map[string]interface{}{
-					"device_model": "Abeeway Industrial Tracker",
-				},
-				Enabled:   true,
-				Timestamp: timestamp,
-			})
-
-			// Charging Entity
-			entities = append(entities, components.Entity{
-				UniqueID: components.GenerateUniqueID(model, devEUI, "charging"),
-				EntityID: components.GenerateEntityID(
-					"binary_sensor",
-					orgSlug, "abeeway", modelID, devEUI, "charging",
-				),
-				EntityType:  "binary_sensor",
-				DeviceClass: "battery_charging",
-				Name:        "Charging",
-				State:       energyData.Charging,
-				Icon:        "mdi:battery-charging",
-				Attributes: map[string]interface{}{
-					"device_model": "Abeeway Industrial Tracker",
-				},
-				Enabled:   true,
-				Timestamp: timestamp,
-			})
-		}
+		// AT2 v2.5 status messages do not expose legacy main-supply/charging flags
+		// in the current simulator payload format, so no extra binary entities are created here.
 	}
 
 	return entities, nil
