@@ -43,7 +43,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}},value=${{ env.RELEASE_TAG }}
+            type=semver,pattern={{version}},value=${{ env.RELEASE_TAG }}]
 
       - name: Build & Push Docker Image
         uses: docker/build-push-action@v5
