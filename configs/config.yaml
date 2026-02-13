@@ -1,0 +1,29 @@
+# Server Configuration
+server:
+  log_level: "info"
+
+# AMQP Consumer Configuration - Using existing amq.topic from MQTT
+amqp:
+  broker_url: "amqp://default:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/"
+  allowed_vhosts: []
+  exchange: "amq.topic"
+  output_topics:
+    - "tenant.*.transformed.device.location"
+    - "tenant.*.transformed.telemetry.device.location"
+  entity_bridge_routing_key: "tenant.%s.space.%s.entity.%s.telemetry"
+  consumer_tag: "transformer-service"
+  prefetch_count: 10
+  auto_ack: false
+
+# Organization Events Configuration
+org_events:
+  exchange: "org.events"  # Topic exchange for org events
+  queue: "transformer.org.events.queue"  # Transformer's queue for org events
+  routing_key: "org.#"  # Listen to all org events
+  consumer_tag: "transformer-org-events"
+
+# OpenTelemetry Configuration
+opentelemetry:
+  endpoint: "signoz-otel-collector:4317"
+  environment: "development"
+  sampling_ratio: 1.0
