@@ -3,6 +3,7 @@ package abeeway
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 
 	"github.com/Space-DF/transformer-service/internal/components"
 )
@@ -792,8 +793,14 @@ func (p *IndustrialTrackerParser) parseFromDecodedPayload(metadata map[string]in
 
 	// Extract battery voltage
 	if battV, ok := decoded["battery_voltage"].(float64); ok {
-		// Keep existing backend conversion for compatibility.
-		result.Battery = byte((battV - 2.0) / 0.01)
+		raw := int(math.Round((battV - 2.8) / 0.0055))
+		if raw < 0 {
+			raw = 0
+		}
+		if raw > 255 {
+			raw = 255
+		}
+		result.Battery = byte(raw)
 		if result.Battery > 255 {
 			result.Battery = 255
 		}
@@ -808,8 +815,14 @@ func (p *IndustrialTrackerParser) parseFromDecodedPayload(metadata map[string]in
 
 	// Extract temperature
 	if temp, ok := decoded["temperature"].(float64); ok {
-		// Convert temp back to temperature code
-		result.Temperature = byte(temp * 2.0)
+		raw := int(math.Round((temp + 44.0) * 2.0))
+		if raw < 0 {
+			raw = 0
+		}
+		if raw > 255 {
+			raw = 255
+		}
+		result.Temperature = byte(raw)
 	}
 
 	// Extract speed (only if position buffer hasn't been constructed yet)
@@ -857,7 +870,7 @@ func (p *IndustrialTrackerParser) parseFromRawData(payload *components.RawPayloa
 	// MsgType(1) + Status(1) + Battery(1) + Temp(1) + AckOpt(1) + Age(1) + Lat24(3) + Lon24(3) + EHPE(1) + Res(2)
 	// Backend parser expects PositioningStatus-like Data:
 	// Type(1) + Status(1) + Lat32(4) + Lon32(4) + Alt(2) + Course(2) + Speed(2) + [Sat(1)] + [HDOP(1)]
-	if parsed.MessageType == MsgTypePosition && len(parsed.Data) == 10 {
+	if (parsed.MessageType == MsgTypePosition || parsed.MessageType == MsgTypeExtendedPosition) && len(parsed.Data) == 10 {
 		posType := parsed.Ack & 0x0F
 		if posType == 0x00 {
 			decodeSigned24 := func(b0, b1, b2 byte) int32 {
@@ -875,13 +888,20 @@ func (p *IndustrialTrackerParser) parseFromRawData(payload *components.RawPayloa
 			lon32 := lonRaw24 << 8
 
 			legacy := make([]byte, 0, 19)
-			legacy = append(legacy, posType, parsed.Status)
+			legacy = append(legacy, posType, 0x01)
 			legacy = append(legacy, byte(lat32>>24), byte(lat32>>16), byte(lat32>>8), byte(lat32))
 			legacy = append(legacy, byte(lon32>>24), byte(lon32>>16), byte(lon32>>8), byte(lon32))
 			// Altitude + Course + Speed (unknown in compact payload -> 0)
-			legacy = append(legacy, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+			course := uint16(0)
+			speed := uint16(0)
+			// Extended position includes speed and heading bytes in compact format.
+			if parsed.MessageType == MsgTypeExtendedPosition {
+				speed = uint16(parsed.Data[8])
+				course = uint16(math.Round(float64(parsed.Data[9]) * 360.0 / 255.0))
+			}
+			legacy = append(legacy, 0x00, 0x00, byte(course>>8), byte(course), byte(speed>>8), byte(speed))
 			// Satellites + HDOP placeholders
-			legacy = append(legacy, 0x00, 0x00)
+			legacy = append(legacy, 0x00, parsed.Data[7])
 			parsed.Data = legacy
 		}
 	}

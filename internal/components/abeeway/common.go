@@ -50,13 +50,12 @@ var messageTypeNames = map[byte]string{
 	MsgTypeDebug:            "Debug",
 }
 
-// Status bit masks
+// Status bit masks (AT2 v2.5)
 const (
-	StatusSOSBit              = 0x10 // Bit 4: SOS mode active
-	StatusTrackingIdleBit     = 0x08 // Bit 3: Tracking/idle state
-	StatusTrackerMovingBit    = 0x04 // Bit 2: Tracker is moving
-	StatusPeriodicPositionBit = 0x02 // Bit 1: Periodic position message
-	StatusPODMessageBit       = 0x01 // Bit 0: Position on demand
+	StatusTrackerMovingBit    = 0x80 // Bit 7: Tracker is moving
+	StatusPeriodicPositionBit = 0x40 // Bit 6: Periodic position message
+	StatusPODMessageBit       = 0x20 // Bit 5: Position on demand
+	StatusOperatingModeMask   = 0x1F // Bits 0-4: Operating mode
 )
 
 // Operating mode values
@@ -193,41 +192,39 @@ func parseAbeewayHeader(bytes []byte) (*AbeewayPayload, error) {
 }
 
 // decodeBattery converts raw battery byte to voltage
-// Abeeway uses: Voltage (mV) = BatteryValue * 10 + 2000
+// AT2 v2.5 uses: Voltage (V) = raw * 0.0055 + 2.8
 // Returns voltage in volts
 func decodeBattery(battery byte) float64 {
-	voltageMV := float64(battery)*10.0 + 2000.0
-	return voltageMV / 1000.0
+	return float64(battery)*0.0055 + 2.8
 }
 
 // decodeBatteryPercent converts raw battery to percentage (approximate)
 // Based on Li-ion battery: 3.0V empty to 4.2V full
 func decodeBatteryPercent(battery byte) float64 {
 	voltage := decodeBattery(battery)
-	const minVoltage = 3.0
+	const minVoltage = 2.8
 	const maxVoltage = 4.2
 	percent := ((voltage - minVoltage) / (maxVoltage - minVoltage)) * 100.0
 	return math.Max(0, math.Min(100, percent))
 }
 
 // decodeTemperature converts raw temperature byte to Celsius
-// Temperature is signed, stored in 0.5°C steps
+// AT2 v2.5 uses: temp(°C) = raw * 0.5 - 44
 func decodeTemperature(temp byte) float64 {
-	if temp > 127 {
-		// Negative temperature (two's complement)
-		return float64(int16(temp)-256) / 2.0
-	}
-	return float64(temp) / 2.0
+	return float64(temp)*0.5 - 44.0
 }
 
 // decodeStatus decodes the status byte into individual flags
 func decodeStatus(status byte) map[string]interface{} {
+	mode := int(status & StatusOperatingModeMask)
 	return map[string]interface{}{
-		"sos_bit":               (status & StatusSOSBit) != 0,
-		"tracking_idle_bit":     (status & StatusTrackingIdleBit) != 0,
+		"sos_bit":               false,
+		"tracking_idle_bit":     mode == ModeStandby,
 		"tracker_is_moving_bit": (status & StatusTrackerMovingBit) != 0,
 		"periodic_position_bit": (status & StatusPeriodicPositionBit) != 0,
 		"pod_message_bit":       (status & StatusPODMessageBit) != 0,
+		"operating_mode":        mode,
+		"operating_mode_name":   GetModeName(mode),
 		"raw_status":            fmt.Sprintf("0x%02X", status),
 	}
 }
