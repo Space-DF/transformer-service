@@ -110,7 +110,7 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 				sensorData["wifi_bssid_count"] = nbrBSSID
 
 				// Check if WiFi fix is valid
-				if (posStatus & 0x01) != 0 && lat != 0 && lon != 0 {
+				if (posStatus&0x01) != 0 && lat != 0 && lon != 0 {
 					latitude := float64(lat) / coordScaleIT
 					longitude := float64(lon) / coordScaleIT
 					sensorData["latitude"] = latitude
@@ -150,7 +150,7 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 				sensorData["ble_beacon_count"] = nbrBeacons
 
 				// Check if BLE fix is valid
-				if (posStatus & 0x01) != 0 && lat != 0 && lon != 0 {
+				if (posStatus&0x01) != 0 && lat != 0 && lon != 0 {
 					latitude := float64(lat) / coordScaleIT
 					longitude := float64(lon) / coordScaleIT
 					sensorData["latitude"] = latitude
@@ -174,8 +174,8 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 							abeewayPayload.Data[offset], abeewayPayload.Data[offset+1], abeewayPayload.Data[offset+2],
 							abeewayPayload.Data[offset+3], abeewayPayload.Data[offset+4], abeewayPayload.Data[offset+5]),
 						"rssi":  int(int8(abeewayPayload.Data[offset+6])),
-						"major": int(binary.BigEndian.Uint16(abeewayPayload.Data[offset+7:offset+9])),
-						"minor": int(binary.BigEndian.Uint16(abeewayPayload.Data[offset+9:offset+11])),
+						"major": int(binary.BigEndian.Uint16(abeewayPayload.Data[offset+7 : offset+9])),
+						"minor": int(binary.BigEndian.Uint16(abeewayPayload.Data[offset+9 : offset+11])),
 					}
 					beacons = append(beacons, beacon)
 					offset += 14
@@ -659,31 +659,119 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 func (p *IndustrialTrackerParser) parseFromDecodedPayload(metadata map[string]interface{}) (*AbeewayPayload, error) {
 	var decoded map[string]interface{}
 
-	// Try decoded_payload at top level first
+	// Try common decoded payload paths across TTN/ChirpStack/custom wrappers.
 	if d, ok := metadata["decoded_payload"].(map[string]interface{}); ok {
 		decoded = d
+	} else if um, ok := metadata["uplink_message"].(map[string]interface{}); ok {
+		if d, ok := um["decoded_payload"].(map[string]interface{}); ok {
+			decoded = d
+		}
+	} else if d, ok := metadata["object"].(map[string]interface{}); ok {
+		decoded = d
 	} else if d, ok := metadata["decoded_raw_data"].(map[string]interface{}); ok {
-		// Then try decoded_raw_data.decoded_payload
 		if dp, ok := d["decoded_payload"].(map[string]interface{}); ok {
 			decoded = dp
+		} else if um, ok := d["uplink_message"].(map[string]interface{}); ok {
+			if dp, ok := um["decoded_payload"].(map[string]interface{}); ok {
+				decoded = dp
+			}
 		} else {
 			decoded = d
 		}
-	} else {
+	}
+
+	if decoded == nil {
 		return nil, fmt.Errorf("no decoded_payload found")
 	}
 
 	result := &AbeewayPayload{
-		MessageType: MsgTypePosition, // Default message type for position data
+		MessageType: MsgTypePosition,
 	}
 
-	// Extract GPS data
-	if gps, ok := decoded["gps"].(map[string]interface{}); ok {
-		// For pre-decoded GPS data, we need to add type/status prefix bytes
-		// to match the PositioningStatus format: Type(1) + Status(1) + Lat(4) + Lon(4) + Alt(2) + Course(2) + Speed(2)
-		// Use GPS position type (0x01) and valid fix status (0x01)
-		result.Data = append(result.Data, 0x01, 0x01) // Type + Status prefix (2 bytes)
+	// Map simulator decoded message_type to Abeeway message type.
+	if msg, ok := decoded["message_type"].(string); ok {
+		switch msg {
+		case "frame_pending":
+			result.MessageType = MsgTypeFramePending
+		case "position":
+			result.MessageType = MsgTypePosition
+		case "status", "energy_status":
+			result.MessageType = MsgTypeStatus
+		case "heartbeat":
+			result.MessageType = MsgTypeHeartbeat
+		case "activity":
+			result.MessageType = MsgTypeActivityStatus
+		case "shutdown":
+			result.MessageType = MsgTypeShutdown
+		case "event":
+			result.MessageType = MsgTypeEvent
+		case "collection_scan":
+			result.MessageType = MsgTypeCollectionScan
+		case "extended_position":
+			result.MessageType = MsgTypeExtendedPosition
+		case "debug":
+			result.MessageType = MsgTypeDebug
+		}
+	}
 
+	// Build position data from flat decoded fields used by nextjs-simulator.
+	lat, hasLat := decoded["latitude"].(float64)
+	lon, hasLon := decoded["longitude"].(float64)
+	if (result.MessageType == MsgTypePosition || result.MessageType == MsgTypeExtendedPosition) && hasLat && hasLon {
+		posType := byte(0x00)
+		if src, ok := decoded["position_source"].(string); ok {
+			switch src {
+			case "wifi":
+				posType = 0x09
+			case "ble":
+				posType = 0x07
+			case "low_power":
+				posType = 0x04
+			default:
+				posType = 0x00
+			}
+		}
+
+		// Type + valid status
+		result.Data = append(result.Data, posType, 0x01)
+
+		latInt := int32(lat * 10000000)
+		lonInt := int32(lon * 10000000)
+		result.Data = append(result.Data, byte(latInt>>24), byte(latInt>>16), byte(latInt>>8), byte(latInt))
+		result.Data = append(result.Data, byte(lonInt>>24), byte(lonInt>>16), byte(lonInt>>8), byte(lonInt))
+
+		altVal := 0.0
+		if alt, ok := decoded["altitude"].(float64); ok {
+			altVal = alt
+		}
+		altInt := int16(altVal)
+		result.Data = append(result.Data, byte(altInt>>8), byte(altInt))
+
+		courseVal := 0.0
+		if heading, ok := decoded["heading"].(float64); ok {
+			courseVal = heading
+		}
+		courseInt := uint16(courseVal)
+		result.Data = append(result.Data, byte(courseInt>>8), byte(courseInt))
+
+		speedVal := 0.0
+		if speed, ok := decoded["speed"].(float64); ok {
+			speedVal = speed
+		}
+		speedInt := uint16(speedVal)
+		result.Data = append(result.Data, byte(speedInt>>8), byte(speedInt))
+
+		if sats, ok := decoded["satellites"].(float64); ok {
+			result.Data = append(result.Data, byte(sats))
+		} else {
+			result.Data = append(result.Data, 0x00)
+		}
+	}
+
+	// Backward compatible extraction for nested decoded.gps object.
+	if gps, ok := decoded["gps"].(map[string]interface{}); ok && len(result.Data) == 0 {
+		result.MessageType = MsgTypePosition
+		result.Data = append(result.Data, 0x01, 0x01)
 		if lat, ok := gps["latitude"].(float64); ok {
 			latInt := int32(lat * 10000000)
 			result.Data = append(result.Data, byte(latInt>>24), byte(latInt>>16), byte(latInt>>8), byte(latInt))
@@ -696,9 +784,7 @@ func (p *IndustrialTrackerParser) parseFromDecodedPayload(metadata map[string]in
 			altInt := uint16(alt)
 			result.Data = append(result.Data, byte(altInt>>8), byte(altInt))
 		}
-		// Pad with zeros for course (2 bytes) + speed (2 bytes) to reach 16+ bytes total
 		result.Data = append(result.Data, 0x00, 0x00, 0x00, 0x00)
-		// Ensure we have at least 17 bytes by adding one more byte if needed
 		if len(result.Data) < 17 {
 			result.Data = append(result.Data, 0x00)
 		}
@@ -706,7 +792,7 @@ func (p *IndustrialTrackerParser) parseFromDecodedPayload(metadata map[string]in
 
 	// Extract battery voltage
 	if battV, ok := decoded["battery_voltage"].(float64); ok {
-		// Convert voltage back to battery code
+		// Keep existing backend conversion for compatibility.
 		result.Battery = byte((battV - 2.0) / 0.01)
 		if result.Battery > 255 {
 			result.Battery = 255
@@ -726,19 +812,19 @@ func (p *IndustrialTrackerParser) parseFromDecodedPayload(metadata map[string]in
 		result.Temperature = byte(temp * 2.0)
 	}
 
-	// Extract speed
-	if speed, ok := decoded["speed"].(float64); ok {
+	// Extract speed (only if position buffer hasn't been constructed yet)
+	if speed, ok := decoded["speed"].(float64); ok && len(result.Data) == 0 {
 		result.Data = append(result.Data, byte(speed))
 	}
 
-	// Extract heading
-	if heading, ok := decoded["heading"].(float64); ok {
+	// Extract heading (only if position buffer hasn't been constructed yet)
+	if heading, ok := decoded["heading"].(float64); ok && len(result.Data) == 0 {
 		headingInt := uint16(heading)
 		result.Data = append(result.Data, byte(headingInt>>8), byte(headingInt))
 	}
 
-	// Extract satellites
-	if sats, ok := decoded["satellites"].(float64); ok {
+	// Extract satellites (only if position buffer hasn't been constructed yet)
+	if sats, ok := decoded["satellites"].(float64); ok && len(result.Data) == 0 {
 		result.Data = append(result.Data, byte(sats))
 	}
 
@@ -762,5 +848,43 @@ func (p *IndustrialTrackerParser) parseFromRawData(payload *components.RawPayloa
 	}
 
 	// Parse Abeeway header
-	return parseAbeewayHeader(bytes)
+	parsed, err := parseAbeewayHeader(bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	// Compatibility: nextjs-simulator encodes GPS fix as compact Position payload:
+	// MsgType(1) + Status(1) + Battery(1) + Temp(1) + AckOpt(1) + Age(1) + Lat24(3) + Lon24(3) + EHPE(1) + Res(2)
+	// Backend parser expects PositioningStatus-like Data:
+	// Type(1) + Status(1) + Lat32(4) + Lon32(4) + Alt(2) + Course(2) + Speed(2) + [Sat(1)] + [HDOP(1)]
+	if parsed.MessageType == MsgTypePosition && len(parsed.Data) == 10 {
+		posType := parsed.Ack & 0x0F
+		if posType == 0x00 {
+			decodeSigned24 := func(b0, b1, b2 byte) int32 {
+				v := int32(b0)<<16 | int32(b1)<<8 | int32(b2)
+				if v&0x800000 != 0 {
+					v |= ^int32(0xFFFFFF)
+				}
+				return v
+			}
+
+			latRaw24 := decodeSigned24(parsed.Data[1], parsed.Data[2], parsed.Data[3])
+			lonRaw24 := decodeSigned24(parsed.Data[4], parsed.Data[5], parsed.Data[6])
+
+			lat32 := latRaw24 << 8
+			lon32 := lonRaw24 << 8
+
+			legacy := make([]byte, 0, 19)
+			legacy = append(legacy, posType, parsed.Status)
+			legacy = append(legacy, byte(lat32>>24), byte(lat32>>16), byte(lat32>>8), byte(lat32))
+			legacy = append(legacy, byte(lon32>>24), byte(lon32>>16), byte(lon32>>8), byte(lon32))
+			// Altitude + Course + Speed (unknown in compact payload -> 0)
+			legacy = append(legacy, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+			// Satellites + HDOP placeholders
+			legacy = append(legacy, 0x00, 0x00)
+			parsed.Data = legacy
+		}
+	}
+
+	return parsed, nil
 }

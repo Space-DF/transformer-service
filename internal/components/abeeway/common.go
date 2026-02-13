@@ -10,20 +10,20 @@ import (
 
 // Message type constants for Abeeway Industrial Tracker AT2 v2.5
 const (
-	MsgTypeFramePending      = 0x00 // Frame pending - trigger sending
-	MsgTypePosition          = 0x03 // Position - GPS, low power GPS, WIFI or BLE position data
-	MsgTypeStatus            = 0x04 // Status - Power and health status of the tracker (was EnergyStatus)
-	MsgTypeHeartbeat         = 0x05 // Heartbeat - Notify that tracker is operational
-	MsgTypeActivityStatus    = 0x07 // Activity Status, Configuration, Shock detection, or BLE MAC address
-	MsgTypeShutdown          = 0x09 // Shutdown - Sent when tracker is set off
-	MsgTypeEvent             = 0x0A // Event - Sends event information about tracker (was GeolocStart)
-	MsgTypeCollectionScan    = 0x0B // Collection scan - WIFI or BLE collection scan data
-	MsgTypeExtendedPosition  = 0x0E // Extended Position - GPS, WiFi, BLE position
-	MsgTypeDebug             = 0x0F // Debug - Internal use only
+	MsgTypeFramePending     = 0x00 // Frame pending - trigger sending
+	MsgTypePosition         = 0x03 // Position - GPS, low power GPS, WIFI or BLE position data
+	MsgTypeStatus           = 0x04 // Status - Power and health status of the tracker (was EnergyStatus)
+	MsgTypeHeartbeat        = 0x05 // Heartbeat - Notify that tracker is operational
+	MsgTypeActivityStatus   = 0x07 // Activity Status, Configuration, Shock detection, or BLE MAC address
+	MsgTypeShutdown         = 0x09 // Shutdown - Sent when tracker is set off
+	MsgTypeEvent            = 0x0A // Event - Sends event information about tracker (was GeolocStart)
+	MsgTypeCollectionScan   = 0x0B // Collection scan - WIFI or BLE collection scan data
+	MsgTypeExtendedPosition = 0x0E // Extended Position - GPS, WiFi, BLE position
+	MsgTypeDebug            = 0x0F // Debug - Internal use only
 
 	// Legacy aliases for backward compatibility
-	MsgTypeEnergyStatus      = 0x04 // Deprecated: Use MsgTypeStatus
-	MsgTypeGeolocStart       = 0x0A // Deprecated: Use MsgTypeEvent
+	MsgTypeEnergyStatus = 0x04 // Deprecated: Use MsgTypeStatus
+	MsgTypeGeolocStart  = 0x0A // Deprecated: Use MsgTypeEvent
 )
 
 // Position data type constants
@@ -61,12 +61,12 @@ const (
 
 // Operating mode values
 const (
-	ModeStandby               = 0
-	ModeMotionTracking        = 1
-	ModePermanentTracking     = 2
-	ModeMotionStartEnd        = 3
-	ModeActivityTracking      = 4
-	ModeOff                   = 5
+	ModeStandby           = 0
+	ModeMotionTracking    = 1
+	ModePermanentTracking = 2
+	ModeMotionStartEnd    = 3
+	ModeActivityTracking  = 4
+	ModeOff               = 5
 )
 
 var modeNames = map[int]string{
@@ -90,25 +90,25 @@ type AbeewayPayload struct {
 
 // PositionData represents parsed position information
 type PositionData struct {
-	Type        string  // "gps", "wifi", "ble", "low_power"
-	Latitude    float64
-	Longitude   float64
-	Altitude    float64
-	Accuracy    float64
-	Satellites  int
-	Speed       float64
-	Heading     float64
-	Age         int     // Position age in seconds
-	BSSIDList   []string // For WiFi positioning
-	BLEData     []BLEBeacon
+	Type       string // "gps", "wifi", "ble", "low_power"
+	Latitude   float64
+	Longitude  float64
+	Altitude   float64
+	Accuracy   float64
+	Satellites int
+	Speed      float64
+	Heading    float64
+	Age        int      // Position age in seconds
+	BSSIDList  []string // For WiFi positioning
+	BLEData    []BLEBeacon
 }
 
 // BLEBeacon represents a detected BLE beacon
 type BLEBeacon struct {
-	MAC    string
-	RSSI   int
-	Major  int
-	Minor  int
+	MAC   string
+	RSSI  int
+	Major int
+	Minor int
 }
 
 // EnergyData represents energy status information
@@ -223,12 +223,12 @@ func decodeTemperature(temp byte) float64 {
 // decodeStatus decodes the status byte into individual flags
 func decodeStatus(status byte) map[string]interface{} {
 	return map[string]interface{}{
-		"sos_bit":                (status & StatusSOSBit) != 0,
-		"tracking_idle_bit":      (status & StatusTrackingIdleBit) != 0,
-		"tracker_is_moving_bit":  (status & StatusTrackerMovingBit) != 0,
-		"periodic_position_bit":  (status & StatusPeriodicPositionBit) != 0,
-		"pod_message_bit":        (status & StatusPODMessageBit) != 0,
-		"raw_status":             fmt.Sprintf("0x%02X", status),
+		"sos_bit":               (status & StatusSOSBit) != 0,
+		"tracking_idle_bit":     (status & StatusTrackingIdleBit) != 0,
+		"tracker_is_moving_bit": (status & StatusTrackerMovingBit) != 0,
+		"periodic_position_bit": (status & StatusPeriodicPositionBit) != 0,
+		"pod_message_bit":       (status & StatusPODMessageBit) != 0,
+		"raw_status":            fmt.Sprintf("0x%02X", status),
 	}
 }
 
@@ -241,11 +241,11 @@ func parsePositionData(data []byte) (*PositionData, error) {
 	posType := data[0]
 
 	switch posType {
-	case PosTypeGPS, PosTypeLowPower:
+	case 0x00, PosTypeGPS, PosTypeLowPower:
 		return parseGPSPosition(data)
-	case PosTypeWiFi:
+	case PosTypeWiFi, 0x09:
 		return parseWiFiPosition(data)
-	case PosTypeBLE:
+	case PosTypeBLE, 0x07:
 		return parseBLEPosition(data)
 	default:
 		return nil, fmt.Errorf("unknown position type: 0x%02X", posType)
@@ -277,12 +277,12 @@ func parseGPSPosition(data []byte) (*PositionData, error) {
 	speed := binary.BigEndian.Uint16(data[14:16])
 
 	pos := &PositionData{
-		Type:     "gps",
-		Latitude: float64(lat) / coordScale,
+		Type:      "gps",
+		Latitude:  float64(lat) / coordScale,
 		Longitude: float64(lon) / coordScale,
-		Altitude: float64(alt),
-		Heading:  float64(course),
-		Speed:    float64(speed),
+		Altitude:  float64(alt),
+		Heading:   float64(course),
+		Speed:     float64(speed),
 	}
 
 	// Check if GPS fix is valid (bit 0 of status)
@@ -328,7 +328,7 @@ func parseWiFiPosition(data []byte) (*PositionData, error) {
 	if status&0x01 != 0 && lat != 0 && lon != 0 {
 		pos.Latitude = float64(lat) / coordScale
 		pos.Longitude = float64(lon) / coordScale
-		pos.Accuracy = 100 
+		pos.Accuracy = 100
 	}
 
 	// Parse BSSID list (each BSSID is 6 bytes)
@@ -378,8 +378,8 @@ func parseBLEPosition(data []byte) (*PositionData, error) {
 				data[offset], data[offset+1], data[offset+2],
 				data[offset+3], data[offset+4], data[offset+5]),
 			RSSI:  int(int16(data[offset+6])),
-			Major: int(binary.BigEndian.Uint16(data[offset+7:offset+9])),
-			Minor: int(binary.BigEndian.Uint16(data[offset+9:offset+11])),
+			Major: int(binary.BigEndian.Uint16(data[offset+7 : offset+9])),
+			Minor: int(binary.BigEndian.Uint16(data[offset+9 : offset+11])),
 		}
 		pos.BLEData = append(pos.BLEData, beacon)
 		offset += 14
