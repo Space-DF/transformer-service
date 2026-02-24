@@ -16,7 +16,15 @@ limitations under the License.
 
 package main
 
-import "github.com/Space-DF/transformer-service/cmd/transformer/cmd"
+import (
+	"github.com/Space-DF/transformer-service/cmd/transformer/cmd"
+
+	_ "github.com/Space-DF/transformer-service/internal/components/abeeway"
+	_ "github.com/Space-DF/transformer-service/internal/components/dut"
+	_ "github.com/Space-DF/transformer-service/internal/components/lilygo"
+	_ "github.com/Space-DF/transformer-service/internal/components/rakwireless"
+	_ "github.com/Space-DF/transformer-service/internal/components/seeed"
+)
 
 func main() {
 	cmd.Execute()

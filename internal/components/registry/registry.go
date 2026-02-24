@@ -25,7 +25,7 @@ func NewComponentRegistry() *ComponentRegistry {
 }
 
 // RegisterComponent registers a new device component
-func (r *ComponentRegistry) RegisterComponent(name string, component components.DeviceComponent) error {
+func (r *ComponentRegistry) registerComponent(name string, component components.DeviceComponent) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -53,38 +53,6 @@ func (r *ComponentRegistry) RegisterComponent(name string, component components.
 	return nil
 }
 
-// UnregisterComponent removes a component from the registry
-func (r *ComponentRegistry) UnregisterComponent(name string) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	component, exists := r.components[name]
-	if !exists {
-		return fmt.Errorf("component %s not found", name)
-	}
-
-	// Teardown component if it supports it
-	if teardownComponent, ok := component.(components.ComponentWithSetup); ok {
-		if err := teardownComponent.Teardown(context.Background()); err != nil {
-			return fmt.Errorf("failed to teardown component %s: %w", name, err)
-		}
-	}
-
-	delete(r.components, name)
-	r.removeFromDeviceMap(name, component.GetSupportedDevices())
-
-	return nil
-}
-
-// GetComponent returns a registered component by name
-func (r *ComponentRegistry) GetComponent(name string) (components.DeviceComponent, bool) {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
-	component, exists := r.components[name]
-	return component, exists
-}
-
 // GetComponentsForDevice returns all components that support a specific device type
 func (r *ComponentRegistry) GetComponentsForDevice(deviceType components.DeviceType) []components.DeviceComponent {
 	r.mutex.RLock()
@@ -102,8 +70,16 @@ func (r *ComponentRegistry) GetComponentsForDevice(deviceType components.DeviceT
 	return result
 }
 
+func (r *ComponentRegistry) isDeviceTypeRegistered(deviceType components.DeviceType) bool {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	_, exists := r.deviceMap[deviceType]
+	return exists
+}
+
 // FindComponentForPayload finds the best component to handle a specific payload
-func (r *ComponentRegistry) FindComponentForPayload(deviceType components.DeviceType, payload *components.RawPayload) components.DeviceComponent {
+func (r *ComponentRegistry) findComponentForPayload(deviceType components.DeviceType, payload *components.RawPayload) components.DeviceComponent {
 	components := r.GetComponentsForDevice(deviceType)
 
 	// Return the first component that can handle this payload
@@ -172,10 +148,14 @@ func GetGlobalRegistry() *ComponentRegistry {
 
 // RegisterComponent registers a component in the global registry
 func RegisterComponent(name string, component components.DeviceComponent) error {
-	return globalRegistry.RegisterComponent(name, component)
+	return globalRegistry.registerComponent(name, component)
 }
 
 // FindComponent finds a component for the given device type and payload
 func FindComponent(deviceType components.DeviceType, payload *components.RawPayload) components.DeviceComponent {
-	return globalRegistry.FindComponentForPayload(deviceType, payload)
+	return globalRegistry.findComponentForPayload(deviceType, payload)
+}
+
+func IsDeviceTypeRegistered(deviceType components.DeviceType) bool {
+	return globalRegistry.isDeviceTypeRegistered(deviceType)
 }

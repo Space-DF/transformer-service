@@ -7,6 +7,13 @@ import (
 	"github.com/Space-DF/transformer-service/internal/components"
 )
 
+// RAKwireless devices
+const (
+	DeviceTypeRAK4630 = "RAK4630"
+	DeviceTypeRAK7200 = "RAK7200"
+	DeviceTypeRAK2270 = "RAK2270"
+)
+
 // RAKwirelessComponent handles all RAKwireless devices
 // This follows a manufacturer-based component pattern
 type RAKwirelessComponent struct {
@@ -29,9 +36,9 @@ func NewRAKwirelessComponent() *RAKwirelessComponent {
 	}
 
 	// Register device-specific parsers
-	component.parsers[components.DeviceTypeRAK2270] = NewRAK2270Parser()
-	component.parsers[components.DeviceTypeRAK7200] = NewRAK7200Parser()
-	component.parsers[components.DeviceTypeRAK4630] = NewRAK4630Parser()
+	component.parsers[DeviceTypeRAK2270] = NewRAK2270Parser()
+	component.parsers[DeviceTypeRAK7200] = NewRAK7200Parser()
+	component.parsers[DeviceTypeRAK4630] = NewRAK4630Parser()
 	return component
 }
 
@@ -43,9 +50,9 @@ func (c *RAKwirelessComponent) GetInfo() components.ComponentInfo {
 		Version:      "1.0.0",
 		Description:  "Component for RAKwireless devices including RAK2270, RAK7200, and RAK4630",
 		DeviceTypes: []components.DeviceType{
-			components.DeviceTypeRAK2270,
-			components.DeviceTypeRAK7200,
-			components.DeviceTypeRAK4630,
+			DeviceTypeRAK2270,
+			DeviceTypeRAK7200,
+			DeviceTypeRAK4630,
 		},
 	}
 }
@@ -53,9 +60,9 @@ func (c *RAKwirelessComponent) GetInfo() components.ComponentInfo {
 // GetSupportedDevices returns the device types this component supports
 func (c *RAKwirelessComponent) GetSupportedDevices() []components.DeviceType {
 	return []components.DeviceType{
-		components.DeviceTypeRAK2270,
-		components.DeviceTypeRAK7200,
-		components.DeviceTypeRAK4630,
+		DeviceTypeRAK2270,
+		DeviceTypeRAK7200,
+		DeviceTypeRAK4630,
 	}
 }
 

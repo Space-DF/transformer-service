@@ -1,6 +1,14 @@
 package components
 
-import "strings"
+import (
+	"fmt"
+	"math"
+	"strings"
+)
+
+const (
+	CoordScale = 10000000
+)
 
 // ExtractDevEUI extracts device EUI from various payload formats and normalizes it to lowercase
 func ExtractDevEUI(metadata map[string]interface{}) string {
@@ -38,4 +46,15 @@ func ExtractDevEUI(metadata map[string]interface{}) string {
 	}
 
 	return ""
+}
+
+// ValidateCoordinates validates that coordinates are reasonable
+func ValidateCoordinates(lat, lon float64) error {
+	if math.Abs(lat) > 90 || math.Abs(lon) > 180 {
+		return fmt.Errorf("coordinates out of valid range")
+	}
+	if lat == 0 && lon == 0 {
+		return fmt.Errorf("null island coordinates")
+	}
+	return nil
 }

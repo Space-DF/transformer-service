@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+
+	"github.com/Space-DF/transformer-service/internal/components"
 )
 
 // Message type constants for Abeeway Industrial Tracker AT2 v2.5
@@ -33,8 +35,6 @@ const (
 	PosTypeBLE      = 0x03
 	PosTypeLowPower = 0x04
 )
-
-const coordScale = 1e7
 
 // Message type names
 var messageTypeNames = map[byte]string{
@@ -278,8 +278,8 @@ func parseGPSPosition(data []byte) (*PositionData, error) {
 
 	pos := &PositionData{
 		Type:     "gps",
-		Latitude: float64(lat) / coordScale,
-		Longitude: float64(lon) / coordScale,
+		Latitude: float64(lat) / components.CoordScale,
+		Longitude: float64(lon) / components.CoordScale,
 		Altitude: float64(alt),
 		Heading:  float64(course),
 		Speed:    float64(speed),
@@ -326,8 +326,8 @@ func parseWiFiPosition(data []byte) (*PositionData, error) {
 
 	// Check if WiFi fix is valid (bit 0 of status)
 	if status&0x01 != 0 && lat != 0 && lon != 0 {
-		pos.Latitude = float64(lat) / coordScale
-		pos.Longitude = float64(lon) / coordScale
+		pos.Latitude = float64(lat) / components.CoordScale
+		pos.Longitude = float64(lon) / components.CoordScale
 		pos.Accuracy = 100 
 	}
 
@@ -365,8 +365,8 @@ func parseBLEPosition(data []byte) (*PositionData, error) {
 
 	// Check if BLE fix is valid (bit 0 of status)
 	if status&0x01 != 0 && lat != 0 && lon != 0 {
-		pos.Latitude = float64(lat) / coordScale
-		pos.Longitude = float64(lon) / coordScale
+		pos.Latitude = float64(lat) / components.CoordScale
+		pos.Longitude = float64(lon) / components.CoordScale
 		pos.Accuracy = 50 // BLE positioning typically has ~50m accuracy
 	}
 

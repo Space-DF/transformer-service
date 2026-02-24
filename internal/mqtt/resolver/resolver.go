@@ -11,12 +11,6 @@ import (
 	"github.com/Space-DF/transformer-service/internal/models"
 	"github.com/Space-DF/transformer-service/internal/mqtt/helpers"
 	"github.com/Space-DF/transformer-service/internal/services"
-
-	// Import component packages to trigger registration
-	_ "github.com/Space-DF/transformer-service/internal/components/abeeway"
-	_ "github.com/Space-DF/transformer-service/internal/components/dut"
-	_ "github.com/Space-DF/transformer-service/internal/components/rakwireless"
-	_ "github.com/Space-DF/transformer-service/internal/components/seeed"
 )
 
 var ErrDeviceSkipped = errors.New("device skipped")
@@ -157,22 +151,17 @@ func (r *Resolver) extractGPSFromDeviceParser(profile string, payload map[string
 
 // profileToDeviceType converts a profile string to DeviceType
 func (r *Resolver) profileToDeviceType(profile string) components.DeviceType {
-	switch profile {
-	case "RAK2270":
-		return components.DeviceTypeRAK2270
-	case "RAK7200":
-		return components.DeviceTypeRAK7200
-	case "RAK4630":
-		return components.DeviceTypeRAK4630
-	case "WLBV1":
-		return components.DeviceTypeWLBV1
-	case "SENSECAP_T1000":
-		return components.DeviceTypeSenseCAP_T1000
-	case "ABEEWAY_INDUSTRIAL_TRACKER":
-		return components.DeviceTypeAbeewayIndustrialTracker
-	default:
+	if profile == "" {
 		return components.DeviceTypeUnknown
 	}
+
+	dt := components.DeviceType(profile)
+
+	if registry.IsDeviceTypeRegistered(dt) {
+		return dt
+	}
+
+	return components.DeviceTypeUnknown
 }
 
 // ctx returns a background context for component operations

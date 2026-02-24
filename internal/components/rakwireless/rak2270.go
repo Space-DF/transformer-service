@@ -33,7 +33,7 @@ func (p *RAK2270Parser) ParsePayload(payload *components.RawPayload) (*component
 
 	return &components.ParsedData{
 		DeviceEUI:  devEUI,
-		DeviceType: components.DeviceTypeRAK2270,
+		DeviceType: DeviceTypeRAK2270,
 		Timestamp:  payload.Timestamp,
 		SensorData: sensorData,
 		RawData:    payload.Data,
