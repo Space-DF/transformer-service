@@ -27,6 +27,18 @@ const (
 	LPPUnixTime         = 0x95
 )
 
+func readInt24BE(data []byte) int32 {
+	if len(data) < 3 {
+		return 0
+	}
+	value := int32(data[0])<<16 | int32(data[1])<<8 | int32(data[2])
+	// Sign extend 24-bit to 32-bit
+	if value&0x800000 != 0 {
+		value |= ^0xFFFFFF
+	}
+	return value
+}
+
 type TBeamParser struct{}
 
 func NewTBeamParser() *TBeamParser {
@@ -141,6 +153,16 @@ func (c *TBeamParser) ParsePayload(payload *components.RawPayload) (*components.
 			sensorData["illuminance"] = illuminance
 			i += 2
 
+		case LPPPresence:
+			// 1 byte presence
+			if i+1 > len(bytes) {
+				break
+			}
+			value := bytes[i] > 0
+			sensorData[fmt.Sprintf("presence_ch%d", channel)] = value
+			sensorData["presence"] = value
+			i += 1
+
 		case LPPBarometer:
 			// 2 bytes, 0.1 hPa unsigned
 			if i+2 > len(bytes) {
@@ -153,25 +175,14 @@ func (c *TBeamParser) ParsePayload(payload *components.RawPayload) (*components.
 			i += 2
 
 		case LPPGPSLocation:
-			// 9 bytes: lat(3), lon(3), alt(3) per Cayenne LPP spec
+			// 9 bytes: lat(3), lon(3), alt(3) - STANDARD CAYENNE LPP
 			if i+9 > len(bytes) {
 				break
 			}
-			// Latitude: 3 bytes, signed, 0.0001° resolution
-			latRaw := int32(bytes[i])<<16 | int32(bytes[i+1])<<8 | int32(bytes[i+2])
-			if latRaw&0x800000 != 0 { // sign extend 24-bit to 32-bit
-				latRaw |= ^0xFFFFFF
-			}
-			// Longitude: 3 bytes, signed, 0.0001° resolution
-			lonRaw := int32(bytes[i+3])<<16 | int32(bytes[i+4])<<8 | int32(bytes[i+5])
-			if lonRaw&0x800000 != 0 {
-				lonRaw |= ^0xFFFFFF
-			}
-			// Altitude: 3 bytes, signed, 0.01m resolution
-			altRaw := int32(bytes[i+6])<<16 | int32(bytes[i+7])<<8 | int32(bytes[i+8])
-			if altRaw&0x800000 != 0 {
-				altRaw |= ^0xFFFFFF
-			}
+			// Use helper function to read 3-byte signed integers
+			latRaw := readInt24BE(bytes[i : i+3])
+			lonRaw := readInt24BE(bytes[i+3 : i+6])
+			altRaw := readInt24BE(bytes[i+6 : i+9])
 
 			latitude := float64(latRaw) / 10000.0
 			longitude := float64(lonRaw) / 10000.0
@@ -202,6 +213,19 @@ func (c *TBeamParser) ParsePayload(payload *components.RawPayload) (*components.
 			sensorData["unix_time"] = rawTime
 			sensorData["timestamp"] = time.Unix(int64(rawTime), 0).UTC()
 			i += 4
+
+		case LPPAccelerometer:
+			// 6 bytes: X(2), Y(2), Z(2), signed, /1000 g
+			if i+6 > len(bytes) {
+				break
+			}
+			x := float64(int16(binary.BigEndian.Uint16(bytes[i:i+2]))) / 1000.0
+			y := float64(int16(binary.BigEndian.Uint16(bytes[i+2:i+4]))) / 1000.0
+			z := float64(int16(binary.BigEndian.Uint16(bytes[i+4:i+6]))) / 1000.0
+			accel := map[string]float64{"x": x, "y": y, "z": z}
+			sensorData[fmt.Sprintf("accelerometer_ch%d", channel)] = accel
+			sensorData["accelerometer"] = accel
+			i += 6
 
 		default:
 			// For safety, break to avoid parsing errors
