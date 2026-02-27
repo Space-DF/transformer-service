@@ -219,9 +219,9 @@ func (c *TBeamParser) ParsePayload(payload *components.RawPayload) (*components.
 			if i+6 > len(bytes) {
 				break
 			}
-			x := float64(int16(binary.BigEndian.Uint16(bytes[i:i+2]))) / 1000.0
-			y := float64(int16(binary.BigEndian.Uint16(bytes[i+2:i+4]))) / 1000.0
-			z := float64(int16(binary.BigEndian.Uint16(bytes[i+4:i+6]))) / 1000.0
+			x := float64(int16(binary.BigEndian.Uint16(bytes[i:i+2]))) / 1000.0 //#nosec G115
+			y := float64(int16(binary.BigEndian.Uint16(bytes[i+2:i+4]))) / 1000.0 //#nosec G115
+			z := float64(int16(binary.BigEndian.Uint16(bytes[i+4:i+6]))) / 1000.0 //#nosec G115
 			accel := map[string]float64{"x": x, "y": y, "z": z}
 			sensorData[fmt.Sprintf("accelerometer_ch%d", channel)] = accel
 			sensorData["accelerometer"] = accel
