@@ -28,10 +28,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Space-DF/transformer-service/internal/api"
 	"github.com/Space-DF/transformer-service/internal/config"
 	"github.com/Space-DF/transformer-service/internal/mqtt"
 	"github.com/Space-DF/transformer-service/internal/services"
 	"github.com/Space-DF/transformer-service/internal/telemetry"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -87,20 +90,35 @@ func runServe(cmd *cobra.Command, args []string) error {
 	log.Printf("Publishing to topics: %v", cfg.AMQP.OutputTopics)
 	log.Printf("Raw data logging enabled - File: %t, JSON: %t, Dir: %s", cfg.RawDataLog.EnableFileLog, cfg.RawDataLog.EnableJSONLog, cfg.RawDataLog.LogDir)
 
-	// Setup HTTP server for health check endpoint
-	mux := http.NewServeMux()
+	// Initialize Echo framework
+	e := echo.New()
+	e.HideBanner = true
+	e.HidePort = true
+
+	// Middleware
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
+		AllowHeaders: []string{"*"},
+	}))
 
 	// Health check endpoint
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if _, err := fmt.Fprintf(w, `{"status": "healthy", "service": "transformer-service", "timestamp": "%s"}`, time.Now().Format(time.RFC3339)); err != nil {
-			log.Printf("Error writing health check response: %v", err)
-		}
+	e.GET("/health", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"status":    "healthy",
+			"service":   "transformer-service",
+			"timestamp": time.Now().Format(time.RFC3339),
+		})
 	})
 
-	// Wrap the handler with OpenTelemetry middleware
-	handler := otelhttp.NewHandler(mux, "transformer-service")
+	// Setup API routes
+	apiGroup := e.Group("/api")
+	api.Setup(apiGroup, deviceProfileService)
+
+	// Wrap Echo with OpenTelemetry
+	handler := otelhttp.NewHandler(e, "transformer-service")
 
 	// Create HTTP server
 	server := &http.Server{
