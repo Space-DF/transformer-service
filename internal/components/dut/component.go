@@ -7,6 +7,10 @@ import (
 	"github.com/Space-DF/transformer-service/internal/components"
 )
 
+const (
+	DeviceTypeWLBV1 = "WLBV1"
+)
+
 // This follows a manufacturer-based component pattern
 type DUTComponent struct {
 	parsers map[components.DeviceType]DeviceParser
@@ -28,7 +32,7 @@ func NewDUTComponent() *DUTComponent {
 	}
 
 	// Register device-specific parsers
-	component.parsers[components.DeviceTypeWLBV1] = NewWLBV1Parser()
+	component.parsers[DeviceTypeWLBV1] = NewWLBV1Parser()
 	return component
 }
 
@@ -40,7 +44,7 @@ func (c *DUTComponent) GetInfo() components.ComponentInfo {
 		Version:      "1.0.0",
 		Description:  "Component for WLBV1 devices",
 		DeviceTypes: []components.DeviceType{
-			components.DeviceTypeWLBV1,
+			DeviceTypeWLBV1,
 		},
 	}
 }
@@ -48,7 +52,7 @@ func (c *DUTComponent) GetInfo() components.ComponentInfo {
 // GetSupportedDevices returns the device types this component supports
 func (c *DUTComponent) GetSupportedDevices() []components.DeviceType {
 	return []components.DeviceType{
-		components.DeviceTypeWLBV1,
+		DeviceTypeWLBV1,
 	}
 }
 

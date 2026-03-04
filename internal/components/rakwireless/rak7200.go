@@ -27,7 +27,7 @@ func (p *RAK7200Parser) ParsePayload(payload *components.RawPayload) (*component
 	// This is a placeholder implementation
 	parsedData := &components.ParsedData{
 		DeviceEUI:  payload.DeviceEUI,
-		DeviceType: components.DeviceTypeRAK7200,
+		DeviceType: DeviceTypeRAK7200,
 		Timestamp:  payload.Timestamp,
 		SensorData: make(map[string]interface{}),
 		RawData:    payload.Data,

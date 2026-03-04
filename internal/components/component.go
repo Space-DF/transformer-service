@@ -9,14 +9,9 @@ import (
 // DeviceType represents the model/type of a device
 type DeviceType string
 
+// Default device type
 const (
-	DeviceTypeRAK2270                  DeviceType = "RAK2270"
-	DeviceTypeRAK7200                  DeviceType = "RAK7200"
-	DeviceTypeRAK4630                  DeviceType = "RAK4630"
-	DeviceTypeWLBV1                    DeviceType = "WLBV1"
-	DeviceTypeAbeewayIndustrialTracker DeviceType = "ABEEWAY_INDUSTRIAL_TRACKER"
-	DeviceTypeSenseCAP_T1000           DeviceType = "SENSECAP_T1000"
-	DeviceTypeUnknown                  DeviceType = "UNKNOWN"
+	DeviceTypeUnknown DeviceType = "UNKNOWN"
 )
 
 // ComponentInfo provides metadata about a component

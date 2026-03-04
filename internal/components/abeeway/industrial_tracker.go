@@ -7,8 +7,6 @@ import (
 	"github.com/Space-DF/transformer-service/internal/components"
 )
 
-const coordScaleIT = 1e7
-
 // IndustrialTrackerParser handles parsing of Abeeway Industrial Tracker payloads
 type IndustrialTrackerParser struct{}
 
@@ -48,59 +46,73 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 	case MsgTypePosition:
 		// Position message (0x03) - GPS, WiFi, BLE or low power GPS position data
 		// Format: Header(5) + Type(1) + Status(1) + [Position data...]
-		if len(abeewayPayload.Data) >= 2 {
+		if len(abeewayPayload.Data) >= 1 {
 			posType := abeewayPayload.Data[0]
-			posStatus := abeewayPayload.Data[1]
-
 			sensorData["position_type"] = fmt.Sprintf("0x%02X", posType)
-			sensorData["position_status"] = posStatus
 
-			// Parse GPS position data if available
-			if (posType == 0x00 || posType == 0x01 || posType == 0x04) && len(abeewayPayload.Data) >= 17 {
-				// GPS or Low Power GPS position
-				// Format: Type(1) + Status(1) + Lat(4) + Lon(4) + Alt(2) + Course(2) + Speed(2) + [Satellites(1)] + [HDOP(1)]
-				lat := bigEndianInt32(abeewayPayload.Data[2:6])
-				lon := bigEndianInt32(abeewayPayload.Data[6:10])
-				alt := bigEndianInt16(abeewayPayload.Data[10:12])
-				course := binary.BigEndian.Uint16(abeewayPayload.Data[12:14])
-				speed := binary.BigEndian.Uint16(abeewayPayload.Data[14:16])
+			// Check for compact 9-byte GPS format: Type(1) + Lat(4) + Lon(4)
+			// This format is used by some Abeeway firmwares
+			if (posType == 0x00 || posType == 0x01 || posType == 0x04) && len(abeewayPayload.Data) >= 9 {
+				// - Compact: Type(1) + Lat(4) + Lon(4) = 9 bytes
+				// - Full: Type(1) + Status(1) + Lat(4) + Lon(4) + ... = 17+ bytes
 
-				latitude := float64(lat) / coordScaleIT
-				longitude := float64(lon) / coordScaleIT
+				var lat, lon int32
+				var latOffset, lonOffset int
 
-				// Only set location if we have valid coordinates (not 0,0)
-				if latitude != 0 || longitude != 0 {
-					sensorData["latitude"] = latitude
-					sensorData["longitude"] = longitude
+				if len(abeewayPayload.Data) >= 17 {
+					// Full format with Status byte
+					posStatus := abeewayPayload.Data[1]
+					sensorData["position_status"] = posStatus
+					sensorData["gps_fix_valid"] = (posStatus & 0x01) != 0
+					latOffset = 2
+					lonOffset = 6
+				} else {
+					latOffset = 1
+					lonOffset = 5
+				}
+
+				lat = bigEndianInt32(abeewayPayload.Data[latOffset : latOffset+4])
+				lon = bigEndianInt32(abeewayPayload.Data[lonOffset : lonOffset+4])
+
+				latitude := float64(lat) / components.CoordScale
+				longitude := float64(lon) / components.CoordScale
+
+				sensorData["latitude"] = latitude
+				sensorData["longitude"] = longitude
+
+				// Parse additional fields if available
+				if len(abeewayPayload.Data) >= 17 {
+					alt := bigEndianInt16(abeewayPayload.Data[10:12])
+					course := binary.BigEndian.Uint16(abeewayPayload.Data[12:14])
+					speed := binary.BigEndian.Uint16(abeewayPayload.Data[14:16])
+
 					sensorData["altitude"] = float64(alt)
 					sensorData["speed"] = float64(speed)
 					sensorData["heading"] = float64(course)
+				}
 
-					// Check for GPS fix validity (bit 0 of status)
-					sensorData["gps_fix_valid"] = (posStatus & 0x01) != 0
-
+				// Set location if coordinates are valid
+				if latitude != 0 || longitude != 0 {
 					if validateCoordinates(latitude, longitude) == nil {
 						location = &components.Location{
 							Latitude:  latitude,
 							Longitude: longitude,
-							Altitude:  float64(alt),
+						}
+						if len(abeewayPayload.Data) >= 17 {
+							location.Altitude = float64(bigEndianInt16(abeewayPayload.Data[10:12]))
 						}
 					}
 				}
-
-				// Extract satellites if available
-				if len(abeewayPayload.Data) >= 18 {
-					sensorData["satellites"] = int(abeewayPayload.Data[17])
-				}
-				// Extract HDOP for accuracy if available
-				if len(abeewayPayload.Data) >= 19 {
-					hdop := float64(abeewayPayload.Data[18]) / 10.0
-					sensorData["hdop"] = hdop
-					sensorData["accuracy"] = hdop * 5
-				}
+			} else if (posType == 0x00 || posType == 0x01 || posType == 0x04) && len(abeewayPayload.Data) >= 17 {
+				// Original full format
+				posStatus := abeewayPayload.Data[1]
+				sensorData["position_status"] = posStatus
+				sensorData["gps_fix_valid"] = (posStatus & 0x01) != 0
 			} else if posType == 0x09 && len(abeewayPayload.Data) >= 13 {
 				// WiFi fingerprinting position
 				// Format: Type(1) + Status(1) + Lat(4) + Lon(4) + Age(2) + NbrBSSID(1) + BSSIDList...
+				posStatus := abeewayPayload.Data[1]
+				sensorData["position_status"] = posStatus
 				lat := bigEndianInt32(abeewayPayload.Data[2:6])
 				lon := bigEndianInt32(abeewayPayload.Data[6:10])
 				age := int(binary.BigEndian.Uint16(abeewayPayload.Data[10:12]))
@@ -111,8 +123,8 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 
 				// Check if WiFi fix is valid
 				if (posStatus & 0x01) != 0 && lat != 0 && lon != 0 {
-					latitude := float64(lat) / coordScaleIT
-					longitude := float64(lon) / coordScaleIT
+					latitude := float64(lat) / components.CoordScale
+					longitude := float64(lon) / components.CoordScale
 					sensorData["latitude"] = latitude
 					sensorData["longitude"] = longitude
 					sensorData["accuracy"] = 100
@@ -141,6 +153,8 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 			} else if posType == 0x07 && len(abeewayPayload.Data) >= 13 {
 				// BLE beacon position
 				// Format: Type(1) + Status(1) + Lat(4) + Lon(4) + Age(2) + NbrBeacons(1) + Beacons...
+				posStatus := abeewayPayload.Data[1]
+				sensorData["position_status"] = posStatus
 				lat := bigEndianInt32(abeewayPayload.Data[2:6])
 				lon := bigEndianInt32(abeewayPayload.Data[6:10])
 				age := int(binary.BigEndian.Uint16(abeewayPayload.Data[10:12]))
@@ -151,8 +165,8 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 
 				// Check if BLE fix is valid
 				if (posStatus & 0x01) != 0 && lat != 0 && lon != 0 {
-					latitude := float64(lat) / coordScaleIT
-					longitude := float64(lon) / coordScaleIT
+					latitude := float64(lat) / components.CoordScale
+					longitude := float64(lon) / components.CoordScale
 					sensorData["latitude"] = latitude
 					sensorData["longitude"] = longitude
 					sensorData["accuracy"] = 50
@@ -173,7 +187,7 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 						"mac": fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
 							abeewayPayload.Data[offset], abeewayPayload.Data[offset+1], abeewayPayload.Data[offset+2],
 							abeewayPayload.Data[offset+3], abeewayPayload.Data[offset+4], abeewayPayload.Data[offset+5]),
-						"rssi":  int(int8(abeewayPayload.Data[offset+6])),
+						"rssi":  int(int8(abeewayPayload.Data[offset+6])), //#nosec G115
 						"major": int(binary.BigEndian.Uint16(abeewayPayload.Data[offset+7:offset+9])),
 						"minor": int(binary.BigEndian.Uint16(abeewayPayload.Data[offset+9:offset+11])),
 					}
@@ -302,7 +316,7 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 
 	return &components.ParsedData{
 		DeviceEUI:    devEUI,
-		DeviceType:   components.DeviceTypeAbeewayIndustrialTracker,
+		DeviceType:   DeviceTypeAbeewayIndustrialTracker,
 		Timestamp:    payload.Timestamp,
 		Location:     location,
 		SensorData:   sensorData,
@@ -673,73 +687,136 @@ func (p *IndustrialTrackerParser) parseFromDecodedPayload(metadata map[string]in
 		return nil, fmt.Errorf("no decoded_payload found")
 	}
 
+	// Determine message type from decoded payload
+	msgType := MsgTypePosition // Default
+	if mt, ok := decoded["message_type"].(string); ok {
+		switch mt {
+		case "position":
+			msgType = MsgTypePosition
+		case "status":
+			msgType = MsgTypeStatus
+		case "heartbeat":
+			msgType = MsgTypeHeartbeat
+		case "activity_status":
+			msgType = MsgTypeActivityStatus
+		case "shutdown":
+			msgType = MsgTypeShutdown
+		case "event":
+			msgType = MsgTypeEvent
+		}
+	}
+
 	result := &AbeewayPayload{
-		MessageType: MsgTypePosition, // Default message type for position data
+		MessageType: byte(msgType),
 	}
 
 	// Extract GPS data
-	if gps, ok := decoded["gps"].(map[string]interface{}); ok {
-		// For pre-decoded GPS data, we need to add type/status prefix bytes
-		// to match the PositioningStatus format: Type(1) + Status(1) + Lat(4) + Lon(4) + Alt(2) + Course(2) + Speed(2)
-		// Use GPS position type (0x01) and valid fix status (0x01)
-		result.Data = append(result.Data, 0x01, 0x01) // Type + Status prefix (2 bytes)
+	var lat, lon, alt float64
+	var hasGPS bool
 
-		if lat, ok := gps["latitude"].(float64); ok {
-			latInt := int32(lat * 10000000)
-			result.Data = append(result.Data, byte(latInt>>24), byte(latInt>>16), byte(latInt>>8), byte(latInt))
+	// Try nested "gps" object first
+	if gps, ok := decoded["gps"].(map[string]interface{}); ok {
+		if l, ok := gps["latitude"].(float64); ok {
+			lat = l
+			hasGPS = true
 		}
-		if lon, ok := gps["longitude"].(float64); ok {
-			lonInt := int32(lon * 10000000)
-			result.Data = append(result.Data, byte(lonInt>>24), byte(lonInt>>16), byte(lonInt>>8), byte(lonInt))
+		if l, ok := gps["longitude"].(float64); ok {
+			lon = l
+			hasGPS = true
 		}
-		if alt, ok := gps["altitude"].(float64); ok {
-			altInt := uint16(alt)
-			result.Data = append(result.Data, byte(altInt>>8), byte(altInt))
+		if a, ok := gps["altitude"].(float64); ok {
+			alt = a
 		}
-		// Pad with zeros for course (2 bytes) + speed (2 bytes) to reach 16+ bytes total
-		result.Data = append(result.Data, 0x00, 0x00, 0x00, 0x00)
-		// Ensure we have at least 17 bytes by adding one more byte if needed
-		if len(result.Data) < 17 {
-			result.Data = append(result.Data, 0x00)
+	}
+
+	if hasGPS && (lat != 0 || lon != 0) {
+		// Build a proper 17-byte position data buffer matching the format expected by parsePositionData:
+		// Type(1) + Status(1) + Lat(4) + Lon(4) + Alt(2) + Course(2) + Speed(2) + Satellites(1)
+		data := make([]byte, 17)
+
+		// Position type
+		data[0] = 0x01 // GPS type
+
+		// Status: bit 0 = valid fix
+		data[1] = 0x01
+
+		// Latitude (int32, scaled by 1e7)
+		latInt := int32(lat * components.CoordScale)
+		data[2] = byte(latInt >> 24) //#nosec G115
+		data[3] = byte(latInt >> 16) //#nosec G115
+		data[4] = byte(latInt >> 8) //#nosec G115
+		data[5] = byte(latInt) //#nosec G115
+
+		// Longitude (int32, scaled by 1e7)
+		lonInt := int32(lon * components.CoordScale)
+		data[6] = byte(lonInt >> 24) //#nosec G115
+		data[7] = byte(lonInt >> 16) //#nosec G115
+		data[8] = byte(lonInt >> 8) //#nosec G115
+		data[9] = byte(lonInt) //#nosec G115
+
+		// Altitude (int16, meters)
+		altInt := int16(alt)
+		data[10] = byte(altInt >> 8) //#nosec G115
+		data[11] = byte(altInt) //#nosec G115
+
+		// Course/heading (uint16, degrees)
+		if heading, ok := decoded["heading"].(float64); ok {
+			headingInt := uint16(heading)
+			data[12] = byte(headingInt >> 8)
+			data[13] = byte(headingInt) //#nosec G115
 		}
+
+		// Speed (uint16)
+		if speed, ok := decoded["speed"].(float64); ok {
+			speedInt := uint16(speed)
+			data[14] = byte(speedInt >> 8)
+			data[15] = byte(speedInt) //#nosec G115
+		}
+
+		// Satellites (uint8)
+		if sats, ok := decoded["satellites"].(float64); ok {
+			data[16] = byte(sats)
+		}
+
+		result.Data = data
 	}
 
 	// Extract battery voltage
 	if battV, ok := decoded["battery_voltage"].(float64); ok {
-		// Convert voltage back to battery code
-		result.Battery = byte((battV - 2.0) / 0.01)
-		if result.Battery > 255 {
-			result.Battery = 255
+		battCode := int((battV*1000.0 - 2000.0) / 10.0)
+		if battCode < 0 {
+			battCode = 0
 		}
+		if battCode > 255 {
+			battCode = 255
+		}
+		result.Battery = byte(battCode)
 	}
 
-	// Extract battery percent
+	// Extract battery percent (fallback if no voltage)
 	if battPct, ok := decoded["battery_percent"].(float64); ok {
 		if result.Battery == 0 {
-			result.Battery = byte(battPct)
+			// Approximate: map 0-100% to 3.0V-4.2V range, then encode
+			voltage := 3.0 + (battPct/100.0)*1.2
+			battCode := int((voltage*1000.0 - 2000.0) / 10.0)
+			if battCode < 0 {
+				battCode = 0
+			}
+			if battCode > 255 {
+				battCode = 255
+			}
+			result.Battery = byte(battCode)
 		}
 	}
 
 	// Extract temperature
 	if temp, ok := decoded["temperature"].(float64); ok {
-		// Convert temp back to temperature code
 		result.Temperature = byte(temp * 2.0)
 	}
 
-	// Extract speed
-	if speed, ok := decoded["speed"].(float64); ok {
-		result.Data = append(result.Data, byte(speed))
-	}
-
-	// Extract heading
-	if heading, ok := decoded["heading"].(float64); ok {
-		headingInt := uint16(heading)
-		result.Data = append(result.Data, byte(headingInt>>8), byte(headingInt))
-	}
-
-	// Extract satellites
-	if sats, ok := decoded["satellites"].(float64); ok {
-		result.Data = append(result.Data, byte(sats))
+	// Extract operating mode into status byte
+	if mode, ok := decoded["operating_mode"].(float64); ok {
+		result.Status = byte(mode)
 	}
 
 	return result, nil

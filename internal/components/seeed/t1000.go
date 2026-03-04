@@ -144,7 +144,6 @@ const (
 
 // Scaling constants
 const (
-	CoordinateScale = 1e7
 	TemperatureScale = 10.0 // Temperature is stored as int16 * 0.1°C
 	LightMaxValue   = 10000 // Light sensor max value (0-100% range)
 )
@@ -721,12 +720,12 @@ func parseGNSSLocationSensor(data []byte) (*T1000Payload, error) {
 	rawLat := int32(binary.BigEndian.Uint32(data[9:13])) // #nosec G115
 	rawLon := int32(binary.BigEndian.Uint32(data[13:17])) // #nosec G115
 
-	lat := float64(rawLat) / CoordinateScale
-	lon := float64(rawLon) / CoordinateScale
+	lat := float64(rawLat) / components.CoordScale
+	lon := float64(rawLon) / components.CoordScale
 
 	if math.Abs(lat) > 90 || math.Abs(lon) > 180 {
-		swappedLat := float64(rawLon) / CoordinateScale
-		swappedLon := float64(rawLat) / CoordinateScale
+		swappedLat := float64(rawLon) / components.CoordScale
+		swappedLon := float64(rawLat) / components.CoordScale
 		if math.Abs(swappedLat) <= 90 && math.Abs(swappedLon) <= 180 {
 			lat = swappedLat
 			lon = swappedLon
@@ -788,7 +787,7 @@ func parseWiFILocationSensor(data []byte) (*T1000Payload, error) {
 		mac := fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
 			data[offset], data[offset+1], data[offset+2],
 			data[offset+3], data[offset+4], data[offset+5])
-		rssi := int8(data[offset+6])
+		rssi := int8(data[offset+6]) //#nosec G115
 		result.WiFiMACs = append(result.WiFiMACs, WiFiMAC{MAC: mac, RSSI: rssi})
 	}
 
@@ -832,7 +831,7 @@ func parseBluetoothLocationSensor(data []byte) (*T1000Payload, error) {
 		mac := fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
 			data[offset], data[offset+1], data[offset+2],
 			data[offset+3], data[offset+4], data[offset+5])
-		rssi := int8(data[offset+6])
+		rssi := int8(data[offset+6]) //#nosec G115
 		result.BLEMACs = append(result.BLEMACs, BLEMAC{MAC: mac, RSSI: rssi})
 	}
 
@@ -855,13 +854,13 @@ func parseGNSSLocationOnly(data []byte) (*T1000Payload, error) {
 	rawLat := int32(binary.BigEndian.Uint32(data[9:13])) // #nosec G115
 	rawLon := int32(binary.BigEndian.Uint32(data[13:17])) // #nosec G115
 
-	lat := float64(rawLat) / CoordinateScale
-	lon := float64(rawLon) / CoordinateScale
+	lat := float64(rawLat) / components.CoordScale
+	lon := float64(rawLon) / components.CoordScale
 
 	// Check if lat/lon need to be swapped
 	if math.Abs(lat) > 90 || math.Abs(lon) > 180 {
-		swappedLat := float64(rawLon) / CoordinateScale
-		swappedLon := float64(rawLat) / CoordinateScale
+		swappedLat := float64(rawLon) / components.CoordScale
+		swappedLon := float64(rawLat) / components.CoordScale
 		if math.Abs(swappedLat) <= 90 && math.Abs(swappedLon) <= 180 {
 			lat = swappedLat
 			lon = swappedLon
@@ -916,7 +915,7 @@ func parseWiFILocationOnly(data []byte) (*T1000Payload, error) {
 		mac := fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
 			data[offset], data[offset+1], data[offset+2],
 			data[offset+3], data[offset+4], data[offset+5])
-		rssi := int8(data[offset+6])
+		rssi := int8(data[offset+6]) //#nosec G115
 		result.WiFiMACs = append(result.WiFiMACs, WiFiMAC{MAC: mac, RSSI: rssi})
 	}
 
@@ -956,7 +955,7 @@ func parseBluetoothLocationOnly(data []byte) (*T1000Payload, error) {
 		mac := fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
 			data[offset], data[offset+1], data[offset+2],
 			data[offset+3], data[offset+4], data[offset+5])
-		rssi := int8(data[offset+6])
+		rssi := int8(data[offset+6]) //#nosec G115
 		result.BLEMACs = append(result.BLEMACs, BLEMAC{MAC: mac, RSSI: rssi})
 	}
 
@@ -1230,13 +1229,127 @@ func decodePayloadBytes(encoded string) ([]byte, error) {
 	return nil, fmt.Errorf("failed to decode payload as hex or base64")
 }
 
-// validateCoordinates validates that coordinates are reasonable
-func validateCoordinates(lat, lon float64) error {
-	if math.Abs(lat) > 90 || math.Abs(lon) > 180 {
-		return fmt.Errorf("coordinates out of valid range")
+// GetSupportedEntityTypes returns the entity types this device supports
+func (c *T1000Parser) GetSupportedEntityTypes() []string {
+	return []string{
+		"location",
+		"battery",
+		"temperature",
+		"light",
+		"motion",
+		"shock_event",
+		"temperature_event",
+		"light_event",
+		"sos_alert",
+		"work_mode",
+		"positioning_strategy",
 	}
-	if lat == 0 && lon == 0 {
-		return fmt.Errorf("null island coordinates")
+}
+
+// GetSupportedPorts returns the fPorts this device type uses
+func (c *T1000Parser) GetSupportedPorts() []int {
+	return []int{1,5}
+}
+
+func (c *T1000Parser) SupportsGPS() bool {
+	return true
+}
+
+// Parse converts raw payload into structured ParsedData
+func (c *T1000Parser) ParsePayload(payload *components.RawPayload) (*components.ParsedData, error) {
+	devEUI := payload.DeviceEUI
+	if devEUI == "" {
+		devEUI = components.ExtractDevEUI(payload.Metadata)
 	}
-	return nil
+	if devEUI == "" {
+		return nil, fmt.Errorf("device EUI not found")
+	}
+
+	// Decode payload bytes
+	encoded := extractPayloadData(payload.Data)
+	if encoded == "" {
+		encoded = extractPayloadData(payload.Metadata)
+	}
+	if encoded == "" {
+		return nil, fmt.Errorf("no payload data found")
+	}
+
+	bytes, err := decodePayloadBytes(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode payload: %w", err)
+	}
+
+	// Parse T1000 packet
+	t1000Data, err := parseT1000Packet(bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse T1000 packet: %w", err)
+	}
+
+	sensorData := make(map[string]interface{})
+	var location *components.Location
+
+	// Add battery level
+	if t1000Data.BatteryLevel > 0 {
+		sensorData["battery_percent"] = float64(t1000Data.BatteryLevel)
+	}
+
+	// Add temperature
+	sensorData["temperature"] = t1000Data.Temperature
+
+	// Add light level
+	sensorData["light_percent"] = float64(t1000Data.Light)
+
+	// Add work mode
+	sensorData["work_mode"] = getWorkModeName(t1000Data.WorkMode)
+
+	// Add positioning strategy
+	sensorData["positioning_strategy"] = getPositioningStrategyName(t1000Data.PositionStrategy)
+
+	// Add event status
+	sensorData["event_status"] = t1000Data.EventStatus
+	sensorData["start_moving"] = t1000Data.EventStatus&EventStartMoving != 0
+	sensorData["end_moving"] = t1000Data.EventStatus&EventEndMoving != 0
+	sensorData["motionless"] = t1000Data.EventStatus&EventMotionless != 0
+	sensorData["shock"] = t1000Data.EventStatus&EventShock != 0
+	sensorData["temperature_event"] = t1000Data.EventStatus&EventTemperature != 0
+	sensorData["light_event"] = t1000Data.EventStatus&EventLight != 0
+	sensorData["sos"] = t1000Data.EventStatus&EventSOS != 0
+
+	// Add location if available
+	if t1000Data.Latitude != 0 || t1000Data.Longitude != 0 {
+		location = &components.Location{
+			Latitude:  t1000Data.Latitude,
+			Longitude: t1000Data.Longitude,
+			Altitude:  t1000Data.Altitude,
+		}
+		sensorData["latitude"] = t1000Data.Latitude
+		sensorData["longitude"] = t1000Data.Longitude
+		sensorData["position_source"] = getPositioningSource(t1000Data.PositionStrategy)
+	}
+
+	// Add WiFi MACs if available
+	if len(t1000Data.WiFiMACs) > 0 {
+		sensorData["wifi_mac_addresses"] = t1000Data.WiFiMACs
+	}
+
+	// Add BLE MACs if available
+	if len(t1000Data.BLEMACs) > 0 {
+		sensorData["ble_mac_addresses"] = t1000Data.BLEMACs
+	}
+
+	var batteryLevel *float64
+	if t1000Data.BatteryLevel > 0 {
+		batt := float64(t1000Data.BatteryLevel)
+		batteryLevel = &batt
+	}
+
+	return &components.ParsedData{
+		DeviceEUI:    devEUI,
+		DeviceType:   DeviceTypeSenseCAP_T1000,
+		Timestamp:    payload.Timestamp,
+		Location:     location,
+		SensorData:   sensorData,
+		BatteryLevel: batteryLevel,
+		RawData:      encoded,
+	}, nil
 }
