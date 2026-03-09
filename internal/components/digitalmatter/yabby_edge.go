@@ -489,7 +489,7 @@ func parseFragmentPort101_116(fPort int, data []byte) (*YabbyEdgePayload, error)
 	if v, err = bp.u32LE(4); err != nil {
 		return nil, fmt.Errorf("fragment: frameId: %w", err)
 	}
-	p.FrameID = uint32(fPort) - 101 + 16*v
+	p.FrameID = uint32(fPort) - 101 + 16*v //#nosec G115
 
 	// total fragment count (5 bits) + 1
 	if v, err = bp.u32LE(5); err != nil {
