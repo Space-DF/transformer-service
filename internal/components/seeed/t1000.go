@@ -1,12 +1,9 @@
 package seeed
 
 import (
-	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"math"
-	"strings"
 	"time"
 
 	"github.com/Space-DF/transformer-service/internal/components"
@@ -22,30 +19,30 @@ func NewT1000Parser() *T1000Parser {
 
 // Packet type constants for T1000
 const (
-	PacketDeviceStatusEventMode      = 0x01
-	PacketDeviceStatusPeriodicMode   = 0x02
-	PacketHeartbeat                  = 0x05
-	PacketGNSSLocationSensor         = 0x06
-	PacketWiFILocationSensor         = 0x07
-	PacketBluetoothLocationSensor    = 0x08
-	PacketGNSSLocationOnly           = 0x09
-	PacketWiFILocationOnly           = 0x0A
-	PacketBluetoothLocationOnly      = 0x0B
-	PacketErrorCode                  = 0x0D
-	PacketPositioningStatusSensor    = 0x11
+	PacketDeviceStatusEventMode    = 0x01
+	PacketDeviceStatusPeriodicMode = 0x02
+	PacketHeartbeat                = 0x05
+	PacketGNSSLocationSensor       = 0x06
+	PacketWiFILocationSensor       = 0x07
+	PacketBluetoothLocationSensor  = 0x08
+	PacketGNSSLocationOnly         = 0x09
+	PacketWiFILocationOnly         = 0x0A
+	PacketBluetoothLocationOnly    = 0x0B
+	PacketErrorCode                = 0x0D
+	PacketPositioningStatusSensor  = 0x11
 )
 
 // T1000Payload represents the parsed T1000 payload
 type T1000Payload struct {
 	PacketID         byte
-	BatteryLevel     uint8      // Percentage (0-100)
-	Temperature      float64    // Celsius
-	Light            uint16     // Percentage (0-10000)
+	BatteryLevel     uint8   // Percentage (0-100)
+	Temperature      float64 // Celsius
+	Light            uint16  // Percentage (0-10000)
 	Latitude         float64
 	Longitude        float64
 	Altitude         float64
-	UTCTime          uint32     // Unix timestamp
-	EventStatus      uint32     // Bit flags for events
+	UTCTime          uint32 // Unix timestamp
+	EventStatus      uint32 // Bit flags for events
 	WorkMode         uint8
 	PositionStrategy uint8
 	WiFiMACs         []WiFiMAC
@@ -55,31 +52,31 @@ type T1000Payload struct {
 	ErrorCode        uint32
 
 	// Device Status Event Mode fields (0x01 packet)
-	SoftwareVersion            uint16
-	HardwareVersion            uint16
-	HeartbeatInterval          uint16  // seconds
-	UplinkInterval             uint16  // seconds
-	EventModeUplinkInterval    uint16  // seconds
-	TempLightSwitch            uint8
-	SOSMode                    uint8
-	EnableMotionEvent          uint8
-	MotionThreshold            uint16
-	MotionStartInterval        uint16  // seconds
-	EnableMotionlessEvent      uint8
-	MotionlessTimeout          uint16  // seconds
-	EnableShockEvent           uint8
-	ShockThreshold             uint16
-	EnableTemperatureEvent     uint8
+	SoftwareVersion                uint16
+	HardwareVersion                uint16
+	HeartbeatInterval              uint16 // seconds
+	UplinkInterval                 uint16 // seconds
+	EventModeUplinkInterval        uint16 // seconds
+	TempLightSwitch                uint8
+	SOSMode                        uint8
+	EnableMotionEvent              uint8
+	MotionThreshold                uint16
+	MotionStartInterval            uint16 // seconds
+	EnableMotionlessEvent          uint8
+	MotionlessTimeout              uint16 // seconds
+	EnableShockEvent               uint8
+	ShockThreshold                 uint16
+	EnableTemperatureEvent         uint8
 	TemperatureEventUplinkInterval uint16 // seconds
-	TemperatureSampleInterval   uint16  // seconds
-	TemperatureThresholdMax     int16   // 0.1°C
-	TemperatureThresholdMin     int16   // 0.1°C
-	TemperatureWarningType      uint8
-	EnableLightEvent           uint8
-	LightEventUplinkInterval   uint16  // seconds
-	LightSampleInterval        uint16  // seconds
-	LightThresholdMax          uint16
-	LightThresholdMin          uint16
+	TemperatureSampleInterval      uint16 // seconds
+	TemperatureThresholdMax        int16  // 0.1°C
+	TemperatureThresholdMin        int16  // 0.1°C
+	TemperatureWarningType         uint8
+	EnableLightEvent               uint8
+	LightEventUplinkInterval       uint16 // seconds
+	LightSampleInterval            uint16 // seconds
+	LightThresholdMax              uint16
+	LightThresholdMin              uint16
 }
 
 type WiFiMAC struct {
@@ -94,58 +91,58 @@ type BLEMAC struct {
 
 // Work mode values
 const (
-	WorkModeStandby   = 0x00
-	WorkModePeriodic  = 0x01
-	WorkModeEvent     = 0x02
+	WorkModeStandby  = 0x00
+	WorkModePeriodic = 0x01
+	WorkModeEvent    = 0x02
 )
 
 // Positioning strategy values
 const (
-	PosGNSS           = 0x00
-	PosWiFi           = 0x01
-	PosWiFiGNSS       = 0x02
-	PosGNSSWiFi       = 0x03
-	PosBLE            = 0x04
-	PosBLEWiFi        = 0x05
-	PosBLEGNSS        = 0x06
-	PosBLEWiFiGNSS    = 0x07
+	PosGNSS        = 0x00
+	PosWiFi        = 0x01
+	PosWiFiGNSS    = 0x02
+	PosGNSSWiFi    = 0x03
+	PosBLE         = 0x04
+	PosBLEWiFi     = 0x05
+	PosBLEGNSS     = 0x06
+	PosBLEWiFiGNSS = 0x07
 )
 
 // Event status bit flags
 const (
-	EventStartMoving   = 0x000001
-	EventEndMoving     = 0x000002
-	EventMotionless    = 0x000004
-	EventShock         = 0x000008
-	EventTemperature   = 0x000010
-	EventLight         = 0x000020
-	EventSOS           = 0x000040
-	EventPressOnce     = 0x000080
+	EventStartMoving = 0x000001
+	EventEndMoving   = 0x000002
+	EventMotionless  = 0x000004
+	EventShock       = 0x000008
+	EventTemperature = 0x000010
+	EventLight       = 0x000020
+	EventSOS         = 0x000040
+	EventPressOnce   = 0x000080
 )
 
 // Positioning status values for 0x11 packet
 const (
-	PositionSuccess            = 0x00
-	PositionGNSSFailed         = 0x01
-	PositionWiFiFailed         = 0x02
-	PositionWiFiGNSSFailed     = 0x03
-	PositionGNSSWiFiFailed     = 0x04
-	PositionBLEFailed          = 0x05
-	PositionBLEWiFiFailed      = 0x06
-	PositionBLEGNSSFailed      = 0x07
-	PositionBLEWiFiGNSSFailed  = 0x08
-	PositionServerGNSSFailed   = 0x09
-	PositionServerWiFiFailed   = 0x0A
-	PositionServerBLEFailed    = 0x0B
-	PositionPoorAccuracy       = 0x0C
-	PositionTimeSyncFailed     = 0x0D
-	PositionOldAlmanac         = 0x0E
+	PositionSuccess           = 0x00
+	PositionGNSSFailed        = 0x01
+	PositionWiFiFailed        = 0x02
+	PositionWiFiGNSSFailed    = 0x03
+	PositionGNSSWiFiFailed    = 0x04
+	PositionBLEFailed         = 0x05
+	PositionBLEWiFiFailed     = 0x06
+	PositionBLEGNSSFailed     = 0x07
+	PositionBLEWiFiGNSSFailed = 0x08
+	PositionServerGNSSFailed  = 0x09
+	PositionServerWiFiFailed  = 0x0A
+	PositionServerBLEFailed   = 0x0B
+	PositionPoorAccuracy      = 0x0C
+	PositionTimeSyncFailed    = 0x0D
+	PositionOldAlmanac        = 0x0E
 )
 
 // Scaling constants
 const (
-	TemperatureScale = 10.0 // Temperature is stored as int16 * 0.1°C
-	LightMaxValue   = 10000 // Light sensor max value (0-100% range)
+	TemperatureScale = 10.0  // Temperature is stored as int16 * 0.1°C
+	LightMaxValue    = 10000 // Light sensor max value (0-100% range)
 )
 
 // ParseToEntities creates entities for T1000 device
@@ -159,15 +156,15 @@ func (p *T1000Parser) ParseToEntities(orgSlug, model string, payload *components
 	}
 
 	// Decode payload bytes
-	encoded := extractPayloadData(payload.Data)
+	encoded := components.ExtractPayloadData(payload.Data)
 	if encoded == "" {
-		encoded = extractPayloadData(payload.Metadata)
+		encoded = components.ExtractPayloadData(payload.Metadata)
 	}
 	if encoded == "" {
 		return nil, fmt.Errorf("no payload data found")
 	}
 
-	bytes, err := decodePayloadBytes(encoded)
+	bytes, err := components.DecodePayloadBytes(encoded)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode payload: %w", err)
 	}
@@ -249,10 +246,10 @@ func (p *T1000Parser) ParseToEntities(orgSlug, model string, payload *components
 			Name:        "Software Version",
 			State:       fmt.Sprintf("%d.%d", t1000Data.SoftwareVersion>>8, t1000Data.SoftwareVersion&0xFF),
 			Attributes: map[string]interface{}{
-				"device_model":     "SenseCAP T1000",
-				"version_raw":      t1000Data.SoftwareVersion,
-				"version_major":    t1000Data.SoftwareVersion >> 8,
-				"version_minor":    t1000Data.SoftwareVersion & 0xFF,
+				"device_model":  "SenseCAP T1000",
+				"version_raw":   t1000Data.SoftwareVersion,
+				"version_major": t1000Data.SoftwareVersion >> 8,
+				"version_minor": t1000Data.SoftwareVersion & 0xFF,
 			},
 			Enabled:   true,
 			Timestamp: timestamp,
@@ -272,10 +269,10 @@ func (p *T1000Parser) ParseToEntities(orgSlug, model string, payload *components
 			Name:        "Hardware Version",
 			State:       fmt.Sprintf("%d.%d", t1000Data.HardwareVersion>>8, t1000Data.HardwareVersion&0xFF),
 			Attributes: map[string]interface{}{
-				"device_model":     "SenseCAP T1000",
-				"version_raw":      t1000Data.HardwareVersion,
-				"version_major":    t1000Data.HardwareVersion >> 8,
-				"version_minor":    t1000Data.HardwareVersion & 0xFF,
+				"device_model":  "SenseCAP T1000",
+				"version_raw":   t1000Data.HardwareVersion,
+				"version_major": t1000Data.HardwareVersion >> 8,
+				"version_minor": t1000Data.HardwareVersion & 0xFF,
 			},
 			Enabled:   true,
 			Timestamp: timestamp,
@@ -295,9 +292,9 @@ func (p *T1000Parser) ParseToEntities(orgSlug, model string, payload *components
 			Name:        "Positioning Status",
 			State:       getPositioningStatusName(t1000Data.PositionStatus),
 			Attributes: map[string]interface{}{
-				"device_model":    "SenseCAP T1000",
-				"status_code":     t1000Data.PositionStatus,
-				"positioning_ok":  t1000Data.PositionStatus == PositionSuccess,
+				"device_model":   "SenseCAP T1000",
+				"status_code":    t1000Data.PositionStatus,
+				"positioning_ok": t1000Data.PositionStatus == PositionSuccess,
 			},
 			Enabled:   true,
 			Timestamp: timestamp,
@@ -624,35 +621,35 @@ func parseDeviceStatusEventMode(data []byte) (*T1000Payload, error) {
 	}
 
 	result := &T1000Payload{
-		PacketID:                   data[0],
-		BatteryLevel:               data[1],
-		SoftwareVersion:            binary.BigEndian.Uint16(data[2:4]),
-		HardwareVersion:            binary.BigEndian.Uint16(data[4:6]),
-		WorkMode:                   data[6],
-		PositionStrategy:           data[7],
-		HeartbeatInterval:          binary.BigEndian.Uint16(data[8:10]),
-		UplinkInterval:             binary.BigEndian.Uint16(data[10:12]),
-		EventModeUplinkInterval:    binary.BigEndian.Uint16(data[12:14]),
-		TempLightSwitch:            data[14],
-		SOSMode:                    data[15],
-		EnableMotionEvent:          data[16],
-		MotionThreshold:            binary.BigEndian.Uint16(data[17:19]),
-		MotionStartInterval:        binary.BigEndian.Uint16(data[19:21]),
-		EnableMotionlessEvent:      data[21],
-		MotionlessTimeout:          binary.BigEndian.Uint16(data[22:24]),
-		EnableShockEvent:           data[24],
-		ShockThreshold:             binary.BigEndian.Uint16(data[25:27]),
-		EnableTemperatureEvent:     data[27],
+		PacketID:                       data[0],
+		BatteryLevel:                   data[1],
+		SoftwareVersion:                binary.BigEndian.Uint16(data[2:4]),
+		HardwareVersion:                binary.BigEndian.Uint16(data[4:6]),
+		WorkMode:                       data[6],
+		PositionStrategy:               data[7],
+		HeartbeatInterval:              binary.BigEndian.Uint16(data[8:10]),
+		UplinkInterval:                 binary.BigEndian.Uint16(data[10:12]),
+		EventModeUplinkInterval:        binary.BigEndian.Uint16(data[12:14]),
+		TempLightSwitch:                data[14],
+		SOSMode:                        data[15],
+		EnableMotionEvent:              data[16],
+		MotionThreshold:                binary.BigEndian.Uint16(data[17:19]),
+		MotionStartInterval:            binary.BigEndian.Uint16(data[19:21]),
+		EnableMotionlessEvent:          data[21],
+		MotionlessTimeout:              binary.BigEndian.Uint16(data[22:24]),
+		EnableShockEvent:               data[24],
+		ShockThreshold:                 binary.BigEndian.Uint16(data[25:27]),
+		EnableTemperatureEvent:         data[27],
 		TemperatureEventUplinkInterval: binary.BigEndian.Uint16(data[28:30]),
-		TemperatureSampleInterval:   binary.BigEndian.Uint16(data[30:32]),
-		TemperatureThresholdMax:     int16(binary.BigEndian.Uint16(data[32:34])), // #nosec G115
-		TemperatureThresholdMin:     int16(binary.BigEndian.Uint16(data[34:36])), // #nosec G115
-		TemperatureWarningType:      data[36],
-		EnableLightEvent:           data[37],
-		LightEventUplinkInterval:   binary.BigEndian.Uint16(data[38:40]),
-		LightSampleInterval:        binary.BigEndian.Uint16(data[40:42]),
-		LightThresholdMax:          binary.BigEndian.Uint16(data[42:44]),
-		LightThresholdMin:          binary.BigEndian.Uint16(data[44:46]),
+		TemperatureSampleInterval:      binary.BigEndian.Uint16(data[30:32]),
+		TemperatureThresholdMax:        int16(binary.BigEndian.Uint16(data[32:34])), // #nosec G115
+		TemperatureThresholdMin:        int16(binary.BigEndian.Uint16(data[34:36])), // #nosec G115
+		TemperatureWarningType:         data[36],
+		EnableLightEvent:               data[37],
+		LightEventUplinkInterval:       binary.BigEndian.Uint16(data[38:40]),
+		LightSampleInterval:            binary.BigEndian.Uint16(data[40:42]),
+		LightThresholdMax:              binary.BigEndian.Uint16(data[42:44]),
+		LightThresholdMin:              binary.BigEndian.Uint16(data[44:46]),
 	}
 	return result, nil
 }
@@ -675,17 +672,17 @@ func parseDeviceStatusPeriodicMode(data []byte) (*T1000Payload, error) {
 	}
 
 	result := &T1000Payload{
-		PacketID:                   data[0],                         // Byte 0: 0x02
-		BatteryLevel:               data[1],                         // Byte 1: battery level
-		SoftwareVersion:            binary.BigEndian.Uint16(data[2:4]),  // Bytes 2-3: software version
-		HardwareVersion:            binary.BigEndian.Uint16(data[4:6]),  // Bytes 4-5: hardware version
-		WorkMode:                   data[6],                         // Byte 6: work mode
-		PositionStrategy:           data[7],                         // Byte 7: positioning strategy
-		HeartbeatInterval:          binary.BigEndian.Uint16(data[8:10]), // Bytes 8-9: heartbeat interval
-		UplinkInterval:             binary.BigEndian.Uint16(data[10:12]), // Bytes 10-11: uplink interval
-		EventModeUplinkInterval:    binary.BigEndian.Uint16(data[12:14]), // Bytes 12-13: event mode uplink interval
-		TempLightSwitch:            data[14],                        // Byte 14: temp & light switch
-		SOSMode:                    data[15],                        // Byte 15: SOS mode
+		PacketID:                data[0],                              // Byte 0: 0x02
+		BatteryLevel:            data[1],                              // Byte 1: battery level
+		SoftwareVersion:         binary.BigEndian.Uint16(data[2:4]),   // Bytes 2-3: software version
+		HardwareVersion:         binary.BigEndian.Uint16(data[4:6]),   // Bytes 4-5: hardware version
+		WorkMode:                data[6],                              // Byte 6: work mode
+		PositionStrategy:        data[7],                              // Byte 7: positioning strategy
+		HeartbeatInterval:       binary.BigEndian.Uint16(data[8:10]),  // Bytes 8-9: heartbeat interval
+		UplinkInterval:          binary.BigEndian.Uint16(data[10:12]), // Bytes 10-11: uplink interval
+		EventModeUplinkInterval: binary.BigEndian.Uint16(data[12:14]), // Bytes 12-13: event mode uplink interval
+		TempLightSwitch:         data[14],                             // Byte 14: temp & light switch
+		SOSMode:                 data[15],                             // Byte 15: SOS mode
 	}
 	return result, nil
 }
@@ -717,7 +714,7 @@ func parseGNSSLocationSensor(data []byte) (*T1000Payload, error) {
 		return nil, fmt.Errorf("packet too short for GNSS location sensor: got %d bytes, need at least %d", len(data), minLen)
 	}
 
-	rawLat := int32(binary.BigEndian.Uint32(data[9:13])) // #nosec G115
+	rawLat := int32(binary.BigEndian.Uint32(data[9:13]))  // #nosec G115
 	rawLon := int32(binary.BigEndian.Uint32(data[13:17])) // #nosec G115
 
 	lat := float64(rawLat) / components.CoordScale
@@ -733,16 +730,16 @@ func parseGNSSLocationSensor(data []byte) (*T1000Payload, error) {
 	}
 
 	result := &T1000Payload{
-		PacketID:              data[0],
+		PacketID: data[0],
 		// EventStatus is uint24 (3 bytes) at bytes 1-3 (0-indexed)
-		EventStatus:           uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3]),
-		MotionSegment:         data[4],
-		UTCTime:               binary.BigEndian.Uint32(data[5:9]),
-		Latitude:              lat,
-		Longitude:             lon,
-		Temperature:           float64(int16(binary.BigEndian.Uint16(data[17:19]))) / TemperatureScale,       // #nosec G115
-		Light:                 binary.BigEndian.Uint16(data[19:21]), // Already 0-100% per spec
-		BatteryLevel:          data[21],
+		EventStatus:   uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3]),
+		MotionSegment: data[4],
+		UTCTime:       binary.BigEndian.Uint32(data[5:9]),
+		Latitude:      lat,
+		Longitude:     lon,
+		Temperature:   float64(int16(binary.BigEndian.Uint16(data[17:19]))) / TemperatureScale, // #nosec G115
+		Light:         binary.BigEndian.Uint16(data[19:21]),                                    // Already 0-100% per spec
+		BatteryLevel:  data[21],
 	}
 
 	return result, nil
@@ -770,14 +767,14 @@ func parseWiFILocationSensor(data []byte) (*T1000Payload, error) {
 	}
 
 	result := &T1000Payload{
-		PacketID:              data[0],
+		PacketID: data[0],
 		// EventStatus is uint24 (3 bytes) at bytes 1-3 (0-indexed)
-		EventStatus:           uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3]),
-		MotionSegment:         data[4],
-		UTCTime:               binary.BigEndian.Uint32(data[5:9]),
-		Temperature:           float64(int16(binary.BigEndian.Uint16(data[37:39]))) / TemperatureScale, // #nosec G115
-		Light:                 binary.BigEndian.Uint16(data[39:41]), // Already 0-100% per spec
-		BatteryLevel:          data[41],
+		EventStatus:   uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3]),
+		MotionSegment: data[4],
+		UTCTime:       binary.BigEndian.Uint32(data[5:9]),
+		Temperature:   float64(int16(binary.BigEndian.Uint16(data[37:39]))) / TemperatureScale, // #nosec G115
+		Light:         binary.BigEndian.Uint16(data[39:41]),                                    // Already 0-100% per spec
+		BatteryLevel:  data[41],
 	}
 
 	// Parse 4 WiFi MAC addresses (each is 6 bytes MAC + 1 byte RSSI = 7 bytes)
@@ -814,14 +811,14 @@ func parseBluetoothLocationSensor(data []byte) (*T1000Payload, error) {
 	}
 
 	result := &T1000Payload{
-		PacketID:              data[0],
+		PacketID: data[0],
 		// EventStatus is uint24 (3 bytes) at bytes 1-3 (0-indexed)
-		EventStatus:           uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3]),
-		MotionSegment:         data[4],
-		UTCTime:               binary.BigEndian.Uint32(data[5:9]),
-		Temperature:           float64(int16(binary.BigEndian.Uint16(data[30:32]))) / TemperatureScale, // #nosec G115
-		Light:                 binary.BigEndian.Uint16(data[32:34]), // Already 0-100% per spec
-		BatteryLevel:          data[34],
+		EventStatus:   uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3]),
+		MotionSegment: data[4],
+		UTCTime:       binary.BigEndian.Uint32(data[5:9]),
+		Temperature:   float64(int16(binary.BigEndian.Uint16(data[30:32]))) / TemperatureScale, // #nosec G115
+		Light:         binary.BigEndian.Uint16(data[32:34]),                                    // Already 0-100% per spec
+		BatteryLevel:  data[34],
 	}
 
 	// Parse 3 BLE MAC addresses (each is 6 bytes MAC + 1 byte RSSI = 7 bytes)
@@ -851,7 +848,7 @@ func parseGNSSLocationOnly(data []byte) (*T1000Payload, error) {
 		return nil, fmt.Errorf("packet too short for GNSS location only: got %d bytes, need at least 18", len(data))
 	}
 
-	rawLat := int32(binary.BigEndian.Uint32(data[9:13])) // #nosec G115
+	rawLat := int32(binary.BigEndian.Uint32(data[9:13]))  // #nosec G115
 	rawLon := int32(binary.BigEndian.Uint32(data[13:17])) // #nosec G115
 
 	lat := float64(rawLat) / components.CoordScale
@@ -868,7 +865,7 @@ func parseGNSSLocationOnly(data []byte) (*T1000Payload, error) {
 	}
 
 	result := &T1000Payload{
-		PacketID:      data[0],
+		PacketID: data[0],
 		// EventStatus is uint24 (3 bytes) at bytes 1-3 (0-indexed)
 		EventStatus:   uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3]),
 		MotionSegment: data[4],
@@ -900,7 +897,7 @@ func parseWiFILocationOnly(data []byte) (*T1000Payload, error) {
 	}
 
 	result := &T1000Payload{
-		PacketID:      data[0],
+		PacketID: data[0],
 		// EventStatus is uint24 (3 bytes) at bytes 1-3 (0-indexed)
 		EventStatus:   uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3]),
 		MotionSegment: data[4],
@@ -940,7 +937,7 @@ func parseBluetoothLocationOnly(data []byte) (*T1000Payload, error) {
 	}
 
 	result := &T1000Payload{
-		PacketID:      data[0],
+		PacketID: data[0],
 		// EventStatus is uint24 (3 bytes) at bytes 1-3 (0-indexed)
 		EventStatus:   uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3]),
 		MotionSegment: data[4],
@@ -971,8 +968,8 @@ func parseErrorCode(data []byte) (*T1000Payload, error) {
 	}
 
 	result := &T1000Payload{
-		PacketID:     data[0],
-		ErrorCode:    binary.BigEndian.Uint32(data[1:5]),
+		PacketID:  data[0],
+		ErrorCode: binary.BigEndian.Uint32(data[1:5]),
 	}
 	return result, nil
 }
@@ -991,14 +988,14 @@ func parsePositioningStatusSensor(data []byte) (*T1000Payload, error) {
 	}
 
 	result := &T1000Payload{
-		PacketID:              data[0],
-		PositionStatus:        data[1],
+		PacketID:       data[0],
+		PositionStatus: data[1],
 		// EventStatus is uint24 (3 bytes) at bytes 2-4 (0-indexed)
-		EventStatus:           uint32(data[2])<<16 | uint32(data[3])<<8 | uint32(data[4]),
-		UTCTime:               binary.BigEndian.Uint32(data[5:9]),
-		Temperature:           float64(int16(binary.BigEndian.Uint16(data[9:11]))) / TemperatureScale, // #nosec G115
-		Light:                 binary.BigEndian.Uint16(data[11:13]), // Already 0-100% per spec
-		BatteryLevel:          data[13],
+		EventStatus:  uint32(data[2])<<16 | uint32(data[3])<<8 | uint32(data[4]),
+		UTCTime:      binary.BigEndian.Uint32(data[5:9]),
+		Temperature:  float64(int16(binary.BigEndian.Uint16(data[9:11]))) / TemperatureScale, // #nosec G115
+		Light:        binary.BigEndian.Uint16(data[11:13]),                                   // Already 0-100% per spec
+		BatteryLevel: data[13],
 	}
 	return result, nil
 }
@@ -1178,57 +1175,6 @@ func packetTypeHasVersions(packetID byte) bool {
 	}
 }
 
-// Extract payload data helper functions
-func extractPayloadData(payload interface{}) string {
-	switch v := payload.(type) {
-	case string:
-		return v
-	case map[string]interface{}:
-		if uplink, ok := v["uplinkEvent"].(map[string]interface{}); ok {
-			if data, ok := uplink["data"].(string); ok && data != "" {
-				return data
-			}
-		}
-
-		if decoded, ok := v["decoded_raw_data"].(map[string]interface{}); ok {
-			if uplink, ok := decoded["uplinkEvent"].(map[string]interface{}); ok {
-				if data, ok := uplink["data"].(string); ok && data != "" {
-					return data
-				}
-			}
-		}
-
-		for _, key := range []string{"data", "payload", "frm_payload", "frmPayload", "payload_hex"} {
-			if val, ok := v[key].(string); ok && val != "" {
-				trimmed := strings.TrimSpace(val)
-				if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
-					continue
-				}
-				return val
-			}
-		}
-	}
-	return ""
-}
-
-func decodePayloadBytes(encoded string) ([]byte, error) {
-	if encoded == "" {
-		return nil, fmt.Errorf("empty payload data")
-	}
-
-	// Try hex decode first
-	if decoded, err := hex.DecodeString(encoded); err == nil && len(decoded) > 0 {
-		return decoded, nil
-	}
-
-	// Try base64 decode
-	if decoded, err := base64.StdEncoding.DecodeString(encoded); err == nil && len(decoded) > 0 {
-		return decoded, nil
-	}
-
-	return nil, fmt.Errorf("failed to decode payload as hex or base64")
-}
-
 // GetSupportedEntityTypes returns the entity types this device supports
 func (c *T1000Parser) GetSupportedEntityTypes() []string {
 	return []string{
@@ -1248,7 +1194,7 @@ func (c *T1000Parser) GetSupportedEntityTypes() []string {
 
 // GetSupportedPorts returns the fPorts this device type uses
 func (c *T1000Parser) GetSupportedPorts() []int {
-	return []int{1,5}
+	return []int{1, 5}
 }
 
 func (c *T1000Parser) SupportsGPS() bool {
@@ -1266,15 +1212,15 @@ func (c *T1000Parser) ParsePayload(payload *components.RawPayload) (*components.
 	}
 
 	// Decode payload bytes
-	encoded := extractPayloadData(payload.Data)
+	encoded := components.ExtractPayloadData(payload.Data)
 	if encoded == "" {
-		encoded = extractPayloadData(payload.Metadata)
+		encoded = components.ExtractPayloadData(payload.Metadata)
 	}
 	if encoded == "" {
 		return nil, fmt.Errorf("no payload data found")
 	}
 
-	bytes, err := decodePayloadBytes(encoded)
+	bytes, err := components.DecodePayloadBytes(encoded)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode payload: %w", err)
 	}

@@ -65,7 +65,7 @@ func NewDeviceProfileService() (*DeviceProfileService, error) {
 // loadProfilesFromYAML loads device profiles from YAML configuration
 func (dps *DeviceProfileService) loadProfilesFromYAML() error {
 	profilePath := filepath.Join("configs", "device_model", "device_profile.yaml")
-	profileData, err := os.ReadFile(profilePath)
+	profileData, err := os.ReadFile(profilePath) //#nosec #G304
 	if err != nil {
 		return fmt.Errorf("failed to read device profile config: %w", err)
 	}
@@ -93,7 +93,7 @@ func (dps *DeviceProfileService) loadProfilesFromYAML() error {
 // loadManufacturersFromYAML loads manufacturers from YAML configuration
 func (dps *DeviceProfileService) loadManufacturersFromYAML() error {
 	manufacturerPath := filepath.Join("configs", "device_model", "manufacturers.yaml")
-	manufacturerData, err := os.ReadFile(manufacturerPath)
+	manufacturerData, err := os.ReadFile(manufacturerPath) //#nosec #G304
 	if err != nil {
 		return fmt.Errorf("failed to read manufacturers config: %w", err)
 	}

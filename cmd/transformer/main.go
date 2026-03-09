@@ -20,6 +20,7 @@ import (
 	"github.com/Space-DF/transformer-service/cmd/transformer/cmd"
 
 	_ "github.com/Space-DF/transformer-service/internal/components/abeeway"
+	_ "github.com/Space-DF/transformer-service/internal/components/digitalmatter"
 	_ "github.com/Space-DF/transformer-service/internal/components/dut"
 	_ "github.com/Space-DF/transformer-service/internal/components/lilygo"
 	_ "github.com/Space-DF/transformer-service/internal/components/rakwireless"
