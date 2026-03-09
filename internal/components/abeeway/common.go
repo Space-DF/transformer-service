@@ -22,8 +22,8 @@ const (
 	MsgTypeDebug            = 0x0F // Debug - Internal use only
 
 	// Legacy aliases for backward compatibility
-	MsgTypeEnergyStatus = 0x04 // Deprecated: Use MsgTypeStatus
-	MsgTypeGeolocStart  = 0x0A // Deprecated: Use MsgTypeEvent
+	MsgTypeEnergyStatus = 0x04
+	MsgTypeGeolocStart  = 0x0A
 )
 
 // Position data type constants

@@ -76,10 +76,10 @@ func (bp *bitParser) u32LE(n int) (uint32, error) {
 		if avail > remaining {
 			avail = remaining
 		}
-		extracted := bp.bits[byteNum] >> uint(discardLSbs)
-		mask := uint32((1 << uint(avail)) - 1)
+		extracted := bp.bits[byteNum] >> uint(discardLSbs) //#nosec G115
+		mask := uint32((1 << uint(avail)) - 1)             //#nosec G115
 		masked := uint32(extracted) & mask
-		out |= masked << uint(total)
+		out |= masked << uint(total) //#nosec G115
 
 		total += avail
 		remaining -= avail
