@@ -178,6 +178,11 @@ func runServe(cmd *cobra.Command, args []string) error {
 		log.Printf("Error stopping consumer: %v", err)
 	}
 
+	// Close logger service
+	if err := deviceProfileService.Close(); err != nil {
+		log.Printf("Error closing device profile service: %v", err)
+	}
+
 	log.Println("Transformer service stopped")
 	return nil
 }

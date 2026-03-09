@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Space-DF/transformer-service/internal/models"
@@ -28,7 +27,6 @@ type DeviceProfileService struct {
 	profiles      map[string]*models.DeviceProfile // map[device_type]profile
 	profilesByID  map[string]*models.DeviceProfile // map[profile_id]profile
 	manufacturers map[string]*models.Manufacturer  // map[manufacturer_id]manufacturer
-	profilesMutex sync.RWMutex
 }
 
 // NewDeviceProfileService creates a new device profile service
@@ -65,7 +63,7 @@ func NewDeviceProfileService() (*DeviceProfileService, error) {
 // loadProfilesFromYAML loads device profiles from YAML configuration
 func (dps *DeviceProfileService) loadProfilesFromYAML() error {
 	profilePath := filepath.Join("configs", "device_model", "device_profile.yaml")
-	profileData, err := os.ReadFile(profilePath) //#nosec #G304
+	profileData, err := os.ReadFile(profilePath) //#nosec G304
 	if err != nil {
 		return fmt.Errorf("failed to read device profile config: %w", err)
 	}
@@ -74,9 +72,6 @@ func (dps *DeviceProfileService) loadProfilesFromYAML() error {
 	if err := yaml.Unmarshal(profileData, &profileConfig); err != nil {
 		return fmt.Errorf("failed to parse device profile config: %w", err)
 	}
-
-	dps.profilesMutex.Lock()
-	defer dps.profilesMutex.Unlock()
 
 	for i := range profileConfig.DeviceProfiles {
 		profile := &profileConfig.DeviceProfiles[i]
@@ -93,7 +88,7 @@ func (dps *DeviceProfileService) loadProfilesFromYAML() error {
 // loadManufacturersFromYAML loads manufacturers from YAML configuration
 func (dps *DeviceProfileService) loadManufacturersFromYAML() error {
 	manufacturerPath := filepath.Join("configs", "device_model", "manufacturers.yaml")
-	manufacturerData, err := os.ReadFile(manufacturerPath) //#nosec #G304
+	manufacturerData, err := os.ReadFile(manufacturerPath) //#nosec G304
 	if err != nil {
 		return fmt.Errorf("failed to read manufacturers config: %w", err)
 	}
@@ -102,9 +97,6 @@ func (dps *DeviceProfileService) loadManufacturersFromYAML() error {
 	if err := yaml.Unmarshal(manufacturerData, &manufacturerConfig); err != nil {
 		return fmt.Errorf("failed to parse manufacturers config: %w", err)
 	}
-
-	dps.profilesMutex.Lock()
-	defer dps.profilesMutex.Unlock()
 
 	for i := range manufacturerConfig.Manufacturers {
 		manufacturer := &manufacturerConfig.Manufacturers[i]
@@ -117,9 +109,6 @@ func (dps *DeviceProfileService) loadManufacturersFromYAML() error {
 
 // GetProfileByDeviceType returns a device profile by device type
 func (dps *DeviceProfileService) GetProfileByDeviceType(deviceType string) (*models.DeviceProfile, error) {
-	dps.profilesMutex.RLock()
-	defer dps.profilesMutex.RUnlock()
-
 	profile, ok := dps.profiles[deviceType]
 	if !ok {
 		return nil, fmt.Errorf("device profile not found for type: %s", deviceType)
@@ -130,9 +119,6 @@ func (dps *DeviceProfileService) GetProfileByDeviceType(deviceType string) (*mod
 
 // GetManufacturerByID returns a manufacturer by ID
 func (dps *DeviceProfileService) GetManufacturerByID(manufacturerID string) (*models.Manufacturer, error) {
-	dps.profilesMutex.RLock()
-	defer dps.profilesMutex.RUnlock()
-
 	manufacturer, ok := dps.manufacturers[manufacturerID]
 	if !ok {
 		return nil, fmt.Errorf("manufacturer not found for ID: %s", manufacturerID)
@@ -143,9 +129,6 @@ func (dps *DeviceProfileService) GetManufacturerByID(manufacturerID string) (*mo
 
 // GetProfileByID returns a device profile by its UUID
 func (dps *DeviceProfileService) GetProfileByID(profileID string) (*models.DeviceProfile, error) {
-	dps.profilesMutex.RLock()
-	defer dps.profilesMutex.RUnlock()
-
 	profile, ok := dps.profilesByID[profileID]
 	if !ok {
 		return nil, fmt.Errorf("device profile not found for ID: %s", profileID)
@@ -156,9 +139,6 @@ func (dps *DeviceProfileService) GetProfileByID(profileID string) (*models.Devic
 
 // GetAllDeviceModels returns all device models with manufacturer names resolved.
 func (dps *DeviceProfileService) GetAllDeviceModels() []models.DeviceModel {
-	dps.profilesMutex.RLock()
-	defer dps.profilesMutex.RUnlock()
-
 	result := make([]models.DeviceModel, 0, len(dps.profilesByID))
 	for _, profile := range dps.profilesByID {
 		manufacturerName := profile.ManufacturerID
@@ -339,4 +319,12 @@ func (dps *DeviceProfileService) ShouldSkipDevice(orgSlug, devEUI string) (bool,
 		return false, err
 	}
 	return mapping.Skip, nil
+}
+
+// Close closes the service and releases resources
+func (dps *DeviceProfileService) Close() error {
+	if dps.httpClient != nil {
+			dps.httpClient.CloseIdleConnections()
+	}
+	return nil
 }
