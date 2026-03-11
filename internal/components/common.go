@@ -67,32 +67,26 @@ func ExtractPayloadData(payload interface{}) string {
 	case string:
 		return v
 	case map[string]interface{}:
-		if uplink, ok := v["uplinkEvent"].(map[string]interface{}); ok {
-			if data, ok := uplink["data"].(string); ok && data != "" {
+		if decoded, ok := v["decoded_raw_data"].(map[string]interface{}); ok {
+			if data, ok := decoded["data"].(string); ok {
 				return data
 			}
 		}
 
 		if uplink, ok := v["uplink_message"].(map[string]interface{}); ok {
-			if frmPayload, ok := uplink["frm_payload"].(string); ok && frmPayload != "" {
+			if frmPayload, ok := uplink["frm_payload"].(string); ok {
 				return frmPayload
 			}
 		}
 
-		if decoded, ok := v["decoded_raw_data"].(map[string]interface{}); ok {
-			// Try ChirpStack format: decoded_raw_data.uplinkEvent.data
-			if uplink, ok := decoded["uplinkEvent"].(map[string]interface{}); ok {
-				if data, ok := uplink["data"].(string); ok && data != "" {
-					return data
-				}
+		if uplink, ok := v["uplinkEvent"].(map[string]interface{}); ok {
+			if data, ok := uplink["data"].(string); ok {
+				return data
 			}
+		}
 
-			// Try TTN format: decoded_raw_data.uplink_message.frm_payload
-			if uplinkMsg, ok := decoded["uplink_message"].(map[string]interface{}); ok {
-				if frmPayload, ok := uplinkMsg["frm_payload"].(string); ok && frmPayload != "" {
-					return frmPayload
-				}
-			}
+		if data, ok := v["data"].(string); ok && data != "" {
+			return data
 		}
 	}
 	return ""
@@ -110,6 +104,11 @@ func DecodePayloadBytes(encoded string) ([]byte, error) {
 	}
 
 	// Try base64 decode
+	if decoded, err := base64.StdEncoding.DecodeString(encoded); err == nil && len(decoded) > 0 {
+		return decoded, nil
+	}
+
+	// Try as base64 for non-padded payloads
 	if decoded, err := base64.StdEncoding.DecodeString(encoded); err == nil && len(decoded) > 0 {
 		return decoded, nil
 	}

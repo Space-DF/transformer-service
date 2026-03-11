@@ -70,9 +70,9 @@ func (c *TBeamParser) ParsePayload(payload *components.RawPayload) (*components.
 	}
 
 	// Decode payload bytes
-	encoded := extractPayloadData(payload.Data)
+	encoded := components.ExtractPayloadData(payload.Data)
 	if encoded == "" {
-		encoded = extractPayloadData(payload.Metadata)
+		encoded = components.ExtractPayloadData(payload.Metadata)
 	}
 	if encoded == "" {
 		return nil, fmt.Errorf("no payload data found")
@@ -414,36 +414,4 @@ func (p *TBeamParser) ParseToEntities(orgSlug, model string, payload *components
 	}
 
 	return entities, nil
-}
-
-func extractPayloadData(payload interface{}) string {
-	switch v := payload.(type) {
-	case string:
-		return v
-	case map[string]interface{}:
-		if uplink, ok := v["uplinkEvent"].(map[string]interface{}); ok {
-			if data, ok := uplink["data"].(string); ok && data != "" {
-				return data
-			}
-		}
-
-		if decoded, ok := v["decoded_raw_data"].(map[string]interface{}); ok {
-			if uplink, ok := decoded["uplinkEvent"].(map[string]interface{}); ok {
-				if data, ok := uplink["data"].(string); ok && data != "" {
-					return data
-				}
-			}
-		}
-
-		for _, key := range []string{"data", "payload", "frm_payload", "frmPayload", "payload_hex"} {
-			if val, ok := v[key].(string); ok && val != "" {
-				trimmed := strings.TrimSpace(val)
-				if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
-					continue
-				}
-				return val
-			}
-		}
-	}
-	return ""
 }

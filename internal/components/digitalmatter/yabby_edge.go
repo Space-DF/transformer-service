@@ -1,6 +1,7 @@
 package digitalmatter
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math"
@@ -457,6 +458,95 @@ func parseLocationPort5(data []byte) (*YabbyEdgePayload, error) {
 	return p, nil
 }
 
+// detectMessageTypeFromBytes analyzes the raw payload bytes and determines
+// the actual Yabby Edge message type, regardless of what the wrapper says.
+//
+// Returns the detected fPort, or 0 if unable to detect.
+func detectMessageTypeFromBytes(data []byte) int {
+	if len(data) < 2 {
+		return 0
+	}
+
+	// Port 89 (Connect): 11 bytes minimum
+	// Format: id(48) + flags(8) + fwMaj(8) + fwMin(8) + prodId(8) + hwRev(8)
+	// This is the most distinctive pattern - 6 bytes of "random" ID followed by
+	// small values for firmware (typically < 10) and product/hw revision
+	if len(data) >= 11 {
+		// Check if it matches connect message pattern
+		// After 6 bytes of ID, we expect flags(1 byte), fwMaj(1), fwMin(1), prodId(1), hwRev(1)
+		// fwMaj and fwMin are typically small (0-10 range for current firmware)
+		// prodId for Yabby Edge is typically around 85, hwRev around 4
+		fwMaj := uint(data[7])
+		fwMin := uint(data[8])
+		prodID := uint(data[9])
+		hwRev := uint(data[10])
+
+		// Connect message has reasonable values in these positions
+		if fwMaj <= 10 && fwMin <= 10 && prodID >= 80 && prodID <= 100 && hwRev <= 10 {
+			return 89
+		}
+	}
+
+	// Port 1 (Hello): 9 bytes minimum
+	// Format: fwMaj(8) + fwMin(8) + prodId(8) + hwRev(8) + reset flags(8) + ...
+	// First byte is typically firmware major (small value)
+	if len(data) >= 9 {
+		fwMaj := uint(data[0])
+		fwMin := uint(data[1])
+		prodID := uint(data[2])
+		hwRev := uint(data[3])
+
+		if fwMaj <= 10 && fwMin <= 10 && prodID >= 80 && prodID <= 100 && hwRev <= 10 {
+			// Check reset flags in byte 4 (bits 0-3 are reset flags, should be 0 or 1)
+			flags := data[4]
+			if flags&0xF0 == 0 { // Upper 4 bits should be reserved (0)
+				return 1
+			}
+		}
+	}
+
+	// Port 5 (Location): Has WiFi count in first 5 bits
+	// Format: wifiCount(5) + inTrip(1) + inactive(1) + reserved(3) + timeSet(1) + posSeq(5)
+	// Followed by WiFi entries: each is 7 bytes (rssi + mac)
+	// The wifiCount is small (typically 0-8)
+	bp := newBitParser(data)
+	wifiCount, err := bp.u32LE(5)
+	if err == nil && wifiCount <= 8 {
+		expectedLen := 2 + int(wifiCount)*7
+		if len(data) >= expectedLen || len(data) >= 2 {
+			// Check if the remaining bytes could be WiFi entries or GNSS data
+			return 5
+		}
+	}
+
+	// Port 3 (Stats): 10 bytes
+	// Similar structure to Hello but with different fields
+	if len(data) >= 10 {
+		initialBatV := uint(data[0])
+		batVMax := uint(data[1])
+		// Battery values should be in reasonable range (0-255 representing ~2-4V)
+		if initialBatV <= 255 && batVMax <= 255 {
+			return 3
+		}
+	}
+
+	// Port 2 (Downlink ACK): 8 bytes
+	// Format: sequence(7) + accepted(1) + fwMaj(8) + fwMin(8) + prodId(8) + hwRev(8) + port(8) + lrHw(8) + lrMaj(8) + lrMin(8)
+	if len(data) >= 8 {
+		fwMaj := uint(data[2])
+		fwMin := uint(data[3])
+		prodID := uint(data[4])
+		hwRev := uint(data[5])
+
+		if fwMaj <= 10 && fwMin <= 10 && prodID >= 80 && prodID <= 100 && hwRev <= 10 {
+			return 2
+		}
+	}
+
+	// Unable to detect - return 0 to indicate we should use the provided fPort
+	return 0
+}
+
 // parseConnectPort89 decodes port 89 "connect" message.
 // Format: id(48) + flags(8) + fwMaj(8) + fwMin(8) + prodId(8) + hwRev(8)
 func parseConnectPort89(data []byte) (*YabbyEdgePayload, error) {
@@ -615,16 +705,7 @@ func (p *YabbyEdgeParser) ParsePayload(payload *components.RawPayload) (*compone
 		return nil, fmt.Errorf("device EUI not found")
 	}
 
-	// Extract fPort
-	fPort := payload.FPort
-	if fPort == 0 {
-		fPort = components.ExtractFPort(payload.Metadata)
-	}
-	if fPort == 0 {
-		return nil, fmt.Errorf("fPort not found in payload")
-	}
-
-	// Extract and decode payload bytes
+	// This allows us to auto-detect the actual message type from the raw data
 	encoded := components.ExtractPayloadData(payload.Data)
 	if encoded == "" {
 		encoded = components.ExtractPayloadData(payload.Metadata)
@@ -638,7 +719,24 @@ func (p *YabbyEdgeParser) ParsePayload(payload *components.RawPayload) (*compone
 		return nil, fmt.Errorf("failed to decode payload: %w", err)
 	}
 
-	// Parse the uplink
+	// Auto-detect the actual message type from raw bytes
+	detectedFPort := detectMessageTypeFromBytes(rawBytes)
+
+	// Extract fPort from metadata as fallback
+	fPort := payload.FPort
+	if fPort == 0 {
+		fPort = components.ExtractFPort(payload.Metadata)
+	}
+
+	// Use detected fPort if available, otherwise use the provided fPort
+	if detectedFPort > 0 {
+		fPort = detectedFPort
+	}
+	if fPort == 0 {
+		return nil, fmt.Errorf("fPort not found and could not be detected from payload")
+	}
+
+	// Parse the uplink with the corrected fPort
 	yabbyData, err := parseYabbyEdgeUplink(fPort, rawBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse Yabby Edge uplink: %w", err)
@@ -649,6 +747,7 @@ func (p *YabbyEdgeParser) ParsePayload(payload *components.RawPayload) (*compone
 
 	sensorData["message_type"] = yabbyData.MessageType
 	sensorData["fport"] = fPort
+	sensorData["fport_detected"] = detectedFPort > 0
 
 	switch fPort {
 	case 1: // Hello
@@ -697,6 +796,20 @@ func (p *YabbyEdgeParser) ParsePayload(payload *components.RawPayload) (*compone
 			sensorData["altitude"] = alt
 			sensorData["accuracy"] = acc
 			sensorData["location_source"] = "location_engine"
+		} else if yabbyData.NavData != "" {
+			if lat, lng, alt, err := parseGNSSNavData(yabbyData.NavData); err == nil && (lat != 0 || lng != 0) {
+				location = &components.Location{
+					Latitude:  lat,
+					Longitude: lng,
+					Altitude:  alt,
+				}
+				sensorData["latitude"] = lat
+				sensorData["longitude"] = lng
+				sensorData["altitude"] = alt
+				sensorData["location_source"] = "gnss_local"
+			} else {
+				sensorData["gnss_parse_error"] = err.Error()
+			}
 		}
 	}
 
@@ -718,7 +831,7 @@ func (p *YabbyEdgeParser) ParsePayload(payload *components.RawPayload) (*compone
 	}, nil
 }
 
-// SupportsGPS returns true since Yabby Edge has GNSS capability (cloud-resolved).
+// SupportsGPS returns true since Yabby Edge has GNSS capability.
 func (p *YabbyEdgeParser) SupportsGPS() bool {
 	return true
 }
@@ -750,15 +863,6 @@ func (p *YabbyEdgeParser) ParseToEntities(orgSlug, model string, payload *compon
 		return nil, fmt.Errorf("device EUI is required")
 	}
 
-	// Extract fPort
-	fPort := payload.FPort
-	if fPort == 0 {
-		fPort = components.ExtractFPort(payload.Metadata)
-	}
-	if fPort == 0 {
-		return nil, fmt.Errorf("fPort not found in payload")
-	}
-
 	// Extract and decode payload bytes
 	encoded := components.ExtractPayloadData(payload.Data)
 	if encoded == "" {
@@ -773,7 +877,25 @@ func (p *YabbyEdgeParser) ParseToEntities(orgSlug, model string, payload *compon
 		return nil, fmt.Errorf("failed to decode payload: %w", err)
 	}
 
-	// Parse the uplink
+	// Auto-detect the actual message type from raw bytes
+	// Don't trust the wrapper's fPort as it may be incorrect
+	detectedFPort := detectMessageTypeFromBytes(rawBytes)
+
+	// Extract fPort from metadata as fallback
+	fPort := payload.FPort
+	if fPort == 0 {
+		fPort = components.ExtractFPort(payload.Metadata)
+	}
+
+	// Use detected fPort if available, otherwise use the provided fPort
+	if detectedFPort > 0 {
+		fPort = detectedFPort
+	}
+	if fPort == 0 {
+		return nil, fmt.Errorf("fPort not found and could not be detected from payload")
+	}
+
+	// Parse the uplink with the corrected fPort
 	yabbyData, err := parseYabbyEdgeUplink(fPort, rawBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse Yabby Edge uplink: %w", err)
@@ -924,7 +1046,7 @@ func (p *YabbyEdgeParser) ParseToEntities(orgSlug, model string, payload *compon
 			locationAttrs["gnss_nav_data"] = yabbyData.NavData
 		}
 
-		// Check for resolved location from Location Engine (in metadata)
+		// Try to extract resolved location from metadata
 		if lat, lon, alt, acc, ok := extractResolvedLocation(payload.Metadata); ok {
 			locationState = fmt.Sprintf("%f,%f", lat, lon)
 			locationSource = "location_engine"
@@ -933,8 +1055,23 @@ func (p *YabbyEdgeParser) ParseToEntities(orgSlug, model string, payload *compon
 			locationAttrs["altitude"] = alt
 			locationAttrs["accuracy"] = acc
 			locationAttrs["source"] = locationSource
-		} else if deviceLocation != nil {
-			// Use trilateration or externally provided location
+		} else if yabbyData.NavData != "" {
+			// Parse GNSS nav data locally
+			if lat, lng, alt, err := parseGNSSNavData(yabbyData.NavData); err == nil && (lat != 0 || lng != 0) {
+				locationState = fmt.Sprintf("%f,%f", lat, lng)
+				locationSource = "gnss_local"
+				locationAttrs["latitude"] = lat
+				locationAttrs["longitude"] = lng
+				locationAttrs["altitude"] = alt
+				locationAttrs["source"] = locationSource
+			} else {
+				// Log parsing error for debugging
+				locationAttrs["gnss_parse_error"] = err.Error()
+			}
+		}
+
+		// Fall back to deviceLocation (trilateration) if no better location is available
+		if locationState == "unknown" && deviceLocation != nil {
 			locationState = fmt.Sprintf("%f,%f", deviceLocation.Latitude, deviceLocation.Longitude)
 			locationAttrs["latitude"] = deviceLocation.Latitude
 			locationAttrs["longitude"] = deviceLocation.Longitude
@@ -1090,4 +1227,67 @@ func estimateBatteryPercent(voltage float64) float64 {
 		return 100
 	}
 	return (voltage - vMin) / (vMax - vMin) * 100
+}
+
+// parseGNSSNavData attempts to parse GNSS navigation data from Digital Matter format.
+// The Yabby Edge uses u-blox GNSS modules which output raw satellite data
+// resolved to position by Digital Matter Location Engine or parsed locally.
+//
+// Returns latitude, longitude, altitude, and any error encountered.
+func parseGNSSNavData(navHex string) (lat, lng, alt float64, err error) {
+	if navHex == "" {
+		return 0, 0, 0, fmt.Errorf("empty GNSS nav data")
+	}
+
+	navBytes, err := hex.DecodeString(navHex)
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to decode GNSS hex: %w", err)
+	}
+
+	if len(navBytes) == 0 {
+		return 0, 0, 0, fmt.Errorf("GNSS nav data is empty")
+	}
+
+	// Try Digital Matter custom GNSS format (compact 12-byte: lat/lng/alt as i32)
+	return parseDigitalMatterGNSS(navBytes)
+}
+
+// parseDigitalMatterGNSS parses Digital Matter's custom GNSS format.
+// The Yabby Edge may embed position data in a compact binary format.
+func parseDigitalMatterGNSS(data []byte) (lat, lng, alt float64, err error) {
+	// Try compact format (12 bytes minimum)
+	if len(data) >= 12 {
+		lat = float64(int32(binary.LittleEndian.Uint32(data[0:4]))) / 1e7
+		lng = float64(int32(binary.LittleEndian.Uint32(data[4:8]))) / 1e7
+		alt = float64(int32(binary.LittleEndian.Uint32(data[8:12]))) / 1e3
+
+		// Validate coordinates: latitude -90 to 90, longitude -180 to 180
+		if lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 {
+			return lat, lng, alt, nil
+		}
+	}
+
+	// Try extended format with 4-byte header (16 bytes minimum)
+	if len(data) >= 16 {
+		lat = float64(int32(binary.LittleEndian.Uint32(data[4:8]))) / 1e7
+		lng = float64(int32(binary.LittleEndian.Uint32(data[8:12]))) / 1e7
+		alt = float64(int32(binary.LittleEndian.Uint32(data[12:16]))) / 1e3
+
+		if lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 {
+			return lat, lng, alt, nil
+		}
+	}
+
+	// Big-endian format (some firmware versions)
+	if len(data) >= 12 {
+		lat = float64(int32(binary.BigEndian.Uint32(data[0:4]))) / 1e7
+		lng = float64(int32(binary.BigEndian.Uint32(data[4:8]))) / 1e7
+		alt = float64(int32(binary.BigEndian.Uint32(data[8:12]))) / 1e3
+
+		if lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 {
+			return lat, lng, alt, nil
+		}
+	}
+
+	return 0, 0, 0, fmt.Errorf("unable to parse Digital Matter GNSS format (len=%d)", len(data))
 }
