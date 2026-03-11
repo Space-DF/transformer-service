@@ -1257,9 +1257,9 @@ func parseGNSSNavData(navHex string) (lat, lng, alt float64, err error) {
 func parseDigitalMatterGNSS(data []byte) (lat, lng, alt float64, err error) {
 	// Try compact format (12 bytes minimum)
 	if len(data) >= 12 {
-		lat = float64(int32(binary.LittleEndian.Uint32(data[0:4]))) / 1e7
-		lng = float64(int32(binary.LittleEndian.Uint32(data[4:8]))) / 1e7
-		alt = float64(int32(binary.LittleEndian.Uint32(data[8:12]))) / 1e3
+		lat = float64(int32(binary.LittleEndian.Uint32(data[0:4]))) / 1e7  //#nosec G115
+		lng = float64(int32(binary.LittleEndian.Uint32(data[4:8]))) / 1e7  //#nosec G115
+		alt = float64(int32(binary.LittleEndian.Uint32(data[8:12]))) / 1e3 //#nosec G115
 
 		// Validate coordinates: latitude -90 to 90, longitude -180 to 180
 		if lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 {
@@ -1269,9 +1269,9 @@ func parseDigitalMatterGNSS(data []byte) (lat, lng, alt float64, err error) {
 
 	// Try extended format with 4-byte header (16 bytes minimum)
 	if len(data) >= 16 {
-		lat = float64(int32(binary.LittleEndian.Uint32(data[4:8]))) / 1e7
-		lng = float64(int32(binary.LittleEndian.Uint32(data[8:12]))) / 1e7
-		alt = float64(int32(binary.LittleEndian.Uint32(data[12:16]))) / 1e3
+		lat = float64(int32(binary.LittleEndian.Uint32(data[4:8]))) / 1e7   //#nosec G115
+		lng = float64(int32(binary.LittleEndian.Uint32(data[8:12]))) / 1e7  //#nosec G115
+		alt = float64(int32(binary.LittleEndian.Uint32(data[12:16]))) / 1e3 //#nosec G115
 
 		if lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 {
 			return lat, lng, alt, nil
@@ -1280,9 +1280,9 @@ func parseDigitalMatterGNSS(data []byte) (lat, lng, alt float64, err error) {
 
 	// Big-endian format (some firmware versions)
 	if len(data) >= 12 {
-		lat = float64(int32(binary.BigEndian.Uint32(data[0:4]))) / 1e7
-		lng = float64(int32(binary.BigEndian.Uint32(data[4:8]))) / 1e7
-		alt = float64(int32(binary.BigEndian.Uint32(data[8:12]))) / 1e3
+		lat = float64(int32(binary.BigEndian.Uint32(data[0:4]))) / 1e7  //#nosec G115
+		lng = float64(int32(binary.BigEndian.Uint32(data[4:8]))) / 1e7  //#nosec G115
+		alt = float64(int32(binary.BigEndian.Uint32(data[8:12]))) / 1e3 //#nosec G115
 
 		if lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 {
 			return lat, lng, alt, nil
