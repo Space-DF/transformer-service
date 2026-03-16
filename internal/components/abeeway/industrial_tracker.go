@@ -122,7 +122,7 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 				sensorData["wifi_bssid_count"] = nbrBSSID
 
 				// Check if WiFi fix is valid
-				if (posStatus & 0x01) != 0 && lat != 0 && lon != 0 {
+				if (posStatus&0x01) != 0 && lat != 0 && lon != 0 {
 					latitude := float64(lat) / components.CoordScale
 					longitude := float64(lon) / components.CoordScale
 					sensorData["latitude"] = latitude
@@ -164,7 +164,7 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 				sensorData["ble_beacon_count"] = nbrBeacons
 
 				// Check if BLE fix is valid
-				if (posStatus & 0x01) != 0 && lat != 0 && lon != 0 {
+				if (posStatus&0x01) != 0 && lat != 0 && lon != 0 {
 					latitude := float64(lat) / components.CoordScale
 					longitude := float64(lon) / components.CoordScale
 					sensorData["latitude"] = latitude
@@ -188,8 +188,8 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 							abeewayPayload.Data[offset], abeewayPayload.Data[offset+1], abeewayPayload.Data[offset+2],
 							abeewayPayload.Data[offset+3], abeewayPayload.Data[offset+4], abeewayPayload.Data[offset+5]),
 						"rssi":  int(int8(abeewayPayload.Data[offset+6])), //#nosec G115
-						"major": int(binary.BigEndian.Uint16(abeewayPayload.Data[offset+7:offset+9])),
-						"minor": int(binary.BigEndian.Uint16(abeewayPayload.Data[offset+9:offset+11])),
+						"major": int(binary.BigEndian.Uint16(abeewayPayload.Data[offset+7 : offset+9])),
+						"minor": int(binary.BigEndian.Uint16(abeewayPayload.Data[offset+9 : offset+11])),
 					}
 					beacons = append(beacons, beacon)
 					offset += 14
@@ -744,20 +744,20 @@ func (p *IndustrialTrackerParser) parseFromDecodedPayload(metadata map[string]in
 		latInt := int32(lat * components.CoordScale)
 		data[2] = byte(latInt >> 24) //#nosec G115
 		data[3] = byte(latInt >> 16) //#nosec G115
-		data[4] = byte(latInt >> 8) //#nosec G115
-		data[5] = byte(latInt) //#nosec G115
+		data[4] = byte(latInt >> 8)  //#nosec G115
+		data[5] = byte(latInt)       //#nosec G115
 
 		// Longitude (int32, scaled by 1e7)
 		lonInt := int32(lon * components.CoordScale)
 		data[6] = byte(lonInt >> 24) //#nosec G115
 		data[7] = byte(lonInt >> 16) //#nosec G115
-		data[8] = byte(lonInt >> 8) //#nosec G115
-		data[9] = byte(lonInt) //#nosec G115
+		data[8] = byte(lonInt >> 8)  //#nosec G115
+		data[9] = byte(lonInt)       //#nosec G115
 
 		// Altitude (int16, meters)
 		altInt := int16(alt)
 		data[10] = byte(altInt >> 8) //#nosec G115
-		data[11] = byte(altInt) //#nosec G115
+		data[11] = byte(altInt)      //#nosec G115
 
 		// Course/heading (uint16, degrees)
 		if heading, ok := decoded["heading"].(float64); ok {
@@ -825,15 +825,15 @@ func (p *IndustrialTrackerParser) parseFromDecodedPayload(metadata map[string]in
 // parseFromRawData extracts Abeeway data from raw binary payload
 func (p *IndustrialTrackerParser) parseFromRawData(payload *components.RawPayload) (*AbeewayPayload, error) {
 	// Decode payload bytes
-	encoded := extractPayloadData(payload.Data)
+	encoded := components.ExtractPayloadData(payload.Data)
 	if encoded == "" {
-		encoded = extractPayloadData(payload.Metadata)
+		encoded = components.ExtractPayloadData(payload.Metadata)
 	}
 	if encoded == "" {
 		return nil, fmt.Errorf("no payload data found")
 	}
 
-	bytes, err := decodePayloadBytes(encoded)
+	bytes, err := components.DecodePayloadBytes(encoded)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode payload: %w", err)
 	}

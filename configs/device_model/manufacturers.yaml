@@ -2,9 +2,19 @@ manufacturers:
   - id: 735c87f8-b9c5-4637-b75e-0327626fb1c1
     name: RAKwireless
     description: RAKwireless Technology Limited
-    portal_url: 
-    
+    portal_url:
+
   - id: 957e6842-c686-40ae-8b28-bf3ddb1ad141
     name: DUT
     description: DUT Technology
-    portal_url: 
+    portal_url:
+
+  - id: a3f1c8e7-4b9d-4e2a-b6d5-8c7f3a1e9d42
+    name: Digital Matter
+    description: Digital Matter Pty Ltd
+    portal_url:
+
+  - id: 735c87f8-c686-b6d5-4e2a-0327626fb2c2
+    name: Lily Go
+    description: Lily Go Technology Limited
+    portal_url:

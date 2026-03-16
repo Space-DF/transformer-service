@@ -1,6 +1,8 @@
 package components
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"strings"
@@ -57,4 +59,99 @@ func ValidateCoordinates(lat, lon float64) error {
 		return fmt.Errorf("null island coordinates")
 	}
 	return nil
+}
+
+// Extract payload data
+func ExtractPayloadData(payload interface{}) string {
+	switch v := payload.(type) {
+	case string:
+		return v
+	case map[string]interface{}:
+		if decoded, ok := v["decoded_raw_data"].(map[string]interface{}); ok {
+			if data, ok := decoded["data"].(string); ok {
+				return data
+			}
+		}
+
+		if uplink, ok := v["uplink_message"].(map[string]interface{}); ok {
+			if frmPayload, ok := uplink["frm_payload"].(string); ok {
+				return frmPayload
+			}
+		}
+
+		if uplink, ok := v["uplinkEvent"].(map[string]interface{}); ok {
+			if data, ok := uplink["data"].(string); ok {
+				return data
+			}
+		}
+
+		if data, ok := v["data"].(string); ok && data != "" {
+			return data
+		}
+	}
+	return ""
+}
+
+// DecodePayloadBytes decodes hex or base64 encoded payload string to bytes
+func DecodePayloadBytes(encoded string) ([]byte, error) {
+	if encoded == "" {
+		return nil, fmt.Errorf("empty payload data")
+	}
+
+	// Try hex decode first
+	if decoded, err := hex.DecodeString(encoded); err == nil && len(decoded) > 0 {
+		return decoded, nil
+	}
+
+	// Try base64 decode
+	if decoded, err := base64.StdEncoding.DecodeString(encoded); err == nil && len(decoded) > 0 {
+		return decoded, nil
+	}
+
+	// Try as base64 for non-padded payloads
+	if decoded, err := base64.StdEncoding.DecodeString(encoded); err == nil && len(decoded) > 0 {
+		return decoded, nil
+	}
+
+	return nil, fmt.Errorf("failed to decode payload as hex or base64")
+}
+
+// ExtractFPort extracts the LoRaWAN fPort from metadata.
+func ExtractFPort(metadata map[string]interface{}) int {
+	// Try direct fPort field
+	for _, key := range []string{"fPort", "f_port", "port", "fport"} {
+		if v, ok := metadata[key]; ok {
+			switch val := v.(type) {
+			case float64:
+				return int(val)
+			case int:
+				return val
+			case int64:
+				return int(val)
+			}
+		}
+	}
+
+	// Try ChirpStack format: uplinkEvent.fPort
+	if uplinkEvent, ok := metadata["uplinkEvent"].(map[string]interface{}); ok {
+		if fPort, ok := uplinkEvent["fPort"].(float64); ok {
+			return int(fPort)
+		}
+	}
+
+	// Try decoded_raw_data.uplinkEvent.fPort
+	if decoded, ok := metadata["decoded_raw_data"].(map[string]interface{}); ok {
+		if fPort, ok := decoded["fPort"].(float64); ok {
+			return int(fPort)
+		}
+	}
+
+	// Try TTN format: uplink_message.f_port
+	if uplinkMsg, ok := metadata["uplink_message"].(map[string]interface{}); ok {
+		if fPort, ok := uplinkMsg["f_port"].(float64); ok {
+			return int(fPort)
+		}
+	}
+
+	return 0
 }

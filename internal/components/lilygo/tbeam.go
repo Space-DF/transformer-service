@@ -1,9 +1,7 @@
 package lilygo
 
 import (
-	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -13,18 +11,18 @@ import (
 
 // Cayenne LPP Data Type constants
 const (
-	LPPDigitalInput     = 0x00
-	LPPDigitalOutput    = 0x01
-	LPPAnalogInput      = 0x02
-	LPPAnalogOutput     = 0x03
-	LPPIlluminance      = 0x65
-	LPPPresence         = 0x66
-	LPPTemperature      = 0x67
-	LPPHumidity         = 0x68
-	LPPAccelerometer    = 0x71
-	LPPBarometer        = 0x73
-	LPPGPSLocation      = 0x88 // GPS location: 9 bytes (lat 3, lon 3, alt 3)
-	LPPUnixTime         = 0x95
+	LPPDigitalInput  = 0x00
+	LPPDigitalOutput = 0x01
+	LPPAnalogInput   = 0x02
+	LPPAnalogOutput  = 0x03
+	LPPIlluminance   = 0x65
+	LPPPresence      = 0x66
+	LPPTemperature   = 0x67
+	LPPHumidity      = 0x68
+	LPPAccelerometer = 0x71
+	LPPBarometer     = 0x73
+	LPPGPSLocation   = 0x88 // GPS location: 9 bytes (lat 3, lon 3, alt 3)
+	LPPUnixTime      = 0x95
 )
 
 func readInt24BE(data []byte) int32 {
@@ -72,15 +70,15 @@ func (c *TBeamParser) ParsePayload(payload *components.RawPayload) (*components.
 	}
 
 	// Decode payload bytes
-	encoded := extractPayloadData(payload.Data)
+	encoded := components.ExtractPayloadData(payload.Data)
 	if encoded == "" {
-		encoded = extractPayloadData(payload.Metadata)
+		encoded = components.ExtractPayloadData(payload.Metadata)
 	}
 	if encoded == "" {
 		return nil, fmt.Errorf("no payload data found")
 	}
 
-	bytes, err := decodePayloadBytes(encoded)
+	bytes, err := components.DecodePayloadBytes(encoded)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode payload: %w", err)
 	}
@@ -219,7 +217,7 @@ func (c *TBeamParser) ParsePayload(payload *components.RawPayload) (*components.
 			if i+6 > len(bytes) {
 				break
 			}
-			x := float64(int16(binary.BigEndian.Uint16(bytes[i:i+2]))) / 1000.0 //#nosec G115
+			x := float64(int16(binary.BigEndian.Uint16(bytes[i:i+2]))) / 1000.0   //#nosec G115
 			y := float64(int16(binary.BigEndian.Uint16(bytes[i+2:i+4]))) / 1000.0 //#nosec G115
 			z := float64(int16(binary.BigEndian.Uint16(bytes[i+4:i+6]))) / 1000.0 //#nosec G115
 			accel := map[string]float64{"x": x, "y": y, "z": z}
@@ -416,54 +414,4 @@ func (p *TBeamParser) ParseToEntities(orgSlug, model string, payload *components
 	}
 
 	return entities, nil
-}
-
-func extractPayloadData(payload interface{}) string {
-	switch v := payload.(type) {
-	case string:
-		return v
-	case map[string]interface{}:
-		if uplink, ok := v["uplinkEvent"].(map[string]interface{}); ok {
-			if data, ok := uplink["data"].(string); ok && data != "" {
-				return data
-			}
-		}
-
-		if decoded, ok := v["decoded_raw_data"].(map[string]interface{}); ok {
-			if uplink, ok := decoded["uplinkEvent"].(map[string]interface{}); ok {
-				if data, ok := uplink["data"].(string); ok && data != "" {
-					return data
-				}
-			}
-		}
-
-		for _, key := range []string{"data", "payload", "frm_payload", "frmPayload", "payload_hex"} {
-			if val, ok := v[key].(string); ok && val != "" {
-				trimmed := strings.TrimSpace(val)
-				if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
-					continue
-				}
-				return val
-			}
-		}
-	}
-	return ""
-}
-
-func decodePayloadBytes(encoded string) ([]byte, error) {
-	if encoded == "" {
-		return nil, fmt.Errorf("empty payload data")
-	}
-
-	// Try hex decode first
-	if decoded, err := hex.DecodeString(encoded); err == nil && len(decoded) > 0 {
-		return decoded, nil
-	}
-
-	// Try base64 decode
-	if decoded, err := base64.StdEncoding.DecodeString(encoded); err == nil && len(decoded) > 0 {
-		return decoded, nil
-	}
-
-	return nil, fmt.Errorf("failed to decode payload as hex or base64")
 }
