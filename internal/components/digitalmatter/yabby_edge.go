@@ -201,6 +201,13 @@ func parseHelloPort1(data []byte) (*YabbyEdgePayload, error) {
 	bp := newBitParser(data)
 	p := &YabbyEdgePayload{MessageType: "hello", FPort: 1}
 	var err error
+	readOptionalByte := func(target *uint32) error {
+		if bp.offset+8 > bp.length {
+			return nil
+		}
+		*target, err = bp.u32LE(8)
+		return err
+	}
 
 	if p.FwMaj, err = bp.u32LE(8); err != nil {
 		return nil, fmt.Errorf("hello: fwMaj: %w", err)
@@ -250,13 +257,13 @@ func parseHelloPort1(data []byte) (*YabbyEdgePayload, error) {
 	p.InitialBatV = decodeBatteryVoltage(v)
 	p.BatteryVoltage = p.InitialBatV
 
-	if p.LrHw, err = bp.u32LE(8); err != nil {
+	if err = readOptionalByte(&p.LrHw); err != nil {
 		return nil, fmt.Errorf("hello: lrHw: %w", err)
 	}
-	if p.LrMaj, err = bp.u32LE(8); err != nil {
+	if err = readOptionalByte(&p.LrMaj); err != nil {
 		return nil, fmt.Errorf("hello: lrMaj: %w", err)
 	}
-	if p.LrMin, err = bp.u32LE(8); err != nil {
+	if err = readOptionalByte(&p.LrMin); err != nil {
 		return nil, fmt.Errorf("hello: lrMin: %w", err)
 	}
 
@@ -458,92 +465,157 @@ func parseLocationPort5(data []byte) (*YabbyEdgePayload, error) {
 	return p, nil
 }
 
+func isFirmwareTupleLikely(fwMaj, fwMin, prodID, hwRev uint) bool {
+	return fwMaj <= 10 && fwMin <= 10 && prodID >= 80 && prodID <= 100 && hwRev <= 10
+}
+
+func isLikelyConnectPayload(data []byte) bool {
+	if len(data) < 11 {
+		return false
+	}
+
+	flags := data[6]
+	fwMaj := uint(data[7])
+	fwMin := uint(data[8])
+	prodID := uint(data[9])
+	hwRev := uint(data[10])
+
+	// Only the lowest 2 bits are currently used for reset flags.
+	if flags&0xFC != 0 {
+		return false
+	}
+
+	return isFirmwareTupleLikely(fwMaj, fwMin, prodID, hwRev)
+}
+
+func isLikelyHelloPayload(data []byte) bool {
+	if len(data) < 10 {
+		return false
+	}
+
+	fwMaj := uint(data[0])
+	fwMin := uint(data[1])
+	prodID := uint(data[2])
+	hwRev := uint(data[3])
+	flags := data[4]
+
+	// Upper 4 bits of reset/flags byte are reserved and expected to be zero.
+	if flags&0xF0 != 0 {
+		return false
+	}
+
+	return isFirmwareTupleLikely(fwMaj, fwMin, prodID, hwRev)
+}
+
+func isLikelyAckPayload(data []byte) bool {
+	if len(data) < 9 {
+		return false
+	}
+
+	// ACK layout is byte-aligned after sequence/accepted byte.
+	fwMaj := uint(data[1])
+	fwMin := uint(data[2])
+	prodID := uint(data[3])
+	hwRev := uint(data[4])
+
+	return isFirmwareTupleLikely(fwMaj, fwMin, prodID, hwRev)
+}
+
+func isLikelyStatsPayload(data []byte) bool {
+	if len(data) != 11 {
+		return false
+	}
+
+	bp := newBitParser(data)
+
+	// Skip fields before percentages.
+	for _, n := range []int{8, 8, 8, 14, 10, 10} {
+		if _, err := bp.u32LE(n); err != nil {
+			return false
+		}
+	}
+
+	// Stats percentages are independent contributions and should roughly sum to 100%.
+	pctSum := 0.0
+	for i := 0; i < 5; i++ {
+		v, err := bp.u32LE(6)
+		if err != nil {
+			return false
+		}
+		pctSum += 100.0 / 64.0 * float64(v)
+	}
+
+	return pctSum >= 90.0 && pctSum <= 110.0
+}
+
+func isLikelyLocationPayload(data []byte) bool {
+	if len(data) < 2 {
+		return false
+	}
+
+	bp := newBitParser(data)
+	wifiCount, err := bp.u32LE(5)
+	if err != nil {
+		return false
+	}
+
+	if _, err = bp.u32LE(1); err != nil { // inTrip
+		return false
+	}
+	if _, err = bp.u32LE(1); err != nil { // inactive
+		return false
+	}
+
+	reserved, err := bp.u32LE(3)
+	if err != nil {
+		return false
+	}
+
+	if _, err = bp.u32LE(1); err != nil { // timeSet
+		return false
+	}
+	if _, err = bp.u32LE(5); err != nil { // posSeq
+		return false
+	}
+
+	if reserved != 0 {
+		return false
+	}
+
+	minLen := 2 + int(wifiCount)*7
+	if len(data) < minLen {
+		return false
+	}
+
+	return true
+}
+
 // detectMessageTypeFromBytes analyzes the raw payload bytes and determines
 // the actual Yabby Edge message type, regardless of what the wrapper says.
 //
 // Returns the detected fPort, or 0 if unable to detect.
 func detectMessageTypeFromBytes(data []byte) int {
-	if len(data) < 2 {
-		return 0
+	if isLikelyConnectPayload(data) {
+		return 89
 	}
 
-	// Port 89 (Connect): 11 bytes minimum
-	// Format: id(48) + flags(8) + fwMaj(8) + fwMin(8) + prodId(8) + hwRev(8)
-	// This is the most distinctive pattern - 6 bytes of "random" ID followed by
-	// small values for firmware (typically < 10) and product/hw revision
-	if len(data) >= 11 {
-		// Check if it matches connect message pattern
-		// After 6 bytes of ID, we expect flags(1 byte), fwMaj(1), fwMin(1), prodId(1), hwRev(1)
-		// fwMaj and fwMin are typically small (0-10 range for current firmware)
-		// prodId for Yabby Edge is typically around 85, hwRev around 4
-		fwMaj := uint(data[7])
-		fwMin := uint(data[8])
-		prodID := uint(data[9])
-		hwRev := uint(data[10])
-
-		// Connect message has reasonable values in these positions
-		if fwMaj <= 10 && fwMin <= 10 && prodID >= 80 && prodID <= 100 && hwRev <= 10 {
-			return 89
-		}
+	if isLikelyHelloPayload(data) {
+		return 1
 	}
 
-	// Port 1 (Hello): 9 bytes minimum
-	// Format: fwMaj(8) + fwMin(8) + prodId(8) + hwRev(8) + reset flags(8) + ...
-	// First byte is typically firmware major (small value)
-	if len(data) >= 9 {
-		fwMaj := uint(data[0])
-		fwMin := uint(data[1])
-		prodID := uint(data[2])
-		hwRev := uint(data[3])
-
-		if fwMaj <= 10 && fwMin <= 10 && prodID >= 80 && prodID <= 100 && hwRev <= 10 {
-			// Check reset flags in byte 4 (bits 0-3 are reset flags, should be 0 or 1)
-			flags := data[4]
-			if flags&0xF0 == 0 { // Upper 4 bits should be reserved (0)
-				return 1
-			}
-		}
+	if isLikelyAckPayload(data) {
+		return 2
 	}
 
-	// Port 5 (Location): Has WiFi count in first 5 bits
-	// Format: wifiCount(5) + inTrip(1) + inactive(1) + reserved(3) + timeSet(1) + posSeq(5)
-	// Followed by WiFi entries: each is 7 bytes (rssi + mac)
-	// The wifiCount is small (typically 0-8)
-	bp := newBitParser(data)
-	wifiCount, err := bp.u32LE(5)
-	if err == nil && wifiCount <= 8 {
-		expectedLen := 2 + int(wifiCount)*7
-		if len(data) >= expectedLen || len(data) >= 2 {
-			// Check if the remaining bytes could be WiFi entries or GNSS data
-			return 5
-		}
+	if isLikelyStatsPayload(data) {
+		return 3
 	}
 
-	// Port 3 (Stats): 10 bytes
-	// Similar structure to Hello but with different fields
-	if len(data) >= 10 {
-		initialBatV := uint(data[0])
-		batVMax := uint(data[1])
-		// Battery values should be in reasonable range (0-255 representing ~2-4V)
-		if initialBatV <= 255 && batVMax <= 255 {
-			return 3
-		}
+	if isLikelyLocationPayload(data) {
+		return 5
 	}
 
-	// Port 2 (Downlink ACK): 8 bytes
-	// Format: sequence(7) + accepted(1) + fwMaj(8) + fwMin(8) + prodId(8) + hwRev(8) + port(8) + lrHw(8) + lrMaj(8) + lrMin(8)
-	if len(data) >= 8 {
-		fwMaj := uint(data[2])
-		fwMin := uint(data[3])
-		prodID := uint(data[4])
-		hwRev := uint(data[5])
-
-		if fwMaj <= 10 && fwMin <= 10 && prodID >= 80 && prodID <= 100 && hwRev <= 10 {
-			return 2
-		}
-	}
-
-	// Unable to detect - return 0 to indicate we should use the provided fPort
+	// Unable to detect - caller should use provided fPort.
 	return 0
 }
 
