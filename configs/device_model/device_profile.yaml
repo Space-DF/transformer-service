@@ -1,0 +1,42 @@
+device_profiles:
+  - id: d89c1ed4-e6f7-48a8-a462-18a1ede25286
+    name: lorawan
+    manufacturer_id: 735c87f8-b9c5-4637-b75e-0327626fb1c1
+    device_type: RAK2270
+    key_feature: location
+
+  - id: 1f851b13-d650-40d3-8e29-02cf9c117713
+    name: lorawan
+    manufacturer_id: 735c87f8-b9c5-4637-b75e-0327626fb1c1
+    device_type: RAK4630
+    key_feature: location
+
+  - id: 2bbb6138-11e2-4af1-95c6-80f5fc4ec9e8
+    name: lorawan
+    manufacturer_id: 957e6842-c686-40ae-8b28-bf3ddb1ad141
+    device_type: WLBV1
+    key_feature: water_depth
+
+  - id: b99c3f17-b8f5-4432-bb76-18a1f5732ea6
+    name: lorawan
+    manufacturer_id: 735c87f8-b9c5-4637-b75e-0327626fb1c1
+    device_type: SENSECAP_T1000
+    key_feature: location
+
+  - id: 960b1758-1d15-465a-85d8-d8889ada27da
+    name: lorawan
+    manufacturer_id: 735c87f8-b9c5-4637-b75e-0327626fb1c1
+    device_type: TBEAM
+    key_feature: location
+
+  - id: 960b1758-1d15-465a-85d8-9e1d9e1d9e1d
+    name: lorawan
+    manufacturer_id: 735c87f8-b9c5-4637-b75e-0327626fb1c1
+    device_type: WABEEWAY_INDUSTRIAL_TRACKER
+    key_feature: location
+
+  - id: 7e4b2d19-c3a8-4f56-9e1d-b5a7f8c62e03
+    name: lorawan
+    manufacturer_id: a3f1c8e7-4b9d-4e2a-b6d5-8c7f3a1e9d42
+    device_type: YABBY_EDGE
+    key_feature: location

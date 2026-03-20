@@ -1,29 +1,29 @@
 package abeeway
 
 import (
-	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"math"
+
+	"github.com/Space-DF/transformer-service/internal/components"
 )
 
 // Message type constants for Abeeway Industrial Tracker AT2 v2.5
 const (
-	MsgTypeFramePending      = 0x00 // Frame pending - trigger sending
-	MsgTypePosition          = 0x03 // Position - GPS, low power GPS, WIFI or BLE position data
-	MsgTypeStatus            = 0x04 // Status - Power and health status of the tracker (was EnergyStatus)
-	MsgTypeHeartbeat         = 0x05 // Heartbeat - Notify that tracker is operational
-	MsgTypeActivityStatus    = 0x07 // Activity Status, Configuration, Shock detection, or BLE MAC address
-	MsgTypeShutdown          = 0x09 // Shutdown - Sent when tracker is set off
-	MsgTypeEvent             = 0x0A // Event - Sends event information about tracker (was GeolocStart)
-	MsgTypeCollectionScan    = 0x0B // Collection scan - WIFI or BLE collection scan data
-	MsgTypeExtendedPosition  = 0x0E // Extended Position - GPS, WiFi, BLE position
-	MsgTypeDebug             = 0x0F // Debug - Internal use only
+	MsgTypeFramePending     = 0x00 // Frame pending - trigger sending
+	MsgTypePosition         = 0x03 // Position - GPS, low power GPS, WIFI or BLE position data
+	MsgTypeStatus           = 0x04 // Status - Power and health status of the tracker (was EnergyStatus)
+	MsgTypeHeartbeat        = 0x05 // Heartbeat - Notify that tracker is operational
+	MsgTypeActivityStatus   = 0x07 // Activity Status, Configuration, Shock detection, or BLE MAC address
+	MsgTypeShutdown         = 0x09 // Shutdown - Sent when tracker is set off
+	MsgTypeEvent            = 0x0A // Event - Sends event information about tracker (was GeolocStart)
+	MsgTypeCollectionScan   = 0x0B // Collection scan - WIFI or BLE collection scan data
+	MsgTypeExtendedPosition = 0x0E // Extended Position - GPS, WiFi, BLE position
+	MsgTypeDebug            = 0x0F // Debug - Internal use only
 
 	// Legacy aliases for backward compatibility
-	MsgTypeEnergyStatus      = 0x04 // Deprecated: Use MsgTypeStatus
-	MsgTypeGeolocStart       = 0x0A // Deprecated: Use MsgTypeEvent
+	MsgTypeEnergyStatus = 0x04
+	MsgTypeGeolocStart  = 0x0A
 )
 
 // Position data type constants
@@ -33,8 +33,6 @@ const (
 	PosTypeBLE      = 0x03
 	PosTypeLowPower = 0x04
 )
-
-const coordScale = 1e7
 
 // Message type names
 var messageTypeNames = map[byte]string{
@@ -61,12 +59,12 @@ const (
 
 // Operating mode values
 const (
-	ModeStandby               = 0
-	ModeMotionTracking        = 1
-	ModePermanentTracking     = 2
-	ModeMotionStartEnd        = 3
-	ModeActivityTracking      = 4
-	ModeOff                   = 5
+	ModeStandby           = 0
+	ModeMotionTracking    = 1
+	ModePermanentTracking = 2
+	ModeMotionStartEnd    = 3
+	ModeActivityTracking  = 4
+	ModeOff               = 5
 )
 
 var modeNames = map[int]string{
@@ -90,25 +88,25 @@ type AbeewayPayload struct {
 
 // PositionData represents parsed position information
 type PositionData struct {
-	Type        string  // "gps", "wifi", "ble", "low_power"
-	Latitude    float64
-	Longitude   float64
-	Altitude    float64
-	Accuracy    float64
-	Satellites  int
-	Speed       float64
-	Heading     float64
-	Age         int     // Position age in seconds
-	BSSIDList   []string // For WiFi positioning
-	BLEData     []BLEBeacon
+	Type       string // "gps", "wifi", "ble", "low_power"
+	Latitude   float64
+	Longitude  float64
+	Altitude   float64
+	Accuracy   float64
+	Satellites int
+	Speed      float64
+	Heading    float64
+	Age        int      // Position age in seconds
+	BSSIDList  []string // For WiFi positioning
+	BLEData    []BLEBeacon
 }
 
 // BLEBeacon represents a detected BLE beacon
 type BLEBeacon struct {
-	MAC    string
-	RSSI   int
-	Major  int
-	Minor  int
+	MAC   string
+	RSSI  int
+	Major int
+	Minor int
 }
 
 // EnergyData represents energy status information
@@ -119,61 +117,6 @@ type EnergyData struct {
 	MainSupply       bool
 	Charging         bool
 	PowerConsumption float64
-}
-
-// extractPayloadData extracts the payload data string from various locations
-func extractPayloadData(payload interface{}) string {
-	switch v := payload.(type) {
-	case string:
-		return v
-	case map[string]interface{}:
-		// Check for uplinkEvent.data at top level first
-		if uplink, ok := v["uplinkEvent"].(map[string]interface{}); ok {
-			if data, ok := uplink["data"].(string); ok && data != "" {
-				return data
-			}
-		}
-		// Check top-level keys
-		for _, key := range []string{"data", "payload", "frm_payload", "frmPayload", "payload_hex"} {
-			if val, ok := v[key].(string); ok && val != "" {
-				return val
-			}
-		}
-		// Check decoded_raw_data.uplinkEvent.data (nested format)
-		if decoded, ok := v["decoded_raw_data"].(map[string]interface{}); ok {
-			if uplink, ok := decoded["uplinkEvent"].(map[string]interface{}); ok {
-				if data, ok := uplink["data"].(string); ok && data != "" {
-					return data
-				}
-			}
-		}
-	}
-	return ""
-}
-
-// decodePayloadBytes decodes hex or base64 encoded payload string to bytes
-func decodePayloadBytes(encoded string) ([]byte, error) {
-	if encoded == "" {
-		return nil, fmt.Errorf("empty payload data")
-	}
-
-	// Try hex decode first
-	if decoded, err := hex.DecodeString(encoded); err == nil && len(decoded) > 0 {
-		return decoded, nil
-	}
-
-	// Try base64 decode with standard encoding
-	if decoded, err := base64.StdEncoding.DecodeString(encoded); err == nil && len(decoded) > 0 {
-		return decoded, nil
-	}
-
-	// Try as base64 for non-padded payloads
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode payload: %w", err)
-	}
-
-	return decoded, nil
 }
 
 // parseAbeewayHeader parses the common Abeeway payload header
@@ -223,12 +166,12 @@ func decodeTemperature(temp byte) float64 {
 // decodeStatus decodes the status byte into individual flags
 func decodeStatus(status byte) map[string]interface{} {
 	return map[string]interface{}{
-		"sos_bit":                (status & StatusSOSBit) != 0,
-		"tracking_idle_bit":      (status & StatusTrackingIdleBit) != 0,
-		"tracker_is_moving_bit":  (status & StatusTrackerMovingBit) != 0,
-		"periodic_position_bit":  (status & StatusPeriodicPositionBit) != 0,
-		"pod_message_bit":        (status & StatusPODMessageBit) != 0,
-		"raw_status":             fmt.Sprintf("0x%02X", status),
+		"sos_bit":               (status & StatusSOSBit) != 0,
+		"tracking_idle_bit":     (status & StatusTrackingIdleBit) != 0,
+		"tracker_is_moving_bit": (status & StatusTrackerMovingBit) != 0,
+		"periodic_position_bit": (status & StatusPeriodicPositionBit) != 0,
+		"pod_message_bit":       (status & StatusPODMessageBit) != 0,
+		"raw_status":            fmt.Sprintf("0x%02X", status),
 	}
 }
 
@@ -277,12 +220,12 @@ func parseGPSPosition(data []byte) (*PositionData, error) {
 	speed := binary.BigEndian.Uint16(data[14:16])
 
 	pos := &PositionData{
-		Type:     "gps",
-		Latitude: float64(lat) / coordScale,
-		Longitude: float64(lon) / coordScale,
-		Altitude: float64(alt),
-		Heading:  float64(course),
-		Speed:    float64(speed),
+		Type:      "gps",
+		Latitude:  float64(lat) / components.CoordScale,
+		Longitude: float64(lon) / components.CoordScale,
+		Altitude:  float64(alt),
+		Heading:   float64(course),
+		Speed:     float64(speed),
 	}
 
 	// Check if GPS fix is valid (bit 0 of status)
@@ -326,9 +269,9 @@ func parseWiFiPosition(data []byte) (*PositionData, error) {
 
 	// Check if WiFi fix is valid (bit 0 of status)
 	if status&0x01 != 0 && lat != 0 && lon != 0 {
-		pos.Latitude = float64(lat) / coordScale
-		pos.Longitude = float64(lon) / coordScale
-		pos.Accuracy = 100 
+		pos.Latitude = float64(lat) / components.CoordScale
+		pos.Longitude = float64(lon) / components.CoordScale
+		pos.Accuracy = 100
 	}
 
 	// Parse BSSID list (each BSSID is 6 bytes)
@@ -365,8 +308,8 @@ func parseBLEPosition(data []byte) (*PositionData, error) {
 
 	// Check if BLE fix is valid (bit 0 of status)
 	if status&0x01 != 0 && lat != 0 && lon != 0 {
-		pos.Latitude = float64(lat) / coordScale
-		pos.Longitude = float64(lon) / coordScale
+		pos.Latitude = float64(lat) / components.CoordScale
+		pos.Longitude = float64(lon) / components.CoordScale
 		pos.Accuracy = 50 // BLE positioning typically has ~50m accuracy
 	}
 
@@ -378,8 +321,8 @@ func parseBLEPosition(data []byte) (*PositionData, error) {
 				data[offset], data[offset+1], data[offset+2],
 				data[offset+3], data[offset+4], data[offset+5]),
 			RSSI:  int(int16(data[offset+6])),
-			Major: int(binary.BigEndian.Uint16(data[offset+7:offset+9])),
-			Minor: int(binary.BigEndian.Uint16(data[offset+9:offset+11])),
+			Major: int(binary.BigEndian.Uint16(data[offset+7 : offset+9])),
+			Minor: int(binary.BigEndian.Uint16(data[offset+9 : offset+11])),
 		}
 		pos.BLEData = append(pos.BLEData, beacon)
 		offset += 14

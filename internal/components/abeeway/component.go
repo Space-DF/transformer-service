@@ -7,16 +7,34 @@ import (
 	"github.com/Space-DF/transformer-service/internal/components"
 )
 
+// Abeeway Devices
+const (
+	DeviceTypeAbeewayIndustrialTracker = "ABEEWAY_INDUSTRIAL_TRACKER"
+)
+
 // AbeewayComponent handles Abeeway Industrial Tracker devices
 type AbeewayComponent struct {
-	parser *IndustrialTrackerParser
+	parsers map[components.DeviceType]DeviceParser
+}
+
+// DeviceParser handles device-specific parsing logic
+type DeviceParser interface {
+	ParsePayload(payload *components.RawPayload) (*components.ParsedData, error)
+	ParseToEntities(orgSlug, model string, payload *components.RawPayload, deviceLocation *components.Location) ([]components.Entity, error)
+	SupportsGPS() bool
+	GetSupportedPorts() []int
+	GetSupportedEntityTypes() []string
 }
 
 // NewAbeewayComponent creates a new Abeeway component
 func NewAbeewayComponent() *AbeewayComponent {
-	return &AbeewayComponent{
-		parser: NewIndustrialTrackerParser(),
+	component := &AbeewayComponent{
+		parsers: make(map[components.DeviceType]DeviceParser),
 	}
+	
+	// Register device-specific parsers
+	component.parsers[DeviceTypeAbeewayIndustrialTracker] = NewIndustrialTrackerParser()
+	return component
 }
 
 // GetInfo returns component metadata
@@ -27,7 +45,7 @@ func (c *AbeewayComponent) GetInfo() components.ComponentInfo {
 		Version:      "1.0.0",
 		Description:  "Component for Abeeway Industrial Tracker LoRaWAN asset tracking device",
 		DeviceTypes: []components.DeviceType{
-			components.DeviceTypeAbeewayIndustrialTracker,
+			DeviceTypeAbeewayIndustrialTracker,
 		},
 	}
 }
@@ -35,23 +53,34 @@ func (c *AbeewayComponent) GetInfo() components.ComponentInfo {
 // GetSupportedDevices returns the device types this component supports
 func (c *AbeewayComponent) GetSupportedDevices() []components.DeviceType {
 	return []components.DeviceType{
-		components.DeviceTypeAbeewayIndustrialTracker,
+		DeviceTypeAbeewayIndustrialTracker,
 	}
 }
 
 // CanHandle checks if this component can handle the given device type and payload
 func (c *AbeewayComponent) CanHandle(deviceType components.DeviceType, payload *components.RawPayload) bool {
-	return deviceType == components.DeviceTypeAbeewayIndustrialTracker
+	parser, exists := c.parsers[deviceType]
+	return exists && parser != nil
 }
 
 // Parse converts raw payload into structured ParsedData (DEPRECATED: Use ParseToEntities)
 func (c *AbeewayComponent) Parse(ctx context.Context, deviceType components.DeviceType, payload *components.RawPayload) (*components.ParsedData, error) {
-	return c.parser.ParsePayload(payload)
+	parser, exists := c.parsers[deviceType]
+	if !exists {
+		return nil, fmt.Errorf("no parser found for device type %s", deviceType)
+	}
+
+	return parser.ParsePayload(payload)
 }
 
 // ParseToEntities converts raw payload into multiple entities
 func (c *AbeewayComponent) ParseToEntities(ctx context.Context, orgSlug, model string, deviceType components.DeviceType, payload *components.RawPayload, deviceLocation *components.Location) (*components.ParseResult, error) {
-	entities, err := c.parser.ParseToEntities(orgSlug, model, payload, deviceLocation)
+	parser, exists := c.parsers[deviceType]
+	if !exists {
+		return nil, fmt.Errorf("no parser found for device type %s", deviceType)
+	}
+
+	entities, err := parser.ParseToEntities(orgSlug, model, payload, deviceLocation)
 	if err != nil {
 		return nil, err
 	}
@@ -59,10 +88,10 @@ func (c *AbeewayComponent) ParseToEntities(ctx context.Context, orgSlug, model s
 	// Create device info
 	deviceInfo := components.CreateDeviceInfo(
 		payload.DeviceEUI,
-		fmt.Sprintf("Industrial Tracker %s", payload.DeviceEUI[len(payload.DeviceEUI)-4:]),
+		fmt.Sprintf("%s", string(deviceType)),
 		"Abeeway",
-		"Industrial Tracker",
-		"abeeway_industrial_tracker",
+		string(deviceType),
+		string(deviceType),
 	)
 
 	return &components.ParseResult{
@@ -86,15 +115,27 @@ func (c *AbeewayComponent) Validate(deviceType components.DeviceType, data *comp
 
 // SupportsGPS returns true if the device has built-in GPS
 func (c *AbeewayComponent) SupportsGPS(deviceType components.DeviceType) bool {
-	return deviceType == components.DeviceTypeAbeewayIndustrialTracker
+	parser, exists := c.parsers[deviceType]
+	if !exists {
+		return false
+	}
+	return parser.SupportsGPS()
 }
 
 // GetSupportedPorts returns the fPorts this device type uses
 func (c *AbeewayComponent) GetSupportedPorts(deviceType components.DeviceType) []int {
-	return c.parser.GetSupportedPorts()
+	parser, exists := c.parsers[deviceType]
+	if !exists {
+		return nil
+	}
+	return parser.GetSupportedPorts()
 }
 
 // GetSupportedEntityTypes returns the entity types this device supports
 func (c *AbeewayComponent) GetSupportedEntityTypes(deviceType components.DeviceType) []string {
-	return c.parser.GetSupportedEntityTypes()
+	parser, exists := c.parsers[deviceType]
+	if !exists {
+		return nil
+	}
+	return parser.GetSupportedEntityTypes()
 }

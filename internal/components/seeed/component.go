@@ -7,16 +7,34 @@ import (
 	"github.com/Space-DF/transformer-service/internal/components"
 )
 
+// Seeed Studio devices
+const (
+	DeviceTypeSenseCAP_T1000 = "SENSECAP_T1000"
+)
+
 // SeeedComponent implements the DeviceComponent interface for Seeed devices
 type SeeedComponent struct {
-	parser *T1000Parser
+	parsers map[components.DeviceType]DeviceParser
+}
+
+// DeviceParser handles device-specific parsing logic
+type DeviceParser interface {
+	ParsePayload(payload *components.RawPayload) (*components.ParsedData, error)
+	ParseToEntities(orgSlug, model string, payload *components.RawPayload, deviceLocation *components.Location) ([]components.Entity, error)
+	SupportsGPS() bool
+	GetSupportedPorts() []int
+	GetSupportedEntityTypes() []string
 }
 
 // NewSeeedComponent creates a new Seeed component
 func NewSeeedComponent() *SeeedComponent {
-	return &SeeedComponent{
-		parser: NewT1000Parser(),
+	component := &SeeedComponent{
+		parsers: make(map[components.DeviceType]DeviceParser),
 	}
+
+	// Register device-specific parsers
+	component.parsers[DeviceTypeSenseCAP_T1000] = NewT1000Parser()
+	return component
 }
 
 // GetInfo returns component metadata
@@ -26,152 +44,63 @@ func (c *SeeedComponent) GetInfo() components.ComponentInfo {
 		Manufacturer: "Seeed Studio",
 		Version:      "1.0.0",
 		Description:  "Support for Seeed Studio SenseCAP LoRaWAN devices",
-		DeviceTypes:  []components.DeviceType{components.DeviceTypeSenseCAP_T1000},
+		DeviceTypes:  []components.DeviceType{DeviceTypeSenseCAP_T1000},
 	}
 }
 
 // GetSupportedDevices returns the device types this component supports
 func (c *SeeedComponent) GetSupportedDevices() []components.DeviceType {
-	return []components.DeviceType{components.DeviceTypeSenseCAP_T1000}
+	return []components.DeviceType{DeviceTypeSenseCAP_T1000}
 }
 
 // CanHandle checks if this component can handle the given device type and payload
 func (c *SeeedComponent) CanHandle(deviceType components.DeviceType, payload *components.RawPayload) bool {
-	return deviceType == components.DeviceTypeSenseCAP_T1000
+	parser, exists := c.parsers[deviceType]
+	return exists && parser != nil
 }
 
-// Parse converts raw payload into structured ParsedData
+// Parse converts raw payload into structured ParsedData (DEPRECATED: Use ParseToEntities)
 func (c *SeeedComponent) Parse(ctx context.Context, deviceType components.DeviceType, payload *components.RawPayload) (*components.ParsedData, error) {
-	devEUI := payload.DeviceEUI
-	if devEUI == "" {
-		devEUI = components.ExtractDevEUI(payload.Metadata)
-	}
-	if devEUI == "" {
-		return nil, fmt.Errorf("device EUI not found")
+	parser, exists := c.parsers[deviceType]
+	if !exists {
+		return nil, fmt.Errorf("no parser found for device type %s", deviceType)
 	}
 
-	// Decode payload bytes
-	encoded := extractPayloadData(payload.Data)
-	if encoded == "" {
-		encoded = extractPayloadData(payload.Metadata)
-	}
-	if encoded == "" {
-		return nil, fmt.Errorf("no payload data found")
-	}
-
-	bytes, err := decodePayloadBytes(encoded)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode payload: %w", err)
-	}
-
-	// Parse T1000 packet
-	t1000Data, err := parseT1000Packet(bytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse T1000 packet: %w", err)
-	}
-
-	sensorData := make(map[string]interface{})
-	var location *components.Location
-
-	// Add battery level
-	if t1000Data.BatteryLevel > 0 {
-		sensorData["battery_percent"] = float64(t1000Data.BatteryLevel)
-	}
-
-	// Add temperature
-	sensorData["temperature"] = t1000Data.Temperature
-
-	// Add light level
-	sensorData["light_percent"] = float64(t1000Data.Light)
-
-	// Add work mode
-	sensorData["work_mode"] = getWorkModeName(t1000Data.WorkMode)
-
-	// Add positioning strategy
-	sensorData["positioning_strategy"] = getPositioningStrategyName(t1000Data.PositionStrategy)
-
-	// Add event status
-	sensorData["event_status"] = t1000Data.EventStatus
-	sensorData["start_moving"] = t1000Data.EventStatus&EventStartMoving != 0
-	sensorData["end_moving"] = t1000Data.EventStatus&EventEndMoving != 0
-	sensorData["motionless"] = t1000Data.EventStatus&EventMotionless != 0
-	sensorData["shock"] = t1000Data.EventStatus&EventShock != 0
-	sensorData["temperature_event"] = t1000Data.EventStatus&EventTemperature != 0
-	sensorData["light_event"] = t1000Data.EventStatus&EventLight != 0
-	sensorData["sos"] = t1000Data.EventStatus&EventSOS != 0
-
-	// Add location if available
-	if t1000Data.Latitude != 0 || t1000Data.Longitude != 0 {
-		location = &components.Location{
-			Latitude:  t1000Data.Latitude,
-			Longitude: t1000Data.Longitude,
-			Altitude:  t1000Data.Altitude,
-		}
-		sensorData["latitude"] = t1000Data.Latitude
-		sensorData["longitude"] = t1000Data.Longitude
-		sensorData["position_source"] = getPositioningSource(t1000Data.PositionStrategy)
-	}
-
-	// Add WiFi MACs if available
-	if len(t1000Data.WiFiMACs) > 0 {
-		sensorData["wifi_mac_addresses"] = t1000Data.WiFiMACs
-	}
-
-	// Add BLE MACs if available
-	if len(t1000Data.BLEMACs) > 0 {
-		sensorData["ble_mac_addresses"] = t1000Data.BLEMACs
-	}
-
-	var batteryLevel *float64
-	if t1000Data.BatteryLevel > 0 {
-		batt := float64(t1000Data.BatteryLevel)
-		batteryLevel = &batt
-	}
-
-	return &components.ParsedData{
-		DeviceEUI:    devEUI,
-		DeviceType:   components.DeviceTypeSenseCAP_T1000,
-		Timestamp:    payload.Timestamp,
-		Location:     location,
-		SensorData:   sensorData,
-		BatteryLevel: batteryLevel,
-		RawData:      encoded,
-	}, nil
+	return parser.ParsePayload(payload)
 }
 
 // ParseToEntities converts raw payload into multiple entities
 func (c *SeeedComponent) ParseToEntities(ctx context.Context, orgSlug, model string, deviceType components.DeviceType, payload *components.RawPayload, deviceLocation *components.Location) (*components.ParseResult, error) {
-	if deviceType != components.DeviceTypeSenseCAP_T1000 {
-		return nil, fmt.Errorf("unsupported device type: %s", deviceType)
+	parser, exists := c.parsers[deviceType]
+	if !exists {
+		return nil, fmt.Errorf("no parser found for device type %s", deviceType)
 	}
 
-	entities, err := c.parser.ParseToEntities(orgSlug, model, payload, deviceLocation)
+	entities, err := parser.ParseToEntities(orgSlug, model, payload, deviceLocation)
 	if err != nil {
 		return nil, err
 	}
 
-	devEUI := payload.DeviceEUI
-	if devEUI == "" {
-		devEUI = components.ExtractDevEUI(payload.Metadata)
-	}
+	// Create device info
+	deviceInfo := components.CreateDeviceInfo(
+		payload.DeviceEUI,
+		fmt.Sprintf("%s", string(deviceType)),
+		"Seeed",
+		string(deviceType),
+		string(deviceType),
+	)
 
 	return &components.ParseResult{
-		DeviceEUI: devEUI,
-		DeviceInfo: components.DeviceInfo{
-			Identifiers:  []string{devEUI},
-			Name:         "SenseCAP T1000 Tracker",
-			Manufacturer: "Seeed Studio",
-			Model:        "SenseCAP T1000",
-			ModelID:      "sensecap_t1000",
-		},
-		Entities:  entities,
-		Timestamp: payload.Timestamp,
+		DeviceEUI:  payload.DeviceEUI,
+		DeviceInfo: deviceInfo,
+		Entities:   entities,
+		Timestamp:  payload.Timestamp,
 	}, nil
 }
 
 // Validate performs device-specific validation on the parsed data
 func (c *SeeedComponent) Validate(deviceType components.DeviceType, data *components.ParsedData) error {
-	if deviceType != components.DeviceTypeSenseCAP_T1000 {
+	if deviceType != DeviceTypeSenseCAP_T1000 {
 		return fmt.Errorf("unsupported device type: %s", deviceType)
 	}
 
@@ -182,7 +111,7 @@ func (c *SeeedComponent) Validate(deviceType components.DeviceType, data *compon
 
 	// Validate location if present
 	if data.Location != nil {
-		if err := validateCoordinates(data.Location.Latitude, data.Location.Longitude); err != nil {
+		if err := components.ValidateCoordinates(data.Location.Latitude, data.Location.Longitude); err != nil {
 			return err
 		}
 	}
@@ -192,27 +121,27 @@ func (c *SeeedComponent) Validate(deviceType components.DeviceType, data *compon
 
 // SupportsGPS returns true if the device has built-in GPS
 func (c *SeeedComponent) SupportsGPS(deviceType components.DeviceType) bool {
-	return deviceType == components.DeviceTypeSenseCAP_T1000
+	parser, exists := c.parsers[deviceType]
+	if !exists {
+		return false
+	}
+	return parser.SupportsGPS()
 }
 
 // GetSupportedPorts returns the fPorts this device type uses
 func (c *SeeedComponent) GetSupportedPorts(deviceType components.DeviceType) []int {
-	return []int{1, 5} // fPort 1 for uplink, fPort 5 for downlink
+	parser, exists := c.parsers[deviceType]
+	if !exists {
+		return nil
+	}
+	return parser.GetSupportedPorts()
 }
 
 // GetSupportedEntityTypes returns the entity types this device supports
 func (c *SeeedComponent) GetSupportedEntityTypes(deviceType components.DeviceType) []string {
-	return []string{
-		"location",
-		"battery",
-		"temperature",
-		"light",
-		"motion",
-		"shock_event",
-		"temperature_event",
-		"light_event",
-		"sos_alert",
-		"work_mode",
-		"positioning_strategy",
+	parser, exists := c.parsers[deviceType]
+	if !exists {
+		return nil
 	}
+	return parser.GetSupportedEntityTypes()
 }

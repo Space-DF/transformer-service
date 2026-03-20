@@ -148,26 +148,13 @@ type LocationResult struct {
 	Accuracy  float64 `json:"accuracy"`
 }
 
-// DeviceProfilePayload represents the device profile returned by device-service
-type DeviceProfilePayload struct {
-	ID                string                 `json:"id"`
-	Name              string                 `json:"name"`
-	DeviceType        string                 `json:"device_type"`
-	DeviceManufacture string                 `json:"device_manufacture"`
-	Manufacture       string                 `json:"manufacture"`
-	DefaultConfig     map[string]interface{} `json:"default_config,omitempty"`
-	Description       string                 `json:"description,omitempty"`
-	ImageURL          string                 `json:"image_url,omitempty"`
-}
-
 // DeviceLookupResponse represents the payload returned by the device lookup API
 type DeviceLookupResponse struct {
-	ID            string               `json:"id"`
-	DeviceProfile DeviceProfilePayload `json:"device_profile"`
-	DeviceID      string               `json:"device_id"`
-	SpaceSlug     string               `json:"space_slug"`
-	IsPublished   bool                 `json:"is_published"`
-	Skip          bool                 `json:"skip"`
+	ID          string `json:"id"`
+	DeviceID    string `json:"device_id"`
+	DeviceModel string `json:"device_model"`
+	SpaceSlug   string `json:"space_slug"`
+	IsPublished bool   `json:"is_published"`
 }
 
 // DeviceMapping represents a device EUI to profile mapping

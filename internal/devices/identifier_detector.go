@@ -38,7 +38,7 @@ func (d *IdentifierDetector) DetectIdentifiers(payload, locationPayload map[stri
 	}
 
 	// Custom Protocol Detection
-	if custom := d.detectCustom(payload, locationPayload); custom != nil {
+	if custom := d.detectCustom(payload); custom != nil {
 		identifiers = append(identifiers, custom...)
 	}
 
@@ -192,12 +192,12 @@ func (d *IdentifierDetector) detectHardware(payload, locationPayload map[string]
 }
 
 // detectCustom detects custom protocol identifiers
-func (d *IdentifierDetector) detectCustom(payload, locationPayload map[string]interface{}) []DeviceIdentifier {
+func (d *IdentifierDetector) detectCustom(payload map[string]interface{}) []DeviceIdentifier {
 	var identifiers []DeviceIdentifier
 
 	// Detect based on message structure patterns
 	if d.isZigBeeMessage(payload) {
-		if zigbeeID := d.extractZigBeeID(payload, locationPayload); zigbeeID != "" {
+		if zigbeeID := d.extractZigBeeID(payload); zigbeeID != "" {
 			identifiers = append(identifiers, DeviceIdentifier{
 				Type:  "zigbee",
 				Key:   "ieee_address",
@@ -325,7 +325,7 @@ func (d *IdentifierDetector) extractWiFi(payload, locationPayload map[string]int
 	return identifiers
 }
 
-func (d *IdentifierDetector) extractZigBeeID(payload, locationPayload map[string]interface{}) string {
+func (d *IdentifierDetector) extractZigBeeID(payload map[string]interface{}) string {
 	if zigbee, ok := payload["zigbee"].(map[string]interface{}); ok {
 		if id, ok := zigbee["ieee_address"].(string); ok {
 			return id
