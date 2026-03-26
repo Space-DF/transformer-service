@@ -324,7 +324,7 @@ func (dps *DeviceProfileService) ShouldSkipDevice(orgSlug, devEUI string) (bool,
 // Close closes the service and releases resources
 func (dps *DeviceProfileService) Close() error {
 	if dps.httpClient != nil {
-			dps.httpClient.CloseIdleConnections()
+		dps.httpClient.CloseIdleConnections()
 	}
 	return nil
 }
