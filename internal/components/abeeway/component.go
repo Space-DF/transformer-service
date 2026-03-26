@@ -31,7 +31,7 @@ func NewAbeewayComponent() *AbeewayComponent {
 	component := &AbeewayComponent{
 		parsers: make(map[components.DeviceType]DeviceParser),
 	}
-	
+
 	// Register device-specific parsers
 	component.parsers[DeviceTypeAbeewayIndustrialTracker] = NewIndustrialTrackerParser()
 	return component

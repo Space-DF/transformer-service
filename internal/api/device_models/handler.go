@@ -3,6 +3,7 @@ package device_models
 import (
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/Space-DF/transformer-service/internal/api/common"
@@ -31,6 +32,11 @@ func getDeviceModels(dps *services.DeviceProfileService) echo.HandlerFunc {
 			}
 			deviceModels = filtered
 		}
+
+		// Always sort by name ascending
+		sort.Slice(deviceModels, func(i, j int) bool {
+			return deviceModels[i].DeviceType < deviceModels[j].DeviceType
+		})
 
 		total := len(deviceModels)
 		p := common.ParsePagination(c, 10)
