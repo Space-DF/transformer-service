@@ -27,7 +27,9 @@ func (c *Consumer) Connect() error {
 		// Create separate channel for org events
 		c.orgEventsChannel, err = c.orgEventsConn.Channel()
 		if err != nil {
-			c.orgEventsConn.Close()
+			defer func() {
+				_ = c.orgEventsConn.Close()
+			}()
 			return fmt.Errorf("failed to open org events channel: %w", err)
 		}
 
@@ -159,7 +161,9 @@ func (c *Consumer) reconnectConnection(ctx context.Context) error {
 
 			ch, err := conn.Channel()
 			if err != nil {
-				conn.Close()
+				defer func() {
+					_ = conn.Close()
+				}()
 				return err
 			}
 
