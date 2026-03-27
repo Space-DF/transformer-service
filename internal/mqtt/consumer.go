@@ -65,7 +65,7 @@ func NewConsumer(cfg config.AMQPConfig, orgEventsCfg config.OrgEventsConfig, log
 	// Create circuit breaker
 	cbConfig := circuitbreaker.Config{
 		MaxFailures:      5,
-		ResetTimeout:     15 * time.Second,
+		ResetTimeout:     30 * time.Second,
 		SuccessThreshold: 2,
 	}
 	cb := circuitbreaker.New(cbConfig)
