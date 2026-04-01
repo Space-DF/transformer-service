@@ -2,10 +2,11 @@ package mqtt
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	segmentjson "github.com/segmentio/encoding/json"
 
 	"github.com/Space-DF/transformer-service/internal/models"
 	"github.com/Space-DF/transformer-service/internal/mqtt/logging"
@@ -18,7 +19,7 @@ func (c *Consumer) publishTransformedData(channel *amqp.Channel, data *models.Tr
 		return fmt.Errorf("tenant channel is nil")
 	}
 
-	body, err := json.Marshal(data)
+	body, err := segmentjson.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal transformed data: %w", err)
 	}
@@ -67,7 +68,7 @@ func (c *Consumer) publishTelemetry(channel *amqp.Channel, data *models.Telemetr
 		return fmt.Errorf("tenant channel is nil")
 	}
 
-	body, err := json.Marshal(data)
+	body, err := segmentjson.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal telemetry payload: %w", err)
 	}
@@ -124,7 +125,7 @@ func (c *Consumer) publishEntityTelemetry(channel *amqp.Channel, data *models.Te
 			Metadata:     data.Metadata,
 		}
 
-		body, err := json.Marshal(entityPayload)
+		body, err := segmentjson.Marshal(entityPayload)
 		if err != nil {
 			return fmt.Errorf("failed to marshal entity telemetry payload for %s: %w", entityID, err)
 		}

@@ -205,10 +205,14 @@ func (c *Consumer) stopAllConsumers() {
 
 // resubscribeTenant resubscribes to a tenant's queue after a channel closure
 func (c *Consumer) resubscribeTenant(ctx context.Context, oldTenant *TenantConsumer) {
-	// Check if main connection is down - if so, don't try individual resubscription
-	// The main reconnection will handle all tenants together
+	// Check if main connection is down - trigger reconnection
 	if c.orgEventsConn == nil || c.orgEventsConn.IsClosed() {
-		logging.Tenant(oldTenant.OrgSlug, oldTenant.Vhost, "⏳", "Main connection down, waiting for centralized reconnection")
+		logging.Tenant(oldTenant.OrgSlug, oldTenant.Vhost, "⏳", "Main connection down, triggering centralized reconnection")
+		// Trigger reconnection
+		select {
+		case c.reconnectChan <- struct{}{}:
+		default:
+		}
 		return
 	}
 
@@ -242,7 +246,7 @@ func (c *Consumer) resubscribeTenant(ctx context.Context, oldTenant *TenantConsu
 		c.tenantMu.Unlock()
 
 		// Try to resubscribe
-		err := c.subscribeToOrganization(ctx, oldTenant.OrgSlug, oldTenant.Vhost, oldTenant.QueueName, oldTenant.Exchange, false)
+		err := c.subscribeToOrganization(ctx, oldTenant.OrgSlug, oldTenant.Vhost, oldTenant.QueueName, oldTenant.Exchange, true)
 		if err == nil {
 			logging.Tenant(oldTenant.OrgSlug, oldTenant.Vhost, "✅", "Successfully resubscribed (attempt %d)", attempt+1)
 			return
