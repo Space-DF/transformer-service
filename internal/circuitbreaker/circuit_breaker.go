@@ -2,6 +2,7 @@ package circuitbreaker
 
 import (
 	"errors"
+	"log"
 	"sync"
 	"time"
 )
@@ -155,7 +156,12 @@ func (cb *CircuitBreaker) onSuccess() {
 }
 
 func (cb *CircuitBreaker) setState(newState State) {
+	oldState := cb.state
 	cb.state = newState
+	if oldState != newState {
+		log.Printf("[CIRCUIT BREAKER] State transition: %s -> %s (failures: %d, successes: %d)",
+			oldState, newState, cb.consecutiveFailures, cb.consecutiveSuccesses)
+	}
 }
 
 // State returns the current circuit breaker state
@@ -177,4 +183,16 @@ func (cb *CircuitBreaker) RecordFailure() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 	cb.onFailure()
+}
+
+// Reset manually resets the circuit breaker to closed state
+// Use after successful reconnection to immediately allow requests
+func (cb *CircuitBreaker) Reset() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	oldState := cb.state
+	cb.consecutiveFailures = 0
+	cb.consecutiveSuccesses = 0
+	cb.setState(StateClosed)
+	log.Printf("[CIRCUIT BREAKER] Manually reset: %s -> CLOSED", oldState)
 }

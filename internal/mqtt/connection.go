@@ -123,15 +123,6 @@ func (c *Consumer) handleChannelClosed(err *amqp.Error) {
 func (c *Consumer) reconnectConnection(ctx context.Context) error {
 	log.Println("Attempting to reconnect to AMQP broker")
 
-	// Set reconnecting flag to prevent individual tenant subscriptions
-	c.reconnecting = true
-	defer func() {
-		// Will be set to false by caller on success, or here on failure
-		if c.reconnecting {
-			c.reconnecting = false
-		}
-	}()
-
 	backoff := 1 * time.Second
 	maxBackoff := 30 * time.Second
 	maxAttempts := 30

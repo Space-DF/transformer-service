@@ -2,9 +2,9 @@ package payload
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 
+	segmentjson "github.com/segmentio/encoding/json"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -18,7 +18,7 @@ func NewParser() *Parser {
 func (p *Parser) Parse(msg amqp.Delivery) (payload map[string]interface{}, locationPayload map[string]interface{}, err error) {
 	// Parse the incoming message
 	var rawPayload map[string]interface{}
-	if err := json.Unmarshal(msg.Body, &rawPayload); err != nil {
+	if err := segmentjson.Unmarshal(msg.Body, &rawPayload); err != nil {
 		return nil, nil, fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 
@@ -28,7 +28,7 @@ func (p *Parser) Parse(msg amqp.Delivery) (payload map[string]interface{}, locat
 	// Check if payload has nested JSON string (MQTT format)
 	if payloadStr, ok := payload["payload"].(string); ok && payloadStr != "" {
 		var nestedPayload map[string]interface{}
-		if err := json.Unmarshal([]byte(payloadStr), &nestedPayload); err == nil {
+		if err := segmentjson.Unmarshal([]byte(payloadStr), &nestedPayload); err == nil {
 			payload = nestedPayload
 		}
 	}
@@ -37,7 +37,7 @@ func (p *Parser) Parse(msg amqp.Delivery) (payload map[string]interface{}, locat
 	if rawData, ok := payload["raw_data"].(string); ok {
 		if decoded, err := base64.StdEncoding.DecodeString(rawData); err == nil {
 			var jsonData map[string]interface{}
-			if json.Unmarshal(decoded, &jsonData) == nil {
+			if segmentjson.Unmarshal(decoded, &jsonData) == nil {
 				payload["decoded_raw_data"] = jsonData
 				locationPayload = jsonData
 			}

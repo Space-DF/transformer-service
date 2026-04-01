@@ -8,6 +8,7 @@ require (
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/redis/go-redis/v9 v9.5.3
+	github.com/segmentio/encoding v0.5.4
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0
@@ -18,7 +19,6 @@ require (
 	go.opentelemetry.io/otel/sdk v1.39.0
 	go.opentelemetry.io/otel/sdk/log v0.15.0
 	go.opentelemetry.io/otel/trace v1.39.0
-	go.uber.org/zap v1.27.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -40,6 +40,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
+	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect

@@ -141,6 +141,9 @@ func (c *Consumer) reconnectionMonitor(ctx context.Context) {
 				continue
 			}
 
+			// Set flag before calling reconnectConnection
+			c.reconnecting = true
+
 			log.Println("Reconnection triggered, attempting to reconnect...")
 			if err := c.reconnectConnection(ctx); err != nil {
 				c.reconnecting = false
@@ -154,9 +157,14 @@ func (c *Consumer) reconnectionMonitor(ctx context.Context) {
 					}
 				}()
 			} else {
-				// Mark as not reconnecting anymore
-				c.reconnecting = false
+				// Successfully reconnected - keep reconnecting flag true briefly
+				// to filter out any stale close events from the old connection
 				log.Println("Successfully reconnected and re-established all tenants")
+				go func() {
+					time.Sleep(5 * time.Second)
+					c.reconnecting = false
+					log.Println("Reconnection window closed, ready for new events")
+				}()
 			}
 		}
 	}
