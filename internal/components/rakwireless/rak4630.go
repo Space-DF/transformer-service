@@ -71,7 +71,7 @@ func (p *RAK4630Parser) GetSupportedPorts() []int {
 
 // GetSupportedEntityTypes returns entity types supported by RAK4630
 func (p *RAK4630Parser) GetSupportedEntityTypes() []string {
-	return []string{"location", "battery", "temperature", "humidity", "pressure"} // RAK4630 environmental sensor
+	return []string{"location", "battery_voltage", "temperature", "humidity", "pressure"} // RAK4630 environmental sensor
 }
 
 // ParseToEntities creates entities for RAK4630 device
@@ -119,17 +119,17 @@ func (p *RAK4630Parser) ParseToEntities(orgSlug, model string, payload *componen
 		entities = append(entities, locationEntity)
 	}
 
-	// Battery Entity
+	// Battery Voltage Entity
 	if batteryV, ok := readings["battery_v"]; ok {
 		batteryEntity := components.Entity{
-			UniqueID: components.GenerateUniqueID(model, devEUI, "battery"),
+			UniqueID: components.GenerateUniqueID(model, devEUI, "battery_voltage"),
 			EntityID: components.GenerateEntityID(
-				components.GetEntityDomain("battery"),
-				orgSlug, "rakwireless", "rak4630", devEUI, "battery",
+				components.GetEntityDomain("battery_voltage"),
+				orgSlug, "rakwireless", "rak4630", devEUI, "battery_voltage",
 			),
-			EntityType:  "battery",
-			DeviceClass: "battery",
-			Name:        "Battery Level",
+			EntityType:  "battery_voltage",
+			DeviceClass: "battery_voltage",
+			Name:        "Battery Voltage",
 			State:       batteryV,
 			DisplayType: []string{"chart", "gauge", "value", "slider"},
 			UnitOfMeas:  "V",
