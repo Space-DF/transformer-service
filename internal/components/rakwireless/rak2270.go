@@ -20,7 +20,7 @@ func NewRAK2270Parser() *RAK2270Parser {
 func (p *RAK2270Parser) ParsePayload(payload *components.RawPayload) (*components.ParsedData, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = components.ExtractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata, payload.LNSType)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI not found")
@@ -59,7 +59,8 @@ func (p *RAK2270Parser) GetSupportedEntityTypes() []string {
 func (p *RAK2270Parser) ParseToEntities(orgSlug, model string, payload *components.RawPayload, deviceLocation *components.Location) ([]components.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = components.ExtractDevEUI(payload.Metadata)
+		// Use LNS-aware extraction if LNS type is known
+		devEUI = components.ExtractDevEUI(payload.Metadata, payload.LNSType)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI is required")

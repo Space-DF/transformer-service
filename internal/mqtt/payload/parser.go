@@ -4,6 +4,8 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	"github.com/Space-DF/transformer-service/internal/components"
+	"github.com/Space-DF/transformer-service/internal/models"
 	segmentjson "github.com/segmentio/encoding/json"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -45,4 +47,10 @@ func (p *Parser) Parse(msg amqp.Delivery) (payload map[string]interface{}, locat
 	}
 
 	return payload, locationPayload, nil
+}
+
+// ExtractLNSSource extracts the LNS type from the payload
+// This is a convenience wrapper around components.ExtractLNSSource
+func (p *Parser) ExtractLNSSource(payload map[string]interface{}) models.LNSType {
+	return components.ExtractLNSSource(payload)
 }

@@ -771,17 +771,14 @@ func getFloat64(m map[string]interface{}, keys ...string) (float64, bool) {
 func (p *YabbyEdgeParser) ParsePayload(payload *components.RawPayload) (*components.ParsedData, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = components.ExtractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata, payload.LNSType)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI not found")
 	}
 
 	// This allows us to auto-detect the actual message type from the raw data
-	encoded := components.ExtractPayloadData(payload.Data)
-	if encoded == "" {
-		encoded = components.ExtractPayloadData(payload.Metadata)
-	}
+	encoded := components.ExtractPayloadDataFromMetadata(payload.Metadata, payload.LNSType)
 	if encoded == "" {
 		return nil, fmt.Errorf("no payload data found")
 	}
@@ -797,7 +794,7 @@ func (p *YabbyEdgeParser) ParsePayload(payload *components.RawPayload) (*compone
 	// Extract fPort from metadata as fallback
 	fPort := payload.FPort
 	if fPort == 0 {
-		fPort = components.ExtractFPort(payload.Metadata)
+		fPort = components.ExtractFPort(payload.Metadata, payload.LNSType)
 	}
 
 	// Use detected fPort if available, otherwise use the provided fPort
@@ -929,17 +926,14 @@ func (p *YabbyEdgeParser) GetSupportedEntityTypes() []string {
 func (p *YabbyEdgeParser) ParseToEntities(orgSlug, model string, payload *components.RawPayload, deviceLocation *components.Location) ([]components.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = components.ExtractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata, payload.LNSType)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI is required")
 	}
 
 	// Extract and decode payload bytes
-	encoded := components.ExtractPayloadData(payload.Data)
-	if encoded == "" {
-		encoded = components.ExtractPayloadData(payload.Metadata)
-	}
+	encoded := components.ExtractPayloadDataFromMetadata(payload.Metadata, payload.LNSType)
 	if encoded == "" {
 		return nil, fmt.Errorf("no payload data found")
 	}
@@ -956,7 +950,7 @@ func (p *YabbyEdgeParser) ParseToEntities(orgSlug, model string, payload *compon
 	// Extract fPort from metadata as fallback
 	fPort := payload.FPort
 	if fPort == 0 {
-		fPort = components.ExtractFPort(payload.Metadata)
+		fPort = components.ExtractFPort(payload.Metadata, payload.LNSType)
 	}
 
 	// Use detected fPort if available, otherwise use the provided fPort

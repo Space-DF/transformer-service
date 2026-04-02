@@ -12,7 +12,7 @@ import (
 )
 
 // parseEntities attempts to parse entities for telemetry and returns the device mapping
-func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]interface{}, deviceLocation *components.Location) (*components.ParseResult, *models.DeviceMapping, error) {
+func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]interface{}, deviceLocation *components.Location, lnsType models.LNSType) (*components.ParseResult, *models.DeviceMapping, error) {
 	if devEUI == "" {
 		return nil, nil, fmt.Errorf("dev_eui missing")
 	}
@@ -27,6 +27,7 @@ func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]inte
 		DeviceEUI: devEUI,
 		Timestamp: time.Now(),
 		Metadata:  payload,
+		LNSType:   lnsType,
 	}
 
 	// Extract data field from the most likely location first
