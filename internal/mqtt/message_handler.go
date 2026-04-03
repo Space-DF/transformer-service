@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Space-DF/transformer-service/internal/components"
+	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 	"github.com/Space-DF/transformer-service/internal/mqtt/logging"
 	"github.com/Space-DF/transformer-service/internal/mqtt/resolver"
@@ -105,22 +106,21 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 		return fmt.Errorf("failed to parse message: %w", err)
 	}
 
-	// Extract devEUI first to check device profile
-	var devEUI string = components.ExtractDevEUI(payload)
+	// Extract LNS type from metadata (must be explicitly set by MPA service)
+	lnsType := c.parser.ExtractLNSSource(payload)
 
-	// Add device_eui to span
-	span.SetAttributes(attribute.String("device_eui", devEUI))
+	// Log with LNS type for debugging
+	if lnsType == lns.LNSTypeUnknown || lnsType == "" {
+		logging.Tenant(orgSlug, vhost, "⚠️", "Unknown or empty LNS type, using fallback extraction")
+	} else {
+		logging.Tenant(orgSlug, vhost, "📡", "Processing message from LNS: %s", lnsType)
+	}
 
-	// Log message received with structured data
-	telemetry.LogInfo(ctx, fmt.Sprintf("[%s][VHOST:%s] Processing device message from device %s", orgSlug, vhost, devEUI),
-		otellog.String("tenant", orgSlug),
-		otellog.String("vhost", vhost),
-		otellog.String("device_eui", devEUI),
-		otellog.String("routing_key", msg.RoutingKey),
-	)
+	// Extract devEUI using LNS-aware extraction (efficient, single lookup)
+	var devEUI string = components.ExtractDevEUI(payload, lnsType)
 
 	// Check if device should be skipped
-	deviceLocation, processingInfo, err := c.resolver.Resolve(orgSlug, vhost, devEUI, payload, locationPayload)
+	deviceLocation, processingInfo, err := c.resolver.Resolve(orgSlug, vhost, devEUI, payload, locationPayload, lnsType)
 	if errors.Is(err, resolver.ErrDeviceSkipped) {
 		span.AddEvent("device_skipped")
 		telemetry.LogInfo(ctx, fmt.Sprintf("[%s][VHOST:%s] Device %s skipped by resolver (should_skip=true)", orgSlug, vhost, devEUI),
@@ -176,7 +176,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 		}
 	}
 
-	if parseResult, mapping, perr := c.parseEntities(orgSlug, devEUI, payload, entityLocation); perr == nil && parseResult != nil {
+	if parseResult, mapping, perr := c.parseEntities(orgSlug, devEUI, payload, entityLocation, lnsType); perr == nil && parseResult != nil {
 		logging.Tenant(orgSlug, vhost, "", "Parsed %d telemetry entities for device %s", len(parseResult.Entities), devEUI)
 		if telemetryPayload, terr := c.buildTelemetryPayload(parseResult, orgSlug, mapping); terr == nil {
 			if err := c.publishTelemetry(tenant.Channel, telemetryPayload, tenant); err != nil {

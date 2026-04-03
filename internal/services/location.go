@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/Space-DF/transformer-service/internal/components"
+	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 )
 
@@ -24,118 +26,53 @@ func NewLocationService() *LocationService {
 
 // CalculateDeviceLocation calculates device location based on gateway data
 func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{}) (*models.DeviceLocationData, error) {
-	var rxMetadata []interface{}
-	var frequency float64
-	var devEUI string
+	return ls.CalculateDeviceLocationWithLNS(payload, lns.LNSTypeUnknown)
+}
 
-	// Check if this is TTN format (uplink_message) or ChirpStack format (direct payload)
-	if uplinkMessage, ok := payload["uplink_message"].(map[string]interface{}); ok {
-		// TTN format
-		var rxOk bool
-		rxMetadata, rxOk = uplinkMessage["rx_metadata"].([]interface{})
-		if !rxOk {
-			return nil, fmt.Errorf("rx_metadata not found in uplink_message")
-		}
-
-		settings, settingsOk := uplinkMessage["settings"].(map[string]interface{})
-		if !settingsOk {
-			return nil, fmt.Errorf("settings not found in uplink_message")
-		}
-
-		var freqOk bool
-		frequency, freqOk = settings["frequency"].(float64)
-		if !freqOk {
-			return nil, fmt.Errorf("frequency not found in settings")
-		}
-
-		endDeviceIDs, deviceOk := payload["end_device_ids"].(map[string]interface{})
-		if !deviceOk {
-			return nil, fmt.Errorf("end_device_ids not found in payload")
-		}
-
-		var euiOk bool
-		devEUI, euiOk = endDeviceIDs["dev_eui"].(string)
-		if !euiOk {
-			return nil, fmt.Errorf("dev_eui not found in end_device_ids")
-		}
-	} else {
-		// ChirpStack/custom format - check for rxInfo in multiple locations
-		var rxOk bool
-
-		// First try top-level rxInfo
-		rxMetadata, rxOk = payload["rxInfo"].([]interface{})
-
-		// If not found, try uplinkEvent.rxInfo
-		if !rxOk {
-			if uplinkEvent, uplinkOk := payload["uplinkEvent"].(map[string]interface{}); uplinkOk {
-				rxMetadata, rxOk = uplinkEvent["rxInfo"].([]interface{})
-			}
-		}
-
-		if !rxOk {
-			return nil, fmt.Errorf("rxInfo not found in payload")
-		}
-
-		// Extract frequency from txInfo (optional for some formats)
-		frequency = 868.0 // Default frequency if not found
-		if txInfo, txOk := payload["txInfo"].(map[string]interface{}); txOk {
-			if freq, freqOk := txInfo["frequency"].(float64); freqOk {
-				frequency = freq
-			}
-		} else if uplinkEvent, uplinkOk := payload["uplinkEvent"].(map[string]interface{}); uplinkOk {
-			if txInfo, txOk := uplinkEvent["txInfo"].(map[string]interface{}); txOk {
-				if freq, freqOk := txInfo["frequency"].(float64); freqOk {
-					frequency = freq
-				}
-			}
-		}
-
-		// Extract device EUI from deviceInfo
-		deviceInfo, deviceOk := payload["deviceInfo"].(map[string]interface{})
-		if !deviceOk {
-			return nil, fmt.Errorf("deviceInfo not found in payload")
-		}
-
-		var euiOk bool
-		devEUI, euiOk = deviceInfo["devEui"].(string)
-		if !euiOk {
-			return nil, fmt.Errorf("devEui not found in deviceInfo")
-		}
+// CalculateDeviceLocationWithLNS calculates device location using LNS-aware extraction
+func (ls *LocationService) CalculateDeviceLocationWithLNS(payload map[string]interface{}, lnsType lns.LNSType) (*models.DeviceLocationData, error) {
+	// Get LNS handler
+	handler, err := lns.GetLNSHandler(lnsType)
+	if err != nil {
+		return nil, fmt.Errorf("no handler registered for LNS type %s: %w", lnsType, err)
 	}
 
-	// Parse gateway locations
-	var locations []models.LocationPoint
-	for _, gw := range rxMetadata {
-		gateway, ok := gw.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		locationData, ok := gateway["location"].(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		lat, latOk := locationData["latitude"].(float64)
-		lon, lonOk := locationData["longitude"].(float64)
-		rssi, rssiOk := gateway["rssi"].(float64)
-
-		if latOk && lonOk && rssiOk {
-			locations = append(locations, models.LocationPoint{
-				Latitude:  lat,
-				Longitude: lon,
-				RSSI:      int(rssi),
-			})
-		}
+	// Extract rx_metadata using LNS-aware helper
+	rxMetadata, err := components.ExtractRxMetadata(payload, lnsType)
+	if err != nil {
+		return nil, err
 	}
 
-	if len(locations) == 0 {
-		return nil, fmt.Errorf("no valid gateway locations found")
+	// Extract frequency using LNS-aware helper
+	frequency, err := components.ExtractFrequency(payload, lnsType)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract device EUI using LNS-aware helper
+	devEUI := components.ExtractDevEUI(payload, lnsType)
+	if devEUI == "" {
+		return nil, fmt.Errorf("dev_eui not found in payload")
+	}
+
+	// Extract gateway locations using LNS handler
+	gatewayLocations, err := handler.ExtractGatewayLocations(rxMetadata)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to LocationPoint format for calculation
+	locations := make([]models.LocationPoint, len(gatewayLocations))
+	for i, gw := range gatewayLocations {
+		locations[i] = models.LocationPoint{
+			Latitude:  gw.Latitude,
+			Longitude: gw.Longitude,
+			RSSI:      gw.RSSI,
+		}
 	}
 
 	// Calculate device location based on number of gateways
 	var lat, lon float64
-	var err error
 
 	switch len(locations) {
 	case 1:

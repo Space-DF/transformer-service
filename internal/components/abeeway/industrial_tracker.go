@@ -19,7 +19,7 @@ func NewIndustrialTrackerParser() *IndustrialTrackerParser {
 func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (*components.ParsedData, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = components.ExtractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata, payload.LNSType)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI not found")
@@ -344,7 +344,7 @@ func (p *IndustrialTrackerParser) GetSupportedEntityTypes() []string {
 func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload *components.RawPayload, deviceLocation *components.Location) ([]components.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = components.ExtractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata, payload.LNSType)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI is required")
@@ -825,10 +825,7 @@ func (p *IndustrialTrackerParser) parseFromDecodedPayload(metadata map[string]in
 // parseFromRawData extracts Abeeway data from raw binary payload
 func (p *IndustrialTrackerParser) parseFromRawData(payload *components.RawPayload) (*AbeewayPayload, error) {
 	// Decode payload bytes
-	encoded := components.ExtractPayloadData(payload.Data)
-	if encoded == "" {
-		encoded = components.ExtractPayloadData(payload.Metadata)
-	}
+	encoded := components.ExtractPayloadDataFromMetadata(payload.Metadata, payload.LNSType)
 	if encoded == "" {
 		return nil, fmt.Errorf("no payload data found")
 	}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/Space-DF/transformer-service/internal/lns"
 )
 
 // DeviceType represents the model/type of a device
@@ -31,6 +33,7 @@ type RawPayload struct {
 	Timestamp time.Time              `json:"timestamp"`
 	RxInfo    []GatewayInfo          `json:"rx_info"`
 	Metadata  map[string]interface{} `json:"metadata"`
+	LNSType   lns.LNSType            `json:"lns_type"` // LNS type for efficient extraction
 }
 
 // GatewayInfo contains information about the gateway that received the message
