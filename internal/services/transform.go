@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Space-DF/transformer-service/internal/components"
+	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 )
 
@@ -28,8 +30,11 @@ func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLoc
 	// Determine location accuracy based on calculation method
 	accuracy := ts.determineLocationAccuracy(gatewayCount)
 
+	// Extract LNS type from payload
+	lnsType := components.ExtractLNSSource(originalPayload)
+
 	// Extract additional metadata from original payload
-	metadata := ts.extractMetadata(originalPayload)
+	metadata := ts.extractMetadata(originalPayload, lnsType)
 
 	// Extract device identifiers (device + space) from payload or device mappings
 	deviceID, spaceSlug, isPublished := ts.extractDeviceIdentifiers(originalPayload, deviceLocation.Organization, deviceLocation.DevEUI)
@@ -72,8 +77,11 @@ func (ts *TransformService) determineLocationAccuracy(gatewayCount int) float64 
 }
 
 // extractMetadata extracts useful metadata from the original payload
-func (ts *TransformService) extractMetadata(payload map[string]interface{}) map[string]interface{} {
+func (ts *TransformService) extractMetadata(payload map[string]interface{}, lnsType lns.LNSType) map[string]interface{} {
 	metadata := make(map[string]interface{})
+
+	// Add LNS type to metadata for observability
+	metadata["lns_type"] = lnsType.String()
 
 	// Add received timestamp if available
 	if receivedAt, exists := payload["received_at"]; exists {

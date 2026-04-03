@@ -149,17 +149,14 @@ const (
 func (p *T1000Parser) ParseToEntities(orgSlug, model string, payload *components.RawPayload, deviceLocation *components.Location) ([]components.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = components.ExtractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata, payload.LNSType)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI is required")
 	}
 
 	// Decode payload bytes
-	encoded := components.ExtractPayloadData(payload.Data)
-	if encoded == "" {
-		encoded = components.ExtractPayloadData(payload.Metadata)
-	}
+	encoded := components.ExtractPayloadDataFromMetadata(payload.Metadata, payload.LNSType)
 	if encoded == "" {
 		return nil, fmt.Errorf("no payload data found")
 	}
@@ -1205,17 +1202,14 @@ func (c *T1000Parser) SupportsGPS() bool {
 func (c *T1000Parser) ParsePayload(payload *components.RawPayload) (*components.ParsedData, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = components.ExtractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata, payload.LNSType)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI not found")
 	}
 
 	// Decode payload bytes
-	encoded := components.ExtractPayloadData(payload.Data)
-	if encoded == "" {
-		encoded = components.ExtractPayloadData(payload.Metadata)
-	}
+	encoded := components.ExtractPayloadDataFromMetadata(payload.Metadata, payload.LNSType)
 	if encoded == "" {
 		return nil, fmt.Errorf("no payload data found")
 	}

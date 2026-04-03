@@ -20,7 +20,7 @@ func NewRAK2270Parser() *RAK2270Parser {
 func (p *RAK2270Parser) ParsePayload(payload *components.RawPayload) (*components.ParsedData, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = components.ExtractDevEUI(payload.Metadata)
+		devEUI = components.ExtractDevEUI(payload.Metadata, payload.LNSType)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI not found")
@@ -52,14 +52,15 @@ func (p *RAK2270Parser) GetSupportedPorts() []int {
 
 // GetSupportedEntityTypes returns entity types supported by RAK2270
 func (p *RAK2270Parser) GetSupportedEntityTypes() []string {
-	return []string{"location", "battery", "temperature"}
+	return []string{"location", "battery_voltage", "temperature"}
 }
 
 // ParseToEntities creates entities for RAK2270 device
 func (p *RAK2270Parser) ParseToEntities(orgSlug, model string, payload *components.RawPayload, deviceLocation *components.Location) ([]components.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
-		devEUI = components.ExtractDevEUI(payload.Metadata)
+		// Use LNS-aware extraction if LNS type is known
+		devEUI = components.ExtractDevEUI(payload.Metadata, payload.LNSType)
 	}
 	if devEUI == "" {
 		return nil, fmt.Errorf("device EUI is required")
@@ -127,22 +128,22 @@ func (p *RAK2270Parser) ParseToEntities(orgSlug, model string, payload *componen
 
 	// Battery Voltage Entity
 	if voltage, ok := sensorData["battery_voltage"].(float64); ok {
-		batteryEntity := components.Entity{
-			UniqueID: components.GenerateUniqueID(model, devEUI, "battery"),
+		batteryVoltageEntity := components.Entity{
+			UniqueID: components.GenerateUniqueID(model, devEUI, "battery_voltage"),
 			EntityID: components.GenerateEntityID(
-				components.GetEntityDomain("battery"),
-				orgSlug, "rakwireless", "rak2270", devEUI, "battery",
+				components.GetEntityDomain("battery_voltage"),
+				orgSlug, "rakwireless", "rak2270", devEUI, "battery_voltage",
 			),
-			EntityType:  "battery",
-			DeviceClass: "battery",
-			Name:        "Battery",
+			EntityType:  "battery_voltage",
+			DeviceClass: "battery_voltage",
+			Name:        "Battery Voltage",
 			DisplayType: []string{"chart", "gauge", "value"},
 			State:       voltage,
 			UnitOfMeas:  "V",
 			Enabled:     true,
 			Timestamp:   timestamp,
 		}
-		entities = append(entities, batteryEntity)
+		entities = append(entities, batteryVoltageEntity)
 	}
 
 	return entities, nil

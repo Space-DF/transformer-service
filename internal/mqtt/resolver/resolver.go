@@ -8,6 +8,7 @@ import (
 
 	"github.com/Space-DF/transformer-service/internal/components"
 	"github.com/Space-DF/transformer-service/internal/components/registry"
+	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 	"github.com/Space-DF/transformer-service/internal/mqtt/helpers"
 	"github.com/Space-DF/transformer-service/internal/services"
@@ -31,7 +32,7 @@ func New(locationService *services.LocationService, deviceProfileService *servic
 	}
 }
 
-func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPayload map[string]interface{}) (*models.DeviceLocationData, *models.ProcessingInfo, error) {
+func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPayload map[string]interface{}, lnsType ...lns.LNSType) (*models.DeviceLocationData, *models.ProcessingInfo, error) {
 	info := models.ProcessingInfo{
 		HasLocationData: helpers.HasLocationData(locationPayload),
 		GatewayCount:    helpers.CountGateways(locationPayload),
@@ -69,7 +70,8 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 		if requiresCalculation {
 			r.logTenant(orgSlug, vhost, "📍", "Calculating location for device %s using trilateration", devEUI)
 			// Calculate device location using decoded data if available, otherwise original payload
-			deviceLocation, err = r.locationService.CalculateDeviceLocation(locationPayload)
+			// Use LNS-aware extraction
+			deviceLocation, err = r.locationService.CalculateDeviceLocationWithLNS(locationPayload, r.getLNSType(lnsType...))
 			if err == nil && deviceLocation != nil {
 				// Set organization from device mapping if available
 				if mapping != nil {
@@ -80,7 +82,8 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 		} else {
 			// Device has GPS, extract coordinates using device-specific parser
 			r.logTenant(orgSlug, vhost, "🛰️", "Device %s has GPS capability, extracting GPS coordinates", devEUI)
-			deviceLocation, err = r.extractGPSFromDeviceParser(mapping.Profile, locationPayload, orgSlug)
+			// Pass LNS type if provided
+			deviceLocation, err = r.extractGPSFromDeviceParser(mapping.Profile, locationPayload, orgSlug, r.getLNSType(lnsType...))
 			if err == nil && deviceLocation != nil && mapping != nil {
 				deviceLocation.Manufacture = mapping.Manufacture
 			}
@@ -88,7 +91,7 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 	} else {
 		// No device profile service or devEUI, fall back to standard calculation
 		r.logTenant(orgSlug, vhost, "⚠️", "No device profile service or devEUI, proceeding with location calculation")
-		deviceLocation, err = r.locationService.CalculateDeviceLocation(locationPayload)
+		deviceLocation, err = r.locationService.CalculateDeviceLocationWithLNS(locationPayload, r.getLNSType(lnsType...))
 	}
 
 	if deviceLocation != nil && deviceLocation.Organization == "" {
@@ -104,7 +107,7 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 }
 
 // extractGPSFromDeviceParser extracts GPS coordinates using component-based parser
-func (r *Resolver) extractGPSFromDeviceParser(profile string, payload map[string]interface{}, organization string) (*models.DeviceLocationData, error) {
+func (r *Resolver) extractGPSFromDeviceParser(profile string, payload map[string]interface{}, organization string, lnsType lns.LNSType) (*models.DeviceLocationData, error) {
 	// Convert profile to device type
 	deviceType := r.profileToDeviceType(profile)
 	if deviceType == components.DeviceTypeUnknown {
@@ -112,10 +115,13 @@ func (r *Resolver) extractGPSFromDeviceParser(profile string, payload map[string
 	}
 
 	// Create raw payload structure for component system
+	// Use LNS-aware extraction if LNS type is known
+	deviceEUI := components.ExtractDevEUI(payload, lnsType)
 	rawPayload := &components.RawPayload{
-		DeviceEUI: components.ExtractDevEUI(payload),
+		DeviceEUI: deviceEUI,
 		Timestamp: time.Now(),
 		Metadata:  payload,
+		LNSType:   lnsType, // Pass LNS type to component for efficient extraction
 	}
 
 	// Find component that can handle this device type
@@ -167,4 +173,12 @@ func (r *Resolver) profileToDeviceType(profile string) components.DeviceType {
 // ctx returns a background context for component operations
 func (r *Resolver) ctx() context.Context {
 	return context.Background()
+}
+
+// getLNSType safely extracts LNS type from variadic args, defaulting to unknown
+func (r *Resolver) getLNSType(lnsType ...lns.LNSType) lns.LNSType {
+	if len(lnsType) > 0 && lnsType[0].Valid() {
+		return lnsType[0]
+	}
+	return lns.LNSTypeUnknown
 }

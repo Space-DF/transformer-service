@@ -2,53 +2,16 @@ package components
 
 import (
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/Space-DF/transformer-service/internal/lns"
 )
 
 const (
 	CoordScale = 10000000
 )
-
-// ExtractDevEUI extracts device EUI from various payload formats and normalizes it to lowercase
-func ExtractDevEUI(metadata map[string]interface{}) string {
-	if metadata == nil {
-		return ""
-	}
-
-	// Try Helium format: top root level dev_eui
-	for _, key := range []string{"device_eui", "dev_eui", "devEui", "deviceEui"} {
-		if val, ok := metadata[key].(string); ok && val != "" {
-			return strings.ToLower(val)
-		}
-	}
-
-	// Try TTN format: end_device_ids.dev_eui
-	if endDeviceIDs, ok := metadata["end_device_ids"].(map[string]interface{}); ok {
-		if devEUI, ok := endDeviceIDs["dev_eui"].(string); ok {
-			return strings.ToLower(devEUI)
-		}
-	}
-
-	// Try ChirpStack format: deviceInfo.devEui
-	if deviceInfo, ok := metadata["deviceInfo"].(map[string]interface{}); ok {
-		if devEUI, ok := deviceInfo["devEui"].(string); ok && devEUI != "" {
-			return strings.ToLower(devEUI)
-		}
-	}
-
-	if decoded, ok := metadata["decoded_raw_data"].(map[string]interface{}); ok {
-		if devInfo, ok := decoded["deviceInfo"].(map[string]interface{}); ok {
-			if devEUI, ok := devInfo["devEui"].(string); ok && devEUI != "" {
-				return strings.ToLower(devEUI)
-			}
-		}
-	}
-
-	return ""
-}
 
 // ValidateCoordinates validates that coordinates are reasonable
 func ValidateCoordinates(lat, lon float64) error {
@@ -61,97 +24,64 @@ func ValidateCoordinates(lat, lon float64) error {
 	return nil
 }
 
-// Extract payload data
-func ExtractPayloadData(payload interface{}) string {
-	switch v := payload.(type) {
-	case string:
-		return v
-	case map[string]interface{}:
-		if decoded, ok := v["decoded_raw_data"].(map[string]interface{}); ok {
-			if data, ok := decoded["data"].(string); ok {
-				return data
-			}
-		}
-
-		if uplink, ok := v["uplink_message"].(map[string]interface{}); ok {
-			if frmPayload, ok := uplink["frm_payload"].(string); ok {
-				return frmPayload
-			}
-		}
-
-		if uplink, ok := v["uplinkEvent"].(map[string]interface{}); ok {
-			if data, ok := uplink["data"].(string); ok {
-				return data
-			}
-		}
-
-		if data, ok := v["data"].(string); ok && data != "" {
-			return data
-		}
-	}
-	return ""
-}
-
 // DecodePayloadBytes decodes hex or base64 encoded payload string to bytes
 func DecodePayloadBytes(encoded string) ([]byte, error) {
 	if encoded == "" {
 		return nil, fmt.Errorf("empty payload data")
 	}
 
-	// Try hex decode first
-	if decoded, err := hex.DecodeString(encoded); err == nil && len(decoded) > 0 {
-		return decoded, nil
-	}
-
-	// Try base64 decode
+	// base64 decode
 	if decoded, err := base64.StdEncoding.DecodeString(encoded); err == nil && len(decoded) > 0 {
 		return decoded, nil
 	}
 
-	// Try as base64 for non-padded payloads
-	if decoded, err := base64.StdEncoding.DecodeString(encoded); err == nil && len(decoded) > 0 {
-		return decoded, nil
-	}
-
-	return nil, fmt.Errorf("failed to decode payload as hex or base64")
+	return nil, fmt.Errorf("failed to decode payload as base64")
 }
 
-// ExtractFPort extracts the LoRaWAN fPort from metadata.
-func ExtractFPort(metadata map[string]interface{}) int {
-	// Try direct fPort field
-	for _, key := range []string{"fPort", "f_port", "port", "fport"} {
-		if v, ok := metadata[key]; ok {
-			switch val := v.(type) {
-			case float64:
-				return int(val)
-			case int:
-				return val
-			case int64:
-				return int(val)
-			}
-		}
-	}
+// LNS-Aware Extraction Functions
+// These functions use the known LNS type for efficient, explicit extraction
 
-	// Try ChirpStack format: uplinkEvent.fPort
-	if uplinkEvent, ok := metadata["uplinkEvent"].(map[string]interface{}); ok {
-		if fPort, ok := uplinkEvent["fPort"].(float64); ok {
-			return int(fPort)
-		}
+// ExtractDevEUI extracts device EUI using LNS-specific handler
+func ExtractDevEUI(metadata map[string]interface{}, lnsType lns.LNSType) string {
+	handler, err := lns.GetLNSHandler(lnsType)
+	if err != nil {
+		return ""
 	}
+	return strings.ToLower(handler.ExtractDevEUI(metadata))
+}
 
-	// Try decoded_raw_data.uplinkEvent.fPort
-	if decoded, ok := metadata["decoded_raw_data"].(map[string]interface{}); ok {
-		if fPort, ok := decoded["fPort"].(float64); ok {
-			return int(fPort)
-		}
+// ExtractFPort extracts fPort using LNS-specific handler
+func ExtractFPort(metadata map[string]interface{}, lnsType lns.LNSType) int {
+	handler, err := lns.GetLNSHandler(lnsType)
+	if err != nil {
+		return 0
 	}
+	return handler.ExtractFPort(metadata)
+}
 
-	// Try TTN format: uplink_message.f_port
-	if uplinkMsg, ok := metadata["uplink_message"].(map[string]interface{}); ok {
-		if fPort, ok := uplinkMsg["f_port"].(float64); ok {
-			return int(fPort)
-		}
+// ExtractFrequency extracts frequency using LNS-specific handler
+func ExtractFrequency(metadata map[string]interface{}, lnsType lns.LNSType) (float64, error) {
+	handler, err := lns.GetLNSHandler(lnsType)
+	if err != nil {
+		return 0, fmt.Errorf("no handler found for LNS type: %s: %w", lnsType, err)
 	}
+	return handler.ExtractFrequency(metadata)
+}
 
-	return 0
+// ExtractRxMetadata extracts rx metadata using LNS-specific handler
+func ExtractRxMetadata(metadata map[string]interface{}, lnsType lns.LNSType) ([]interface{}, error) {
+	handler, err := lns.GetLNSHandler(lnsType)
+	if err != nil {
+		return nil, fmt.Errorf("no handler found for LNS type: %s: %w", lnsType, err)
+	}
+	return handler.ExtractRxMetadata(metadata)
+}
+
+// ExtractPayloadDataFromMetadata extracts payload data using LNS-specific handler
+func ExtractPayloadDataFromMetadata(metadata map[string]interface{}, lnsType lns.LNSType) string {
+	handler, err := lns.GetLNSHandler(lnsType)
+	if err != nil {
+		return ""
+	}
+	return handler.ExtractPayloadData(metadata)
 }

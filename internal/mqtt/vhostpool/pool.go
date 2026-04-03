@@ -26,15 +26,27 @@ func New(brokerURL string) *Pool {
 	}
 }
 
+// isConnClosed checks if a connection is closed
+func isConnClosed(conn *amqp.Connection) bool {
+	return conn == nil || conn.IsClosed()
+}
+
 func (p *Pool) Acquire(vhost string) (*amqp.Connection, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	// Check if we have a pooled connection
 	if pooled, ok := p.connections[vhost]; ok {
-		pooled.refCount++
-		return pooled.conn, nil
+		// Check if connection is still valid
+		if !isConnClosed(pooled.conn) {
+			pooled.refCount++
+			return pooled.conn, nil
+		}
+		// Connection is closed, remove and create a new one
+		delete(p.connections, vhost)
 	}
 
+	// Create a new connection
 	url, err := helpers.BuildVhostURL(vhost, p.brokerURL)
 	if err != nil {
 		return nil, err
@@ -74,4 +86,14 @@ func (p *Pool) CloseAll() {
 		}
 		delete(p.connections, vhost)
 	}
+}
+
+// InvalidateAll removes all pooled connections without closing them
+// Call this when knowing all connections are already closed
+func (p *Pool) InvalidateAll() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Just clear the map - don't try to close already-closed connections
+	p.connections = make(map[string]*pooledConnection)
 }
