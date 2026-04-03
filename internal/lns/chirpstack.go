@@ -56,13 +56,18 @@ func (h *ChirpStackHandler) ExtractDevEUI(payload map[string]interface{}) string
 }
 
 // ExtractFPort extracts fPort from ChirpStack payload
-// Location: uplinkEvent.fPort
+// Location: fPort at root or uplinkEvent.fPort
 func (h *ChirpStackHandler) ExtractFPort(payload map[string]interface{}) int {
 	if payload == nil {
 		return 0
 	}
 
-	// Try direct uplinkEvent.fPort
+	// Try direct fPort at root level (ChirpStack HTTP webhook format)
+	if fPort, ok := payload["fPort"].(float64); ok {
+		return int(fPort)
+	}
+
+	// Try uplinkEvent.fPort (ChirpStack MQTT format)
 	if uplinkEvent, ok := payload["uplinkEvent"].(map[string]interface{}); ok {
 		if fPort, ok := uplinkEvent["fPort"].(float64); ok {
 			return int(fPort)
@@ -78,13 +83,20 @@ func (h *ChirpStackHandler) ExtractFPort(payload map[string]interface{}) int {
 }
 
 // ExtractFrequency extracts frequency from ChirpStack payload
-// Location: uplinkEvent.txInfo.frequency
+// Location: txInfo.frequency at root or uplinkEvent.txInfo.frequency
 func (h *ChirpStackHandler) ExtractFrequency(payload map[string]interface{}) (float64, error) {
 	if payload == nil {
 		return 0, fmt.Errorf("payload is nil")
 	}
 
-	// Try direct uplinkEvent.txInfo.frequency
+	// Try direct txInfo.frequency at root level (ChirpStack HTTP webhook format)
+	if txInfo, ok := payload["txInfo"].(map[string]interface{}); ok {
+		if freq, ok := txInfo["frequency"].(float64); ok {
+			return freq, nil
+		}
+	}
+
+	// Try uplinkEvent.txInfo.frequency (ChirpStack MQTT format)
 	if uplinkEvent, ok := payload["uplinkEvent"].(map[string]interface{}); ok {
 		if txInfo, ok := uplinkEvent["txInfo"].(map[string]interface{}); ok {
 			if freq, ok := txInfo["frequency"].(float64); ok {
@@ -102,13 +114,18 @@ func (h *ChirpStackHandler) ExtractFrequency(payload map[string]interface{}) (fl
 }
 
 // ExtractRxMetadata extracts gateway metadata from ChirpStack payload
-// Location: uplinkEvent.rxInfo
+// Location: uplinkEvent.rxInfo or rxInfo at root level
 func (h *ChirpStackHandler) ExtractRxMetadata(payload map[string]interface{}) ([]interface{}, error) {
 	if payload == nil {
 		return nil, fmt.Errorf("payload is nil")
 	}
 
-	// Try direct uplinkEvent.rxInfo
+	// Try direct rxInfo at root level (ChirpStack HTTP webhook format)
+	if rxInfo, ok := payload["rxInfo"].([]interface{}); ok {
+		return rxInfo, nil
+	}
+
+	// Try uplinkEvent.rxInfo (ChirpStack MQTT format)
 	if uplinkEvent, ok := payload["uplinkEvent"].(map[string]interface{}); ok {
 		if rxInfo, ok := uplinkEvent["rxInfo"].([]interface{}); ok {
 			return rxInfo, nil
