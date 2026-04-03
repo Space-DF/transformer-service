@@ -3,6 +3,8 @@ package extractors
 import (
 	"encoding/base64"
 	"fmt"
+
+	"github.com/Space-DF/transformer-service/internal/models"
 )
 
 // TTNHandler handles data from The Things Network (TTN) webhook payloads
@@ -186,4 +188,11 @@ func (h *TTNHandler) ExtractPayloadBytes(metadata map[string]interface{}) ([]byt
 	}
 
 	return nil, fmt.Errorf("TTN frm_payload not found in metadata")
+}
+
+// ExtractGatewayLocations extracts gateway locations from TTN rx_metadata
+// TTN format: gateways don't include location, only gateway IDs
+// Returns error indicating gateway registry lookup or device GPS is required
+func (h *TTNHandler) ExtractGatewayLocations(rxMetadata []interface{}) ([]models.GatewayMetadata, error) {
+	return nil, fmt.Errorf("TTN gateway location requires gateway registry lookup or device GPS")
 }

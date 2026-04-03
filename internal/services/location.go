@@ -30,7 +30,11 @@ func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{
 
 // CalculateDeviceLocationWithLNS calculates device location using LNS-aware extraction
 func (ls *LocationService) CalculateDeviceLocationWithLNS(payload map[string]interface{}, lnsType models.LNSType) (*models.DeviceLocationData, error) {
-	var devEUI string
+	// Get LNS handler
+	handler, err := models.GetLNSHandler(lnsType)
+	if err != nil {
+		return nil, fmt.Errorf("no handler registered for LNS type %s: %w", lnsType, err)
+	}
 
 	// Extract rx_metadata using LNS-aware helper
 	rxMetadata, err := components.ExtractRxMetadata(payload, lnsType)
@@ -45,48 +49,25 @@ func (ls *LocationService) CalculateDeviceLocationWithLNS(payload map[string]int
 	}
 
 	// Extract device EUI using LNS-aware helper
-	devEUI = components.ExtractDevEUI(payload, lnsType)
+	devEUI := components.ExtractDevEUI(payload, lnsType)
 	if devEUI == "" {
 		return nil, fmt.Errorf("dev_eui not found in payload")
 	}
 
-	// Parse gateway locations
-	var locations []models.LocationPoint
-	var gatewaysWithoutLocation int
-	for _, gw := range rxMetadata {
-		gateway, ok := gw.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		// Check if gateway has location data (Helium format)
-		locationData, hasLocation := gateway["location"].(map[string]interface{})
-		if !hasLocation {
-			// TTN format: gateways don't include location, only IDs
-			if _, hasGatewayID := gateway["gateway_ids"]; hasGatewayID {
-				gatewaysWithoutLocation++
-			}
-			continue
-		}
-
-		lat, latOk := locationData["latitude"].(float64)
-		lon, lonOk := locationData["longitude"].(float64)
-		rssi, rssiOk := gateway["rssi"].(float64)
-
-		if latOk && lonOk && rssiOk {
-			locations = append(locations, models.LocationPoint{
-				Latitude:  lat,
-				Longitude: lon,
-				RSSI:      int(rssi),
-			})
-		}
+	// Extract gateway locations using LNS handler
+	gatewayLocations, err := handler.ExtractGatewayLocations(rxMetadata)
+	if err != nil {
+		return nil, err
 	}
 
-	if len(locations) == 0 {
-		if gatewaysWithoutLocation > 0 {
-			return nil, fmt.Errorf("gateways detected (%d) but without location data - TTN format requires device GPS or gateway registry", gatewaysWithoutLocation)
+	// Convert to LocationPoint format for calculation
+	locations := make([]models.LocationPoint, len(gatewayLocations))
+	for i, gw := range gatewayLocations {
+		locations[i] = models.LocationPoint{
+			Latitude:  gw.Latitude,
+			Longitude: gw.Longitude,
+			RSSI:      gw.RSSI,
 		}
-		return nil, fmt.Errorf("no valid gateway locations found")
 	}
 
 	// Calculate device location based on number of gateways

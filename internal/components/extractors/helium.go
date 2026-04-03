@@ -4,6 +4,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strconv"
+
+	"github.com/Space-DF/transformer-service/internal/models"
 )
 
 // HeliumHandler handles data from Helium LNS webhook payloads
@@ -191,4 +193,40 @@ func (h *HeliumHandler) ExtractPayloadBytes(metadata map[string]interface{}) ([]
 	}
 
 	return nil, fmt.Errorf("Helium payload not found in metadata")
+}
+
+// ExtractGatewayLocations extracts gateway locations from Helium hotspots
+// Helium format: hotspots[].location.latitude/longitude
+func (h *HeliumHandler) ExtractGatewayLocations(rxMetadata []interface{}) ([]models.GatewayMetadata, error) {
+	var locations []models.GatewayMetadata
+
+	for _, gw := range rxMetadata {
+		gateway, ok := gw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		locationData, ok := gateway["location"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		lat, latOk := locationData["latitude"].(float64)
+		lon, lonOk := locationData["longitude"].(float64)
+		rssi, rssiOk := gateway["rssi"].(float64)
+
+		if latOk && lonOk && rssiOk {
+			locations = append(locations, models.GatewayMetadata{
+				Latitude:  lat,
+				Longitude: lon,
+				RSSI:      int(rssi),
+			})
+		}
+	}
+
+	if len(locations) == 0 {
+		return nil, fmt.Errorf("no valid hotspot locations found in Helium metadata")
+	}
+
+	return locations, nil
 }

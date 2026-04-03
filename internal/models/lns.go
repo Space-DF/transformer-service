@@ -30,6 +30,17 @@ type LNSHandler interface {
 	// ExtractPayloadBytes extracts the raw payload bytes from the LNS-specific metadata
 	// Returns the raw bytes that device parsers can work with
 	ExtractPayloadBytes(metadata map[string]interface{}) ([]byte, error)
+
+	// ExtractGatewayLocations extracts gateway locations with signal strength
+	// Returns structured gateway data for location calculation
+	ExtractGatewayLocations(rxMetadata []interface{}) ([]GatewayMetadata, error)
+}
+
+// GatewayMetadata represents gateway location and signal information
+type GatewayMetadata struct {
+	Latitude  float64
+	Longitude float64
+	RSSI      int
 }
 
 // lnsHandlerRegistry holds the registered LNS handlers
