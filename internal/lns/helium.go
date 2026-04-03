@@ -1,11 +1,9 @@
-package extractors
+package lns
 
 import (
 	"encoding/base64"
 	"fmt"
 	"strconv"
-
-	"github.com/Space-DF/transformer-service/internal/models"
 )
 
 // HeliumHandler handles data from Helium LNS webhook payloads
@@ -197,8 +195,8 @@ func (h *HeliumHandler) ExtractPayloadBytes(metadata map[string]interface{}) ([]
 
 // ExtractGatewayLocations extracts gateway locations from Helium hotspots
 // Helium format: hotspots[].location.latitude/longitude
-func (h *HeliumHandler) ExtractGatewayLocations(rxMetadata []interface{}) ([]models.GatewayMetadata, error) {
-	var locations []models.GatewayMetadata
+func (h *HeliumHandler) ExtractGatewayLocations(rxMetadata []interface{}) ([]GatewayMetadata, error) {
+	var locations []GatewayMetadata
 
 	for _, gw := range rxMetadata {
 		gateway, ok := gw.(map[string]interface{})
@@ -216,7 +214,7 @@ func (h *HeliumHandler) ExtractGatewayLocations(rxMetadata []interface{}) ([]mod
 		rssi, rssiOk := gateway["rssi"].(float64)
 
 		if latOk && lonOk && rssiOk {
-			locations = append(locations, models.GatewayMetadata{
+			locations = append(locations, GatewayMetadata{
 				Latitude:  lat,
 				Longitude: lon,
 				RSSI:      int(rssi),

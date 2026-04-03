@@ -22,7 +22,7 @@ import (
 	_ "github.com/Space-DF/transformer-service/internal/components/abeeway"
 	_ "github.com/Space-DF/transformer-service/internal/components/digitalmatter"
 	_ "github.com/Space-DF/transformer-service/internal/components/dut"
-	_ "github.com/Space-DF/transformer-service/internal/components/extractors"
+	_ "github.com/Space-DF/transformer-service/internal/lns"
 	_ "github.com/Space-DF/transformer-service/internal/components/lilygo"
 	_ "github.com/Space-DF/transformer-service/internal/components/rakwireless"
 	_ "github.com/Space-DF/transformer-service/internal/components/seeed"

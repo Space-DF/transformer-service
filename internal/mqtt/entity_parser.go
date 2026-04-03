@@ -8,11 +8,12 @@ import (
 
 	"github.com/Space-DF/transformer-service/internal/components"
 	"github.com/Space-DF/transformer-service/internal/components/registry"
+	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 )
 
 // parseEntities attempts to parse entities for telemetry and returns the device mapping
-func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]interface{}, deviceLocation *components.Location, lnsType models.LNSType) (*components.ParseResult, *models.DeviceMapping, error) {
+func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]interface{}, deviceLocation *components.Location, lnsType lns.LNSType) (*components.ParseResult, *models.DeviceMapping, error) {
 	if devEUI == "" {
 		return nil, nil, fmt.Errorf("dev_eui missing")
 	}

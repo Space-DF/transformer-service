@@ -8,7 +8,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 
 	"github.com/Space-DF/transformer-service/internal/components"
-	"github.com/Space-DF/transformer-service/internal/models"
+	"github.com/Space-DF/transformer-service/internal/lns"
 )
 
 // RAK4630Parser handles parsing of RAK4630 device payloads
@@ -30,12 +30,12 @@ func (p *RAK4630Parser) ParsePayload(payload *components.RawPayload) (*component
 	}
 
 	// LNS type must be known
-	if payload.LNSType == "" || payload.LNSType == models.LNSTypeUnknown {
+	if payload.LNSType == "" || payload.LNSType == lns.LNSTypeUnknown {
 		return nil, fmt.Errorf("LNS type is required for RAK4630 parsing")
 	}
 
 	// Get LNS handler
-	lnsHandler, err := models.GetLNSHandler(payload.LNSType)
+	lnsHandler, err := lns.GetLNSHandler(payload.LNSType)
 	if err != nil {
 		return nil, fmt.Errorf("no handler registered for LNS type %s: %w", payload.LNSType, err)
 	}
@@ -279,11 +279,11 @@ func parseRAK4630SensorString(sensorStr string) map[string]float64 {
 
 // decodeSensorReadings decodes sensor values from base64 CBOR payload data
 func (p *RAK4630Parser) decodeSensorReadings(payload *components.RawPayload) map[string]float64 {
-	if payload.LNSType == "" || payload.LNSType == models.LNSTypeUnknown {
+	if payload.LNSType == "" || payload.LNSType == lns.LNSTypeUnknown {
 		return nil
 	}
 
-	lnsHandler, err := models.GetLNSHandler(payload.LNSType)
+	lnsHandler, err := lns.GetLNSHandler(payload.LNSType)
 	if err != nil {
 		return nil
 	}

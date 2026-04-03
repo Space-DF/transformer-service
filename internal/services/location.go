@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/Space-DF/transformer-service/internal/components"
+	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 )
 
@@ -25,13 +26,13 @@ func NewLocationService() *LocationService {
 
 // CalculateDeviceLocation calculates device location based on gateway data
 func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{}) (*models.DeviceLocationData, error) {
-	return ls.CalculateDeviceLocationWithLNS(payload, models.LNSTypeUnknown)
+	return ls.CalculateDeviceLocationWithLNS(payload, lns.LNSTypeUnknown)
 }
 
 // CalculateDeviceLocationWithLNS calculates device location using LNS-aware extraction
-func (ls *LocationService) CalculateDeviceLocationWithLNS(payload map[string]interface{}, lnsType models.LNSType) (*models.DeviceLocationData, error) {
+func (ls *LocationService) CalculateDeviceLocationWithLNS(payload map[string]interface{}, lnsType lns.LNSType) (*models.DeviceLocationData, error) {
 	// Get LNS handler
-	handler, err := models.GetLNSHandler(lnsType)
+	handler, err := lns.GetLNSHandler(lnsType)
 	if err != nil {
 		return nil, fmt.Errorf("no handler registered for LNS type %s: %w", lnsType, err)
 	}

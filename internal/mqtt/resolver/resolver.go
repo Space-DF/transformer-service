@@ -8,6 +8,7 @@ import (
 
 	"github.com/Space-DF/transformer-service/internal/components"
 	"github.com/Space-DF/transformer-service/internal/components/registry"
+	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 	"github.com/Space-DF/transformer-service/internal/mqtt/helpers"
 	"github.com/Space-DF/transformer-service/internal/services"
@@ -31,7 +32,7 @@ func New(locationService *services.LocationService, deviceProfileService *servic
 	}
 }
 
-func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPayload map[string]interface{}, lnsType ...models.LNSType) (*models.DeviceLocationData, *models.ProcessingInfo, error) {
+func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPayload map[string]interface{}, lnsType ...lns.LNSType) (*models.DeviceLocationData, *models.ProcessingInfo, error) {
 	info := models.ProcessingInfo{
 		HasLocationData: helpers.HasLocationData(locationPayload),
 		GatewayCount:    helpers.CountGateways(locationPayload),
@@ -106,7 +107,7 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 }
 
 // extractGPSFromDeviceParser extracts GPS coordinates using component-based parser
-func (r *Resolver) extractGPSFromDeviceParser(profile string, payload map[string]interface{}, organization string, lnsType models.LNSType) (*models.DeviceLocationData, error) {
+func (r *Resolver) extractGPSFromDeviceParser(profile string, payload map[string]interface{}, organization string, lnsType lns.LNSType) (*models.DeviceLocationData, error) {
 	// Convert profile to device type
 	deviceType := r.profileToDeviceType(profile)
 	if deviceType == components.DeviceTypeUnknown {
@@ -175,9 +176,9 @@ func (r *Resolver) ctx() context.Context {
 }
 
 // getLNSType safely extracts LNS type from variadic args, defaulting to unknown
-func (r *Resolver) getLNSType(lnsType ...models.LNSType) models.LNSType {
+func (r *Resolver) getLNSType(lnsType ...lns.LNSType) lns.LNSType {
 	if len(lnsType) > 0 && lnsType[0].Valid() {
 		return lnsType[0]
 	}
-	return models.LNSTypeUnknown
+	return lns.LNSTypeUnknown
 }

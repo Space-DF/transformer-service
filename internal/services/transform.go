@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Space-DF/transformer-service/internal/components"
+	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 )
 
@@ -76,7 +77,7 @@ func (ts *TransformService) determineLocationAccuracy(gatewayCount int) float64 
 }
 
 // extractMetadata extracts useful metadata from the original payload
-func (ts *TransformService) extractMetadata(payload map[string]interface{}, lnsType models.LNSType) map[string]interface{} {
+func (ts *TransformService) extractMetadata(payload map[string]interface{}, lnsType lns.LNSType) map[string]interface{} {
 	metadata := make(map[string]interface{})
 
 	// Add LNS type to metadata for observability

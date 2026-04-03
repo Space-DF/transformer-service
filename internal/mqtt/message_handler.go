@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Space-DF/transformer-service/internal/components"
+	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 	"github.com/Space-DF/transformer-service/internal/mqtt/logging"
 	"github.com/Space-DF/transformer-service/internal/mqtt/resolver"
@@ -109,7 +110,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	lnsType := c.parser.ExtractLNSSource(payload)
 
 	// Log with LNS type for debugging
-	if lnsType == models.LNSTypeUnknown || lnsType == "" {
+	if lnsType == lns.LNSTypeUnknown || lnsType == "" {
 		logging.Tenant(orgSlug, vhost, "⚠️", "Unknown or empty LNS type, using fallback extraction")
 	} else {
 		logging.Tenant(orgSlug, vhost, "📡", "Processing message from LNS: %s", lnsType)

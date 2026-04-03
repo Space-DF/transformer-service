@@ -6,7 +6,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/Space-DF/transformer-service/internal/models"
+	"github.com/Space-DF/transformer-service/internal/lns"
 )
 
 const (
@@ -42,8 +42,8 @@ func DecodePayloadBytes(encoded string) ([]byte, error) {
 // These functions use the known LNS type for efficient, explicit extraction
 
 // ExtractDevEUI extracts device EUI using LNS-specific handler
-func ExtractDevEUI(metadata map[string]interface{}, lnsType models.LNSType) string {
-	handler, err := models.GetLNSHandler(lnsType)
+func ExtractDevEUI(metadata map[string]interface{}, lnsType lns.LNSType) string {
+	handler, err := lns.GetLNSHandler(lnsType)
 	if err != nil {
 		return ""
 	}
@@ -51,8 +51,8 @@ func ExtractDevEUI(metadata map[string]interface{}, lnsType models.LNSType) stri
 }
 
 // ExtractFPort extracts fPort using LNS-specific handler
-func ExtractFPort(metadata map[string]interface{}, lnsType models.LNSType) int {
-	handler, err := models.GetLNSHandler(lnsType)
+func ExtractFPort(metadata map[string]interface{}, lnsType lns.LNSType) int {
+	handler, err := lns.GetLNSHandler(lnsType)
 	if err != nil {
 		return 0
 	}
@@ -60,8 +60,8 @@ func ExtractFPort(metadata map[string]interface{}, lnsType models.LNSType) int {
 }
 
 // ExtractFrequency extracts frequency using LNS-specific handler
-func ExtractFrequency(metadata map[string]interface{}, lnsType models.LNSType) (float64, error) {
-	handler, err := models.GetLNSHandler(lnsType)
+func ExtractFrequency(metadata map[string]interface{}, lnsType lns.LNSType) (float64, error) {
+	handler, err := lns.GetLNSHandler(lnsType)
 	if err != nil {
 		return 0, fmt.Errorf("no handler found for LNS type: %s: %w", lnsType, err)
 	}
@@ -69,8 +69,8 @@ func ExtractFrequency(metadata map[string]interface{}, lnsType models.LNSType) (
 }
 
 // ExtractRxMetadata extracts rx metadata using LNS-specific handler
-func ExtractRxMetadata(metadata map[string]interface{}, lnsType models.LNSType) ([]interface{}, error) {
-	handler, err := models.GetLNSHandler(lnsType)
+func ExtractRxMetadata(metadata map[string]interface{}, lnsType lns.LNSType) ([]interface{}, error) {
+	handler, err := lns.GetLNSHandler(lnsType)
 	if err != nil {
 		return nil, fmt.Errorf("no handler found for LNS type: %s: %w", lnsType, err)
 	}
@@ -78,8 +78,8 @@ func ExtractRxMetadata(metadata map[string]interface{}, lnsType models.LNSType) 
 }
 
 // ExtractPayloadDataFromMetadata extracts payload data using LNS-specific handler
-func ExtractPayloadDataFromMetadata(metadata map[string]interface{}, lnsType models.LNSType) string {
-	handler, err := models.GetLNSHandler(lnsType)
+func ExtractPayloadDataFromMetadata(metadata map[string]interface{}, lnsType lns.LNSType) string {
+	handler, err := lns.GetLNSHandler(lnsType)
 	if err != nil {
 		return ""
 	}
