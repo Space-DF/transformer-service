@@ -3,6 +3,7 @@ package lns
 import (
 	"encoding/base64"
 	"fmt"
+	"strconv"
 )
 
 // TTNHandler handles data from The Things Network (TTN) webhook payloads
@@ -78,6 +79,12 @@ func (h *TTNHandler) ExtractFrequency(payload map[string]interface{}) (float64, 
 	// Try direct uplink_message.settings.frequency
 	if uplinkMsg, ok := payload["uplink_message"].(map[string]interface{}); ok {
 		if settings, ok := uplinkMsg["settings"].(map[string]interface{}); ok {
+			// TTN sends frequency as a string (e.g., "921400000")
+			if freqStr, ok := settings["frequency"].(string); ok && freqStr != "" {
+				if freq, err := strconv.ParseFloat(freqStr, 64); err == nil {
+					return freq, nil
+				}
+			}
 			if freq, ok := settings["frequency"].(float64); ok {
 				return freq, nil
 			}
