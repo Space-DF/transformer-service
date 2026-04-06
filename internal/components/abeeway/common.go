@@ -361,20 +361,6 @@ func calculateBatteryPercent(voltage float64) float64 {
 	return math.Max(0, math.Min(100, percent))
 }
 
-// validateCoordinates validates GPS coordinates
-func validateCoordinates(latitude, longitude float64) error {
-	if latitude == 0.0 && longitude == 0.0 {
-		return fmt.Errorf("GPS coordinates are 0,0 - no fix available")
-	}
-	if latitude < -90 || latitude > 90 {
-		return fmt.Errorf("invalid latitude: %f", latitude)
-	}
-	if longitude < -180 || longitude > 180 {
-		return fmt.Errorf("invalid longitude: %f", longitude)
-	}
-	return nil
-}
-
 // GetMessageTypeName returns the name of a message type
 func GetMessageTypeName(msgType byte) string {
 	if name, ok := messageTypeNames[msgType]; ok {

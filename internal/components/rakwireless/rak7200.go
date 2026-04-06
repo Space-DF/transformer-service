@@ -178,10 +178,12 @@ func (p *RAK7200Parser) parseRAK7200Payload(data string) (*RAK7200ParsedValues, 
 	latRaw := int32(latRawU)
 	lonRaw := int32(lonRawU)
 
-	if latRaw != 0 && lonRaw != 0 {
+	lat := float64(latRaw) / 1000000.0 // Convert from microdegrees
+	lon := float64(lonRaw) / 1000000.0 // Convert from microdegrees
+	if components.ValidateCoordinates(lat, lon) == nil {
 		result.HasGPS = true
-		result.Latitude = float64(latRaw) / 1000000.0  // Convert from microdegrees
-		result.Longitude = float64(lonRaw) / 1000000.0 // Convert from microdegrees
+		result.Latitude = lat
+		result.Longitude = lon
 	}
 
 	// Parse battery level

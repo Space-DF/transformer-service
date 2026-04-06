@@ -167,13 +167,17 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	)
 	span.AddEvent("device_data_transformed")
 
+	locationValid := components.ValidateCoordinates(deviceLocation.Latitude, deviceLocation.Longitude) == nil
+
 	// Try to parse sensor entities and publish telemetry payload
 	var entityLocation *components.Location
-	if deviceLocation != nil {
+	if locationValid {
 		entityLocation = &components.Location{
 			Latitude:  deviceLocation.Latitude,
 			Longitude: deviceLocation.Longitude,
 		}
+	} else {
+		logging.Tenant(orgSlug, vhost, "Invalid location for device %s (lat=%f, lon=%f): location entity will be excluded from telemetry", devEUI, deviceLocation.Latitude, deviceLocation.Longitude)
 	}
 
 	if parseResult, mapping, perr := c.parseEntities(orgSlug, devEUI, payload, entityLocation, lnsType); perr == nil && parseResult != nil {
@@ -191,19 +195,21 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 		logging.Tenant(orgSlug, vhost, "⚠️", "Failed to parse telemetry entities: %v", perr)
 	}
 
-	processingInfo.LocationResult = &models.LocationResult{
-		Latitude:  deviceLocation.Latitude,
-		Longitude: deviceLocation.Longitude,
-		Accuracy:  transformedData.Location.Accuracy,
-	}
+	// Only publish transformed data (location-based) and set LocationResult when coordinates are valid
+	if locationValid {
+		processingInfo.LocationResult = &models.LocationResult{
+			Latitude:  deviceLocation.Latitude,
+			Longitude: deviceLocation.Longitude,
+			Accuracy:  transformedData.Location.Accuracy,
+		}
 
-	// Publish transformed data to output topic
-	logging.Tenant(orgSlug, vhost, "📤", "Publishing transformed data for device %s", deviceLocation.DevEUI)
-	span.AddEvent("publishing_transformed_data")
-	if err := c.publishTransformedData(tenant.Channel, transformedData, tenant); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to publish transformed data")
-		return fmt.Errorf("failed to publish transformed data: %w", err)
+		logging.Tenant(orgSlug, vhost, "📤", "Publishing transformed data for device %s", deviceLocation.DevEUI)
+		span.AddEvent("publishing_transformed_data")
+		if err := c.publishTransformedData(tenant.Channel, transformedData, tenant); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to publish transformed data")
+			return fmt.Errorf("failed to publish transformed data: %w", err)
+		}
 	}
 
 	if c.loggerService != nil {

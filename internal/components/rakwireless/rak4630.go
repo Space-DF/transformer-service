@@ -54,12 +54,9 @@ func (p *RAK4630Parser) ParsePayload(payload *components.RawPayload) (*component
 
 	// Extract location from readings
 	var location *components.Location
-	if lat, ok := readings["latitude"]; ok {
-		if lon, ok := readings["longitude"]; ok {
-			location = &components.Location{
-				Latitude:  lat,
-				Longitude: lon,
-			}
+	if lat, latOk := readings["latitude"]; latOk {
+		if lon, lonOk := readings["longitude"]; lonOk && components.ValidateCoordinates(lat, lon) == nil {
+			location = &components.Location{Latitude: lat, Longitude: lon}
 		}
 	}
 

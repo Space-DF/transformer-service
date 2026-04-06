@@ -6,8 +6,8 @@ import (
 
 	"github.com/Space-DF/transformer-service/internal/components"
 	"github.com/Space-DF/transformer-service/internal/lns"
-	segmentjson "github.com/segmentio/encoding/json"
 	amqp "github.com/rabbitmq/amqp091-go"
+	segmentjson "github.com/segmentio/encoding/json"
 )
 
 type Parser struct {

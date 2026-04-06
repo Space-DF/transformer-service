@@ -93,7 +93,7 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 
 				// Set location if coordinates are valid
 				if latitude != 0 || longitude != 0 {
-					if validateCoordinates(latitude, longitude) == nil {
+					if components.ValidateCoordinates(latitude, longitude) == nil {
 						location = &components.Location{
 							Latitude:  latitude,
 							Longitude: longitude,
@@ -129,7 +129,7 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 					sensorData["longitude"] = longitude
 					sensorData["accuracy"] = 100
 
-					if validateCoordinates(latitude, longitude) == nil {
+					if components.ValidateCoordinates(latitude, longitude) == nil {
 						location = &components.Location{
 							Latitude:  latitude,
 							Longitude: longitude,
@@ -171,7 +171,7 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 					sensorData["longitude"] = longitude
 					sensorData["accuracy"] = 50
 
-					if validateCoordinates(latitude, longitude) == nil {
+					if components.ValidateCoordinates(latitude, longitude) == nil {
 						location = &components.Location{
 							Latitude:  latitude,
 							Longitude: longitude,
@@ -278,7 +278,7 @@ func (p *IndustrialTrackerParser) ParsePayload(payload *components.RawPayload) (
 		posData, err := parsePositionData(abeewayPayload.Data)
 		if err == nil && posData != nil {
 			if posData.Latitude != 0 || posData.Longitude != 0 {
-				if validateCoordinates(posData.Latitude, posData.Longitude) == nil {
+				if components.ValidateCoordinates(posData.Latitude, posData.Longitude) == nil {
 					location = &components.Location{
 						Latitude:  posData.Latitude,
 						Longitude: posData.Longitude,
@@ -530,7 +530,7 @@ func (p *IndustrialTrackerParser) ParseToEntities(orgSlug, model string, payload
 
 			// Location Entity (if we have valid coordinates)
 			if posData.Latitude != 0 || posData.Longitude != 0 {
-				if validateCoordinates(posData.Latitude, posData.Longitude) == nil {
+				if components.ValidateCoordinates(posData.Latitude, posData.Longitude) == nil {
 					locationAttrs := map[string]interface{}{
 						"source":       posData.Type,
 						"gps_capable":  true,
