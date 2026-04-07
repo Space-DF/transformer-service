@@ -31,8 +31,8 @@ func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]inte
 		LNSType:   lnsType,
 	}
 
-	// Extract data field from the most likely location first
-	raw.Data = c.extractDataField(payload)
+	// Extract data field using LNS-aware handler
+	raw.Data = components.ExtractPayloadDataFromMetadata(payload, lnsType)
 
 	component := registry.FindComponent(deviceType, raw)
 	if component == nil {

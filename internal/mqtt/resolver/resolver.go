@@ -98,6 +98,11 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 		deviceLocation.Organization = orgSlug
 	}
 
+	// Set LocationCalculated flag based on successful location calculation
+	if deviceLocation != nil && deviceLocation.Latitude != 0 && deviceLocation.Longitude != 0 {
+		info.LocationCalculated = true
+	}
+
 	if err != nil {
 		info.ErrorMessage = err.Error()
 		return nil, &info, fmt.Errorf("failed to calculate device location: %w", err)

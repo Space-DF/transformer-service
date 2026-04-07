@@ -237,28 +237,3 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	)
 	return nil
 }
-
-// extractDataField extracts the data field from nested payload format
-func (c *Consumer) extractDataField(payload map[string]interface{}) string {
-	if payload == nil {
-		return ""
-	}
-
-	// Get data from decoded_raw_data.uplinkEvent.data
-	if decoded, ok := payload["decoded_raw_data"].(map[string]interface{}); ok {
-		if uplinkEvent, ok := decoded["uplinkEvent"].(map[string]interface{}); ok {
-			if d, ok := uplinkEvent["data"].(string); ok {
-				return d
-			}
-		}
-		if d, ok := decoded["data"].(string); ok && d != "" {
-			return d
-		}
-	}
-
-	if d, ok := payload["data"].(string); ok && d != "" {
-		return d
-	}
-
-	return ""
-}
