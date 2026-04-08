@@ -7,47 +7,51 @@ import (
 // Decode extracts sensor readings and location from a WLBV1 uplink.
 // Relies entirely on LNS-decoded metadata; no raw byte parsing.
 func Decode(payload *common.RawPayload) (map[string]interface{}, *common.Location) {
+	// Extract sensor readings and location from metadata.
+	return extractMetadata(payload.Metadata)
+}
+
+// extractMetadata extracts sensor readings and location from metadata.
+func extractMetadata(meta map[string]interface{}) (map[string]interface{}, *common.Location) {
 	sensors := make(map[string]interface{})
 	var location *common.Location
 
-	extractMetadata(payload.Metadata, sensors, &location)
-
-	return sensors, location
-}
-
-func extractMetadata(meta map[string]interface{}, out map[string]interface{}, loc **common.Location) {
+	// tryGPS sets location from a source map if not already found.
 	tryGPS := func(src map[string]interface{}) {
-		if *loc == nil {
+		if location == nil {
 			if l := common.ExtractGPS(src); l != nil {
-				*loc = l
+				location = l
 			}
 		}
 	}
 
+	// tryBattery sets battery from any known key alias.
 	tryBattery := func(src map[string]interface{}) {
-		if _, exists := out["battery"]; exists {
+		if _, exists := sensors["battery"]; exists {
 			return
 		}
 		for _, k := range []string{"vBat", "battery", "battery_voltage", "volt"} {
 			if v, ok := src[k].(float64); ok {
-				out["battery"] = v
+				sensors["battery"] = v
 				return
 			}
 		}
 	}
 
+	// tryWaterDepth sets water_depth from any known key alias.
 	tryWaterDepth := func(src map[string]interface{}) {
-		if _, exists := out["water_depth"]; exists {
+		if _, exists := sensors["water_depth"]; exists {
 			return
 		}
 		for _, k := range []string{"waterlevel_cm", "water_depth", "water_level", "distance"} {
 			if v, ok := src[k].(float64); ok {
-				out["water_depth"] = v
+				sensors["water_depth"] = v
 				return
 			}
 		}
 	}
 
+	// Check each known metadata key in priority order.
 	if dp, ok := meta["decoded_payload"].(map[string]interface{}); ok {
 		tryGPS(dp)
 		tryBattery(dp)
@@ -65,4 +69,6 @@ func extractMetadata(meta map[string]interface{}, out map[string]interface{}, lo
 		tryBattery(obj)
 		tryWaterDepth(obj)
 	}
+
+	return sensors, location
 }

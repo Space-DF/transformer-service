@@ -7,14 +7,13 @@ import (
 // Decode extracts sensor readings and location from a T-Beam Cayenne LPP uplink.
 // Cayenne LPP frame: [Channel(1), Type(1), Data(N)] repeated.
 func Decode(payload *common.RawPayload) (map[string]interface{}, *common.Location) {
-	sensors := make(map[string]interface{})
-	var location *common.Location
-
-	extractMetadata(payload.Metadata, sensors, &location)
+	// Try to extract sensor readings and location from metadata first.
+	sensors, location := extractMetadata(payload.Metadata)
 	if len(sensors) > 0 {
 		return sensors, location
 	}
 
+	// If metadata extraction didn't yield results, parse the raw binary payload.
 	b := common.ExtractBytes(payload)
 	if len(b) < 2 {
 		return sensors, location
@@ -107,23 +106,30 @@ func Decode(payload *common.RawPayload) (map[string]interface{}, *common.Locatio
 	return sensors, location
 }
 
-func extractMetadata(meta map[string]interface{}, out map[string]interface{}, loc **common.Location) {
+// extractMetadata extracts sensor readings and location from metadata.
+func extractMetadata(meta map[string]interface{}) (map[string]interface{}, *common.Location) {
+	sensors := make(map[string]interface{})
+	var location *common.Location
+	// Check both possible metadata keys
 	for _, key := range []string{"decoded_payload", "object"} {
 		src, ok := meta[key].(map[string]interface{})
 		if !ok {
 			continue
 		}
-		if *loc == nil {
+		// Extract location if not already set
+		if location == nil {
 			if l := common.ExtractGPS(src); l != nil {
-				*loc = l
+				location = l
 			}
 		}
+		// Extract numeric sensor fields
 		for _, field := range []string{"temperature", "humidity", "pressure", "illuminance"} {
-			if _, exists := out[field]; !exists {
+			if _, exists := sensors[field]; !exists {
 				if v, ok := src[field].(float64); ok {
-					out[field] = v
+					sensors[field] = v
 				}
 			}
 		}
 	}
+	return sensors, location
 }

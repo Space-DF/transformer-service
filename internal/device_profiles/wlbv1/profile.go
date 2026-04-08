@@ -1,13 +1,8 @@
 package wlbv1
 
 import (
-	deviceprofile "github.com/Space-DF/transformer-service/internal/device_profiles"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
 )
-
-func init() {
-	deviceprofile.Register(Model, Manufacturer, NewParser())
-}
 
 const (
 	Model        = "WLBV1"

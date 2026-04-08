@@ -9,14 +9,13 @@ import (
 // Decode extracts sensor readings and location from a Yabby Edge uplink.
 // Auto-detects message type via heuristics (fPort not available at decode time).
 func Decode(payload *common.RawPayload) (map[string]interface{}, *common.Location) {
-	sensors := make(map[string]interface{})
-	var location *common.Location
-
-	extractMetadata(payload.Metadata, sensors, &location)
+	// Try to extract sensor readings and location from metadata first.
+	sensors, location := extractMetadata(payload.Metadata)
 	if len(sensors) > 0 {
 		return sensors, location
 	}
 
+	// If metadata extraction didn't yield results, parse the raw binary payload.
 	b := common.ExtractBytes(payload)
 	if len(b) == 0 {
 		return sensors, location
@@ -248,37 +247,46 @@ func parseConnect(b []byte, out map[string]interface{}) {
 	out["firmware"] = fmt.Sprintf("%d.%d", b[7], b[8])
 }
 
-func extractMetadata(meta map[string]interface{}, out map[string]interface{}, loc **common.Location) {
+// extractMetadata extracts sensor readings and location from metadata.
+func extractMetadata(meta map[string]interface{}) (map[string]interface{}, *common.Location) {
+	sensors := make(map[string]interface{})
+	var location *common.Location
+	// Check both possible metadata keys
 	for _, key := range []string{"decoded_payload", "object"} {
 		src, ok := meta[key].(map[string]interface{})
 		if !ok {
 			continue
 		}
-		if *loc == nil {
+		// Extract location if not already set
+		if location == nil {
 			if l := common.ExtractGPS(src); l != nil {
-				*loc = l
+				location = l
 			}
 		}
+		// Extract numeric sensor fields
 		for _, field := range []string{"battery_voltage", "battery_level", "trip_count"} {
-			if _, exists := out[field]; !exists {
+			if _, exists := sensors[field]; !exists {
 				if v, ok := src[field].(float64); ok {
-					out[field] = v
+					sensors[field] = v
 				}
 			}
 		}
+		// Extract boolean sensor fields
 		for _, field := range []string{"trip_status", "inactivity"} {
-			if _, exists := out[field]; !exists {
+			if _, exists := sensors[field]; !exists {
 				if v, ok := src[field].(bool); ok {
-					out[field] = v
+					sensors[field] = v
 				}
 			}
 		}
+		// Extract string sensor fields
 		for _, field := range []string{"firmware", "connect", "battery_stats"} {
-			if _, exists := out[field]; !exists {
+			if _, exists := sensors[field]; !exists {
 				if v, ok := src[field].(string); ok {
-					out[field] = v
+					sensors[field] = v
 				}
 			}
 		}
 	}
+	return sensors, location
 }

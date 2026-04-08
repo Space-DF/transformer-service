@@ -17,19 +17,22 @@ limitations under the License.
 package main
 
 import (
-	"github.com/Space-DF/transformer-service/cmd/transformer/cmd"
+	"log"
 
-	_ "github.com/Space-DF/transformer-service/internal/device_profiles/abeeway"
-	_ "github.com/Space-DF/transformer-service/internal/device_profiles/rak2270"
-	_ "github.com/Space-DF/transformer-service/internal/device_profiles/rak4630"
-	_ "github.com/Space-DF/transformer-service/internal/device_profiles/rak7200"
-	_ "github.com/Space-DF/transformer-service/internal/device_profiles/sensecap_t1000"
-	_ "github.com/Space-DF/transformer-service/internal/device_profiles/tbeam"
-	_ "github.com/Space-DF/transformer-service/internal/device_profiles/wlbv1"
-	_ "github.com/Space-DF/transformer-service/internal/device_profiles/yabby_edge"
+	"github.com/Space-DF/transformer-service/cmd/transformer/cmd"
+	deviceprofile "github.com/Space-DF/transformer-service/internal/device_profiles"
 	_ "github.com/Space-DF/transformer-service/internal/lns"
 )
 
 func main() {
+	// Create a new component registry and register all device parsers explicitly.
+	registry := deviceprofile.NewComponentRegistry()
+	if err := deviceprofile.RegisterAll(registry); err != nil {
+		log.Fatalf("failed to register device profiles: %v", err)
+	}
+
+	// Set the global registry so existing services can access it via Global().
+	deviceprofile.SetGlobal(registry)
+
 	cmd.Execute()
 }
