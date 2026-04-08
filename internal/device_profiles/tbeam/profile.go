@@ -9,14 +9,14 @@ const (
 	Manufacturer = "lilygo"
 )
 
-// Parser implements devicecommon.Parser for the LilyGO T-Beam (Cayenne LPP).
-type Parser struct{}
+// TBeamComponent implements devicecommon.TBeamComponent for the LilyGO T-Beam (Cayenne LPP).
+type TBeamComponent struct{}
 
-func NewParser() *Parser { return &Parser{} }
+func NewTBeamComponent() *TBeamComponent { return &TBeamComponent{} }
 
-func (p *Parser) SupportsGPS() bool        { return true }
-func (p *Parser) GetSupportedPorts() []int { return []int{1, 2, 5} }
-func (p *Parser) GetSupportedEntityTypes() []string {
+func (p *TBeamComponent) SupportsGPS() bool        { return true }
+func (p *TBeamComponent) GetSupportedPorts() []int { return []int{1, 2, 5} }
+func (p *TBeamComponent) GetSupportedEntityTypes() []string {
 	return []string{"location", "temperature", "humidity", "pressure", "illuminance"}
 }
 
@@ -26,4 +26,4 @@ var _ interface {
 	GetSupportedEntityTypes() []string
 	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
 	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*Parser)(nil)
+} = (*TBeamComponent)(nil)

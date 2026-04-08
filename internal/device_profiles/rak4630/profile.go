@@ -9,14 +9,14 @@ const (
 	Manufacturer = "rakwireless"
 )
 
-// Parser implements devicecommon.Parser for the RAK4630.
-type Parser struct{}
+// RAK4630Component implements devicecommon.RAK4630Component for the RAK4630.
+type RAK4630Component struct{}
 
-func NewParser() *Parser { return &Parser{} }
+func NewRAK4630Component() *RAK4630Component { return &RAK4630Component{} }
 
-func (p *Parser) SupportsGPS() bool        { return true }
-func (p *Parser) GetSupportedPorts() []int { return []int{1, 2, 3, 4, 5} }
-func (p *Parser) GetSupportedEntityTypes() []string {
+func (p *RAK4630Component) SupportsGPS() bool        { return true }
+func (p *RAK4630Component) GetSupportedPorts() []int { return []int{1, 2, 3, 4, 5} }
+func (p *RAK4630Component) GetSupportedEntityTypes() []string {
 	return []string{"location", "temperature", "humidity", "pressure", "battery_voltage"}
 }
 
@@ -26,4 +26,4 @@ var _ interface {
 	GetSupportedEntityTypes() []string
 	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
 	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*Parser)(nil)
+} = (*RAK4630Component)(nil)

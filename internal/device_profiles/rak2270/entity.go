@@ -9,7 +9,7 @@ import (
 	"github.com/Space-DF/transformer-service/internal/lns"
 )
 
-func (p *Parser) ParsePayload(payload *common.RawPayload) (*common.ParsedData, error) {
+func (p *RAK2270Component) ParsePayload(payload *common.RawPayload) (*common.ParsedData, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
 		devEUI = lns.ExtractDevEUI(payload.Metadata, payload.LNSType)
@@ -27,7 +27,7 @@ func (p *Parser) ParsePayload(payload *common.RawPayload) (*common.ParsedData, e
 	}, nil
 }
 
-func (p *Parser) ParseToEntities(orgSlug, model string, payload *common.RawPayload, deviceLocation *common.Location) ([]common.Entity, error) {
+func (p *RAK2270Component) ParseToEntities(orgSlug, model string, payload *common.RawPayload, deviceLocation *common.Location) ([]common.Entity, error) {
 	devEUI := payload.DeviceEUI
 	if devEUI == "" {
 		devEUI = lns.ExtractDevEUI(payload.Metadata, payload.LNSType)

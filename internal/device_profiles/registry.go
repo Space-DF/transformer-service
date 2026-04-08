@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Space-DF/transformer-service/internal/device_profiles/abeeway"
+	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/rak2270"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/rak4630"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/rak7200"
@@ -21,42 +22,26 @@ func NewComponentRegistry() *Component {
 
 // RegisterAll explicitly registers all known device parsers into r with error handling.
 func RegisterAll(r *Component) error {
-	parsers := []struct {
+	entries := []struct {
 		model        string
 		manufacturer string
-		register     func()
+		parser       common.Parser
 	}{
-		{abeeway.Model, abeeway.Manufacturer, func() {
-			r.RegisterParser(abeeway.Model, abeeway.Manufacturer, abeeway.NewParser())
-		}},
-		{rak2270.Model, rak2270.Manufacturer, func() {
-			r.RegisterParser(rak2270.Model, rak2270.Manufacturer, rak2270.NewParser())
-		}},
-		{rak4630.Model, rak4630.Manufacturer, func() {
-			r.RegisterParser(rak4630.Model, rak4630.Manufacturer, rak4630.NewParser())
-		}},
-		{rak7200.Model, rak7200.Manufacturer, func() {
-			r.RegisterParser(rak7200.Model, rak7200.Manufacturer, rak7200.NewParser())
-		}},
-		{sensecap_t1000.Model, sensecap_t1000.Manufacturer, func() {
-			r.RegisterParser(sensecap_t1000.Model, sensecap_t1000.Manufacturer, sensecap_t1000.NewParser())
-		}},
-		{tbeam.Model, tbeam.Manufacturer, func() {
-			r.RegisterParser(tbeam.Model, tbeam.Manufacturer, tbeam.NewParser())
-		}},
-		{wlbv1.Model, wlbv1.Manufacturer, func() {
-			r.RegisterParser(wlbv1.Model, wlbv1.Manufacturer, wlbv1.NewParser())
-		}},
-		{yabby_edge.Model, yabby_edge.Manufacturer, func() {
-			r.RegisterParser(yabby_edge.Model, yabby_edge.Manufacturer, yabby_edge.NewParser())
-		}},
+		{abeeway.Model, abeeway.Manufacturer, abeeway.NewAbeewayComponent()},
+		{rak2270.Model, rak2270.Manufacturer, rak2270.NewRAK2270Component()},
+		{rak4630.Model, rak4630.Manufacturer, rak4630.NewRAK4630Component()},
+		{rak7200.Model, rak7200.Manufacturer, rak7200.NewRAK7200Component()},
+		{sensecap_t1000.Model, sensecap_t1000.Manufacturer, sensecap_t1000.NewSenseCapT1000Component()},
+		{tbeam.Model, tbeam.Manufacturer, tbeam.NewTBeamComponent()},
+		{wlbv1.Model, wlbv1.Manufacturer, wlbv1.NewWLBV1Component()},
+		{yabby_edge.Model, yabby_edge.Manufacturer, yabby_edge.NewYabbyEdgeComponent()},
 	}
 
-	for _, p := range parsers {
-		if p.model == "" {
+	for _, e := range entries {
+		if e.model == "" {
 			return fmt.Errorf("device model name must not be empty")
 		}
-		p.register()
+		r.RegisterParser(e.model, e.manufacturer, e.parser)
 	}
 	return nil
 }

@@ -9,25 +9,25 @@ const (
 	Manufacturer = "abeeway"
 )
 
-// Parser implements devicecommon.Parser for the Abeeway Industrial Tracker.
-type Parser struct{}
+// AbeewayComponent implements devicecommon.AbeewayComponent for the Abeeway Industrial Tracker.
+type AbeewayComponent struct{}
 
-func NewParser() *Parser { return &Parser{} }
+func NewAbeewayComponent() *AbeewayComponent { return &AbeewayComponent{} }
 
-func (p *Parser) SupportsGPS() bool        { return true }
-func (p *Parser) GetSupportedPorts() []int { return []int{1, 2, 5, 17, 100} }
-func (p *Parser) GetSupportedEntityTypes() []string {
+func (p *AbeewayComponent) SupportsGPS() bool        { return true }
+func (p *AbeewayComponent) GetSupportedPorts() []int { return []int{1, 2, 5, 17, 100} }
+func (p *AbeewayComponent) GetSupportedEntityTypes() []string {
 	return []string{
 		"location", "battery_voltage", "battery_percent",
 		"temperature", "speed", "heading", "sos_alert", "motion",
 	}
 }
 
-// Ensure Parser satisfies the common.DeviceComponent-compatible interface at compile time.
+// Ensure AbeewayComponent satisfies the common.DeviceComponent-compatible interface at compile time.
 var _ interface {
 	SupportsGPS() bool
 	GetSupportedPorts() []int
 	GetSupportedEntityTypes() []string
 	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
 	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*Parser)(nil)
+} = (*AbeewayComponent)(nil)

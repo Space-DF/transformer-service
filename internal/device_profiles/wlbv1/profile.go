@@ -9,14 +9,14 @@ const (
 	Manufacturer = "dut"
 )
 
-// Parser implements devicecommon.Parser for the WLBV1 water-level sensor.
-type Parser struct{}
+// WLBV1Component implements devicecommon.WLBV1Component for the WLBV1 water-level sensor.
+type WLBV1Component struct{}
 
-func NewParser() *Parser { return &Parser{} }
+func NewWLBV1Component() *WLBV1Component { return &WLBV1Component{} }
 
-func (p *Parser) SupportsGPS() bool        { return true }
-func (p *Parser) GetSupportedPorts() []int { return []int{1, 2, 3, 4, 5} }
-func (p *Parser) GetSupportedEntityTypes() []string {
+func (p *WLBV1Component) SupportsGPS() bool        { return true }
+func (p *WLBV1Component) GetSupportedPorts() []int { return []int{1, 2, 3, 4, 5} }
+func (p *WLBV1Component) GetSupportedEntityTypes() []string {
 	return []string{"location", "battery", "water_depth"}
 }
 
@@ -26,4 +26,4 @@ var _ interface {
 	GetSupportedEntityTypes() []string
 	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
 	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*Parser)(nil)
+} = (*WLBV1Component)(nil)

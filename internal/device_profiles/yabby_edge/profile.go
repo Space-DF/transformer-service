@@ -9,20 +9,20 @@ const (
 	Manufacturer = "digitalmatter"
 )
 
-// Parser implements devicecommon.Parser for the Digital Matter Yabby Edge.
-type Parser struct{}
+// YabbyEdgeComponent implements devicecommon.YabbyEdgeComponent for the Digital Matter Yabby Edge.
+type YabbyEdgeComponent struct{}
 
-func NewParser() *Parser { return &Parser{} }
+func NewYabbyEdgeComponent() *YabbyEdgeComponent { return &YabbyEdgeComponent{} }
 
-func (p *Parser) SupportsGPS() bool { return true }
-func (p *Parser) GetSupportedPorts() []int {
+func (p *YabbyEdgeComponent) SupportsGPS() bool { return true }
+func (p *YabbyEdgeComponent) GetSupportedPorts() []int {
 	return []int{
 		1, 2, 3, 5, 89, 90, 91, 92,
 		101, 102, 103, 104, 105, 106, 107, 108,
 		109, 110, 111, 112, 113, 114, 115, 116, 202,
 	}
 }
-func (p *Parser) GetSupportedEntityTypes() []string {
+func (p *YabbyEdgeComponent) GetSupportedEntityTypes() []string {
 	return []string{
 		"location", "battery_voltage", "battery_level",
 		"trip_status", "inactivity", "trip_count",
@@ -36,4 +36,4 @@ var _ interface {
 	GetSupportedEntityTypes() []string
 	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
 	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*Parser)(nil)
+} = (*YabbyEdgeComponent)(nil)
