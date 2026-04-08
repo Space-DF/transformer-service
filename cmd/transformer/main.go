@@ -19,13 +19,15 @@ package main
 import (
 	"github.com/Space-DF/transformer-service/cmd/transformer/cmd"
 
-	_ "github.com/Space-DF/transformer-service/internal/components/abeeway"
-	_ "github.com/Space-DF/transformer-service/internal/components/digitalmatter"
-	_ "github.com/Space-DF/transformer-service/internal/components/dut"
+	_ "github.com/Space-DF/transformer-service/internal/device_profiles/abeeway"
+	_ "github.com/Space-DF/transformer-service/internal/device_profiles/rak2270"
+	_ "github.com/Space-DF/transformer-service/internal/device_profiles/rak4630"
+	_ "github.com/Space-DF/transformer-service/internal/device_profiles/rak7200"
+	_ "github.com/Space-DF/transformer-service/internal/device_profiles/sensecap_t1000"
+	_ "github.com/Space-DF/transformer-service/internal/device_profiles/tbeam"
+	_ "github.com/Space-DF/transformer-service/internal/device_profiles/wlbv1"
+	_ "github.com/Space-DF/transformer-service/internal/device_profiles/yabby_edge"
 	_ "github.com/Space-DF/transformer-service/internal/lns"
-	_ "github.com/Space-DF/transformer-service/internal/components/lilygo"
-	_ "github.com/Space-DF/transformer-service/internal/components/rakwireless"
-	_ "github.com/Space-DF/transformer-service/internal/components/seeed"
 )
 
 func main() {

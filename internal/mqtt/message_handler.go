@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Space-DF/transformer-service/internal/components"
+	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
 	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 	"github.com/Space-DF/transformer-service/internal/mqtt/logging"
@@ -117,7 +117,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	}
 
 	// Extract devEUI using LNS-aware extraction (efficient, single lookup)
-	var devEUI string = components.ExtractDevEUI(payload, lnsType)
+	var devEUI string = lns.ExtractDevEUI(payload, lnsType)
 
 	// Check if device should be skipped
 	deviceLocation, processingInfo, err := c.resolver.Resolve(orgSlug, vhost, devEUI, payload, locationPayload, lnsType)
@@ -167,13 +167,17 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	)
 	span.AddEvent("device_data_transformed")
 
+	locationValid := common.ValidateCoordinates(deviceLocation.Latitude, deviceLocation.Longitude) == nil
+
 	// Try to parse sensor entities and publish telemetry payload
-	var entityLocation *components.Location
-	if deviceLocation != nil {
-		entityLocation = &components.Location{
+	var entityLocation *common.Location
+	if locationValid {
+		entityLocation = &common.Location{
 			Latitude:  deviceLocation.Latitude,
 			Longitude: deviceLocation.Longitude,
 		}
+	} else {
+		logging.Tenant(orgSlug, vhost, "⚠️", "Invalid location for device %s (lat=%f, lon=%f): location entity will be excluded from telemetry", devEUI, deviceLocation.Latitude, deviceLocation.Longitude)
 	}
 
 	if parseResult, mapping, perr := c.parseEntities(orgSlug, devEUI, payload, entityLocation, lnsType); perr == nil && parseResult != nil {

@@ -32,7 +32,7 @@ device_profiles:
   - id: 960b1758-1d15-465a-85d8-9e1d9e1d9e1d
     name: lorawan
     manufacturer_id: 735c87f8-b9c5-4637-b75e-0327626fb1c1
-    device_type: WABEEWAY_INDUSTRIAL_TRACKER
+    device_type: ABEEWAY_INDUSTRIAL_TRACKER
     key_feature: location
 
   - id: 7e4b2d19-c3a8-4f56-9e1d-b5a7f8c62e03
