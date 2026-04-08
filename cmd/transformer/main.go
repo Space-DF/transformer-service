@@ -24,6 +24,7 @@ import (
 	_ "github.com/Space-DF/transformer-service/internal/components/dut"
 	_ "github.com/Space-DF/transformer-service/internal/lns"
 	_ "github.com/Space-DF/transformer-service/internal/components/lilygo"
+	_ "github.com/Space-DF/transformer-service/internal/components/milesight"
 	_ "github.com/Space-DF/transformer-service/internal/components/rakwireless"
 	_ "github.com/Space-DF/transformer-service/internal/components/seeed"
 )
