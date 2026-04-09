@@ -17,18 +17,22 @@ limitations under the License.
 package main
 
 import (
-	"github.com/Space-DF/transformer-service/cmd/transformer/cmd"
+	"log"
 
-	_ "github.com/Space-DF/transformer-service/internal/components/abeeway"
-	_ "github.com/Space-DF/transformer-service/internal/components/digitalmatter"
-	_ "github.com/Space-DF/transformer-service/internal/components/dut"
+	"github.com/Space-DF/transformer-service/cmd/transformer/cmd"
+	deviceprofile "github.com/Space-DF/transformer-service/internal/device_profiles"
 	_ "github.com/Space-DF/transformer-service/internal/lns"
-	_ "github.com/Space-DF/transformer-service/internal/components/lilygo"
-	_ "github.com/Space-DF/transformer-service/internal/components/milesight"
-	_ "github.com/Space-DF/transformer-service/internal/components/rakwireless"
-	_ "github.com/Space-DF/transformer-service/internal/components/seeed"
 )
 
 func main() {
+	// Create a new component registry and register all device parsers explicitly.
+	registry := deviceprofile.NewComponentRegistry()
+	if err := deviceprofile.RegisterAll(registry); err != nil {
+		log.Fatalf("failed to register device profiles: %v", err)
+	}
+
+	// Set the global registry so existing services can access it via Global().
+	deviceprofile.SetGlobal(registry)
+
 	cmd.Execute()
 }

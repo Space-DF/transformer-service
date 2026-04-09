@@ -161,7 +161,6 @@ func (c *Consumer) handleOrgEvent(ctx context.Context, msg amqp.Delivery) error 
 	}
 
 	switch event.EventType {
-
 	case models.OrgCreated:
 		// New org created - subscribe to its queue
 		if vhost == "" {
@@ -215,6 +214,23 @@ func (c *Consumer) resubscribeTenant(ctx context.Context, oldTenant *TenantConsu
 		}
 		return
 	}
+
+	// Check if vhost connection is healthy - if not, trigger main reconnection instead of individual resubscription
+	// This prevents failing individual resubscription attempts when the vhost connection itself is the problem
+	_, vhostErr := c.vhostPool.Acquire(oldTenant.Vhost)
+	if vhostErr != nil {
+		logging.Tenant(oldTenant.OrgSlug, oldTenant.Vhost, "⚠️", "Vhost connection unavailable, triggering centralized reconnection: %v", vhostErr)
+		// Trigger reconnection
+		select {
+		case c.reconnectChan <- struct{}{}:
+		default:
+		}
+		return
+	}
+
+	// Release the connection immediately - this verifies if it's available
+	// subscribeToOrganization will acquire it again properly
+	c.vhostPool.Release(oldTenant.Vhost)
 
 	// Cancel the old consumer goroutine
 	oldTenant.Cancel()

@@ -196,8 +196,51 @@ func (h *TTNHandler) ExtractPayloadBytes(metadata map[string]interface{}) ([]byt
 }
 
 // ExtractGatewayLocations extracts gateway locations from TTN rx_metadata
-// TTN format: gateways don't include location, only gateway IDs
-// Returns error indicating gateway registry lookup or device GPS is required
+// TTN format: rx_metadata[].location.latitude/longitude (when gateway registry is configured)
+// Returns gateway locations if available, otherwise returns empty slice (no error)
 func (h *TTNHandler) ExtractGatewayLocations(rxMetadata []interface{}) ([]GatewayMetadata, error) {
-	return nil, fmt.Errorf("TTN gateway location requires gateway registry lookup or device GPS")
+	if len(rxMetadata) == 0 {
+		return nil, fmt.Errorf("no rx_metadata found in TTN payload")
+	}
+
+	var gateways []GatewayMetadata
+
+	for _, rx := range rxMetadata {
+		rxMap, ok := rx.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Extract RSSI
+		rssi := 0
+		if rssiVal, ok := rxMap["rssi"].(float64); ok {
+			rssi = int(rssiVal)
+		}
+
+		// Extract location if present (from TTN gateway registry)
+		var lat, lon float64
+		if location, ok := rxMap["location"].(map[string]interface{}); ok {
+			if latVal, ok := location["latitude"].(float64); ok {
+				lat = latVal
+			}
+			if lonVal, ok := location["longitude"].(float64); ok {
+				lon = lonVal
+			}
+		}
+
+		// Only add gateways with valid location data
+		if lat != 0 || lon != 0 {
+			gateways = append(gateways, GatewayMetadata{
+				Latitude:  lat,
+				Longitude: lon,
+				RSSI:      rssi,
+			})
+		}
+	}
+
+	if len(gateways) == 0 {
+		return nil, fmt.Errorf("TTN gateway location requires gateway registry lookup or device GPS")
+	}
+
+	return gateways, nil
 }
