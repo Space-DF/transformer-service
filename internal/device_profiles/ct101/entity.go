@@ -51,135 +51,95 @@ func (p *CT101Component) ParseToEntities(orgSlug, model string, payload *common.
 	mdl := strings.ToLower(model)
 	var entities []common.Entity
 
-	// Current Entity
-	if val, ok := parsed.SensorData["current"].(float64); ok {
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, "current"),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain("current"), orgSlug, Manufacturer, mdl, devEUI, "current"),
-			EntityType:  "current",
-			DeviceClass: "current",
-			Name:        "Current",
-			State:       val,
-			DisplayType: []string{"chart", "gauge", "value"},
-			UnitOfMeas:  "A",
-			Icon:        "mdi:current-ac",
-			Enabled:     true,
-			Timestamp:   ts,
-		})
+	// Sensor entities using for loop pattern
+	type sensorDef struct {
+		key, name, entityType, devClass, unit, icon string
+		display                                     []string
+		transform                                   func(any) (state any, attributes map[string]any)
 	}
-
-	// Total Current Entity (cumulative)
-	if val, ok := parsed.SensorData["total_current"].(float64); ok {
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, "total_current"),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain("total_current"), orgSlug, Manufacturer, mdl, devEUI, "total_current"),
-			EntityType:  "total_current",
-			DeviceClass: "current",
-			Name:        "Total Current",
-			State:       val,
-			DisplayType: []string{"chart", "value"},
-			UnitOfMeas:  "A",
-			Icon:        "mdi:current-ac",
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
-
-	// Temperature Entity
-	if val, ok := parsed.SensorData["temperature"].(float64); ok {
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, "temperature"),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain("temperature"), orgSlug, Manufacturer, mdl, devEUI, "temperature"),
-			EntityType:  "temperature",
-			DeviceClass: "temperature",
-			Name:        "Temperature",
-			State:       val,
-			DisplayType: []string{"chart", "gauge", "value"},
-			UnitOfMeas:  "°C",
-			Icon:        "mdi:thermometer",
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
-
-	// Current Alarm Status (binary sensor)
-	if val, ok := parsed.SensorData["current_alarm"].(map[string]any); ok {
-		alarmStatus := "off"
-		if threshold, ok := val["current_threshold_alarm"].(bool); ok && threshold {
-			alarmStatus = "on"
-		} else if overRange, ok := val["current_over_range_alarm"].(bool); ok && overRange {
-			alarmStatus = "on"
-		}
-
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, "current_alarm"),
-			EntityID:    common.GenerateEntityID("binary_sensor", orgSlug, Manufacturer, mdl, devEUI, "current_alarm"),
-			EntityType:  "current_alarm",
-			DeviceClass: "problem",
-			Name:        "Current Alarm",
-			State:       alarmStatus,
-			DisplayType: []string{"indicator"},
-			Attributes:  val,
-			Icon:        "mdi:alert",
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
-
-	// Temperature Alarm Status (binary sensor)
-	if val, ok := parsed.SensorData["temperature_alarm"].(string); ok && val != "" {
-		alarmStatus := "off"
-		if val == "temperature threshold alarm" {
-			alarmStatus = "on"
-		}
-
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, "temperature_alarm"),
-			EntityID:    common.GenerateEntityID("binary_sensor", orgSlug, Manufacturer, mdl, devEUI, "temperature_alarm"),
-			EntityType:  "temperature_alarm",
-			DeviceClass: "problem",
-			Name:        "Temperature Alarm",
-			State:       alarmStatus,
-			DisplayType: []string{"indicator"},
-			Attributes: map[string]any{
-				"alarm_type": val,
+	for _, def := range []sensorDef{
+		// Simple sensor entities
+		{"current", "Current", "current", "current", "A", "mdi:current-ac", []string{"chart", "gauge", "value"}, nil},
+		{"total_current", "Total Current", "total_current", "current", "A", "mdi:current-ac", []string{"chart", "gauge", "value"}, nil},
+		{"temperature", "Temperature", "temperature", "temperature", "°C", "mdi:thermometer", []string{"chart", "gauge", "value"}, nil},
+		// Alarm entities with transform
+		{
+			"current_alarm", "Current Alarm", "current_alarm", "problem", "", "mdi:alert", []string{"indicator"},
+			func(v any) (any, map[string]any) {
+				val, ok := v.(map[string]any)
+				if !ok {
+					return nil, nil
+				}
+				alarmStatus := "off"
+				if threshold, ok := val["current_threshold_alarm"].(bool); ok && threshold {
+					alarmStatus = "on"
+				} else if overRange, ok := val["current_over_range_alarm"].(bool); ok && overRange {
+					alarmStatus = "on"
+				}
+				return alarmStatus, val
 			},
-			Icon:      "mdi:alert",
-			Enabled:   true,
-			Timestamp: ts,
-		})
-	}
+		},
+		{
+			"temperature_alarm", "Temperature Alarm", "temperature_alarm", "problem", "", "mdi:alert", []string{"indicator"},
+			func(v any) (any, map[string]any) {
+				val, ok := v.(string)
+				if !ok {
+					return nil, nil
+				}
+				alarmStatus := "off"
+				if val == "temperature threshold alarm" {
+					alarmStatus = "on"
+				}
+				return alarmStatus, map[string]any{"alarm_type": val}
+			},
+		},
+		// Sensor status entities
+		{"current_sensor_status", "Current Sensor Status", "sensor", "problem", "", "mdi:sensor-alert", []string{"text"}, nil},
+		{"temperature_sensor_status", "Temperature Sensor Status", "sensor", "problem", "", "mdi:sensor-alert", []string{"text"}, nil},
+	} {
+		val, ok := parsed.SensorData[def.key]
+		if !ok {
+			continue
+		}
 
-	// Current Sensor Status (if sensor has issues)
-	if val, ok := parsed.SensorData["current_sensor_status"].(string); ok && val != "" {
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, "current_sensor_status"),
-			EntityID:    common.GenerateEntityID("sensor", orgSlug, Manufacturer, mdl, devEUI, "current_sensor_status"),
-			EntityType:  "sensor",
-			DeviceClass: "problem",
-			Name:        "Current Sensor Status",
-			State:       val,
-			DisplayType: []string{"text"},
-			Icon:        "mdi:sensor-alert",
+		// Skip empty string values for status sensors
+		if strVal, ok := val.(string); ok && strVal == "" {
+			continue
+		}
+
+		state := val
+		attributes := map[string]any{}
+
+		if def.transform != nil {
+			var attrs map[string]any
+			state, attrs = def.transform(val)
+			if state == nil {
+				continue
+			}
+			if attrs != nil {
+				attributes = attrs
+			}
+		}
+
+		entity := common.Entity{
+			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
+			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.key), orgSlug, Manufacturer, mdl, devEUI, def.key),
+			EntityType:  def.entityType,
+			DeviceClass: def.devClass,
+			Name:        def.name,
+			State:       state,
+			DisplayType: def.display,
+			UnitOfMeas:  def.unit,
+			Icon:        def.icon,
 			Enabled:     true,
 			Timestamp:   ts,
-		})
-	}
+		}
 
-	// Temperature Sensor Status (if sensor has issues)
-	if val, ok := parsed.SensorData["temperature_sensor_status"].(string); ok && val != "" {
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, "temperature_sensor_status"),
-			EntityID:    common.GenerateEntityID("sensor", orgSlug, Manufacturer, mdl, devEUI, "temperature_sensor_status"),
-			EntityType:  "sensor",
-			DeviceClass: "problem",
-			Name:        "Temperature Sensor Status",
-			State:       val,
-			DisplayType: []string{"text"},
-			Icon:        "mdi:sensor-alert",
-			Enabled:     true,
-			Timestamp:   ts,
-		})
+		if len(attributes) > 0 {
+			entity.Attributes = attributes
+		}
+
+		entities = append(entities, entity)
 	}
 
 	// Add device metadata as attributes to first entity if available
