@@ -40,3 +40,9 @@ device_profiles:
     manufacturer_id: a3f1c8e7-4b9d-4e2a-b6d5-8c7f3a1e9d42
     device_type: YABBY_EDGE
     key_feature: location
+
+  - id: 8f5c3e20-d4b9-5e67-0f2e-c658f9d78f47
+    name: lorawan
+    manufacturer_id: b4f2d9f3-5c0e-3f1b-c7e6-9d8a4b2f0e5a
+    device_type: MCLIMATE_HT
+    key_feature: location
