@@ -103,7 +103,7 @@ func (p *CT101Component) ParseToEntities(orgSlug, model string, payload *common.
 	}
 
 	// Current Alarm Status (binary sensor)
-	if val, ok := parsed.SensorData["current_alarm"].(map[string]interface{}); ok {
+	if val, ok := parsed.SensorData["current_alarm"].(map[string]any); ok {
 		alarmStatus := "off"
 		if threshold, ok := val["current_threshold_alarm"].(bool); ok && threshold {
 			alarmStatus = "on"
@@ -141,7 +141,7 @@ func (p *CT101Component) ParseToEntities(orgSlug, model string, payload *common.
 			Name:        "Temperature Alarm",
 			State:       alarmStatus,
 			DisplayType: []string{"indicator"},
-			Attributes: map[string]interface{}{
+			Attributes: map[string]any{
 				"alarm_type": val,
 			},
 			Icon:      "mdi:alert",
@@ -184,7 +184,7 @@ func (p *CT101Component) ParseToEntities(orgSlug, model string, payload *common.
 
 	// Add device metadata as attributes to first entity if available
 	if len(entities) > 0 {
-		metadata := make(map[string]interface{})
+		metadata := make(map[string]any)
 		if hwVersion, ok := parsed.SensorData["hardware_version"].(string); ok {
 			metadata["hardware_version"] = hwVersion
 		}
@@ -196,7 +196,7 @@ func (p *CT101Component) ParseToEntities(orgSlug, model string, payload *common.
 		}
 		if len(metadata) > 0 {
 			if entities[0].Attributes == nil {
-				entities[0].Attributes = make(map[string]interface{})
+				entities[0].Attributes = make(map[string]any)
 			}
 			for k, v := range metadata {
 				entities[0].Attributes[k] = v

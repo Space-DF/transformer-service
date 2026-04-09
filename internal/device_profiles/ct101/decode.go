@@ -2,6 +2,7 @@ package ct101
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
 )
@@ -9,7 +10,7 @@ import (
 // Decode extracts sensor readings from a Milesight CT101 uplink.
 // Payload format: Channel-based TLV (Type-Length-Value)
 // Each channel: channel_id (1 byte) + channel_type (1 byte) + data
-func Decode(payload *common.RawPayload) map[string]interface{} {
+func Decode(payload *common.RawPayload) map[string]any {
 	// Try to extract sensor readings from metadata first
 	if sensors := extractMetadata(payload.Metadata); len(sensors) > 0 {
 		return sensors
@@ -18,19 +19,19 @@ func Decode(payload *common.RawPayload) map[string]interface{} {
 	// Parse the raw binary payload
 	b := common.ExtractBytes(payload)
 	if len(b) < 4 {
-		return make(map[string]interface{})
+		return make(map[string]any)
 	}
 
 	return decodeCT101Bytes(b)
 }
 
 // extractMetadata extracts sensor readings from metadata.
-func extractMetadata(meta map[string]interface{}) map[string]interface{} {
-	sensors := make(map[string]interface{})
+func extractMetadata(meta map[string]any) map[string]any {
+	sensors := make(map[string]any)
 
 	// Check both possible metadata keys
 	for _, key := range []string{"decoded_payload", "object"} {
-		src, ok := meta[key].(map[string]interface{})
+		src, ok := meta[key].(map[string]any)
 		if !ok {
 			continue
 		}
@@ -49,9 +50,16 @@ func extractMetadata(meta map[string]interface{}) map[string]interface{} {
 			}
 		}
 
-		// Handle current_alarm (nested map)
-		if v, ok := src["current_alarm"].(map[string]interface{}); ok {
+		// Handle current_alarm (nested map) - support both any and interface{} for compatibility
+		if v, ok := src["current_alarm"].(map[string]any); ok {
 			sensors["current_alarm"] = v
+		} else if v, ok := src["current_alarm"].(map[string]interface{}); ok {
+			// Convert interface{} to any for consistency
+			converted := make(map[string]any, len(v))
+			for k, val := range v {
+				converted[k] = val
+			}
+			sensors["current_alarm"] = converted
 		}
 
 		// Handle temperature_alarm (string)
@@ -66,18 +74,18 @@ func extractMetadata(meta map[string]interface{}) map[string]interface{} {
 // decodeCT101Bytes decodes CT101 sensor data from raw bytes.
 // CT101 payload format:
 // Channel (1 byte) + Type (1 byte) + Data (variable)
-func decodeCT101Bytes(bytes []byte) map[string]interface{} {
+func decodeCT101Bytes(bytes []byte) map[string]any {
 	if len(bytes) < 4 {
-		return make(map[string]interface{})
+		return make(map[string]any)
 	}
 
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 
 	// Parse channel-type-value triplets
 	i := 0
 	for i < len(bytes) {
 		if i+1 >= len(bytes) {
-			break
+			return data
 		}
 
 		channelID := bytes[i]
@@ -163,7 +171,7 @@ func decodeCT101Bytes(bytes []byte) map[string]interface{} {
 
 		default:
 			// Unknown channel, stop parsing
-			break
+			return data
 		}
 	}
 
@@ -191,15 +199,16 @@ func readFirmwareVersion(bytes []byte) string {
 }
 
 func readSerialNumber(bytes []byte) string {
-	result := ""
+	var sb strings.Builder
+	sb.Grow(len(bytes) * 2)
 	for _, b := range bytes {
-		result += fmt.Sprintf("%02X", b)
+		fmt.Fprintf(&sb, "%02X", b)
 	}
-	return result
+	return sb.String()
 }
 
-func readCurrentAlarm(value byte) map[string]interface{} {
-	alarm := make(map[string]interface{})
+func readCurrentAlarm(value byte) map[string]any {
+	alarm := make(map[string]any)
 
 	// Bit 0: current_threshold_alarm
 	alarm["current_threshold_alarm"] = (value>>0)&0x01 == 1
