@@ -5,6 +5,7 @@ import (
 
 	"github.com/Space-DF/transformer-service/internal/device_profiles/abeeway"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
+	"github.com/Space-DF/transformer-service/internal/device_profiles/lcc01lb"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/rak2270"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/rak4630"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/rak7200"
@@ -28,6 +29,7 @@ func RegisterAll(r *Component) error {
 		parser       common.Parser
 	}{
 		{abeeway.Model, abeeway.Manufacturer, abeeway.NewAbeewayComponent()},
+		{lcc01lb.Model, lcc01lb.Manufacturer, lcc01lb.NewLCC01LBComponent()},
 		{rak2270.Model, rak2270.Manufacturer, rak2270.NewRAK2270Component()},
 		{rak4630.Model, rak4630.Manufacturer, rak4630.NewRAK4630Component()},
 		{rak7200.Model, rak7200.Manufacturer, rak7200.NewRAK7200Component()},
