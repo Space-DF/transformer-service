@@ -40,3 +40,9 @@ device_profiles:
     manufacturer_id: a3f1c8e7-4b9d-4e2a-b6d5-8c7f3a1e9d42
     device_type: YABBY_EDGE
     key_feature: location
+
+  - id: c9cff038-d15c-4edb-8273-ed0923f8b15a
+    name: lorawan
+    manufacturer_id: a3f1c8e7-4b9d-4e2a-b6d5-8c7f3a1e9d42
+    device_type: QUANDIFY_CUBICMETER
+    key_feature: water_temp

@@ -29,6 +29,7 @@ func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]inte
 		Timestamp: time.Now(),
 		Metadata:  payload,
 		LNSType:   lnsType,
+		FPort:     lns.ExtractFPort(payload, lnsType),
 	}
 
 	// Extract data field using LNS-aware handler
