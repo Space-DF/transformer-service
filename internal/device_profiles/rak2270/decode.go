@@ -10,13 +10,9 @@ import (
 //	0x67: Temperature  (int16 BE / 10.0 °C)
 //	0x02: Battery voltage (uint16 BE / 100.0 V)
 func Decode(payload *common.RawPayload) map[string]interface{} {
-	// Try to extract sensor readings from metadata first.
-	sensors := extractMetadata(payload.Metadata)
-	if len(sensors) > 0 {
-		return sensors
-	}
+	sensors := make(map[string]interface{})
 
-	// If metadata extraction didn't yield results, parse the raw binary payload.
+	// Parse the raw binary payload.
 	b := common.ExtractBytes(payload)
 	if len(b) == 0 {
 		return sensors
@@ -40,26 +36,5 @@ func Decode(payload *common.RawPayload) map[string]interface{} {
 		}
 	}
 
-	return sensors
-}
-
-// extractMetadata extracts sensor readings from metadata.
-func extractMetadata(meta map[string]interface{}) map[string]interface{} {
-	sensors := make(map[string]interface{})
-	// Check both possible metadata keys
-	for _, key := range []string{"decoded_payload", "object"} {
-		src, ok := meta[key].(map[string]interface{})
-		if !ok {
-			continue
-		}
-		// Extract numeric sensor fields
-		for _, field := range []string{"temperature", "battery_voltage"} {
-			if _, exists := sensors[field]; !exists {
-				if v, ok := src[field].(float64); ok {
-					sensors[field] = v
-				}
-			}
-		}
-	}
 	return sensors
 }

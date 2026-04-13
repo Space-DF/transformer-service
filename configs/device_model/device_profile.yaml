@@ -46,3 +46,9 @@ device_profiles:
     manufacturer_id: b4f2d9f3-5c0e-3f1b-c7e6-9d8a4b2f0e5a
     device_type: MCLIMATE_HT
     key_feature: location
+    
+  - id: 8d7b9aff-a1f2-4f20-a8a3-054e82eef864
+    name: lorawan
+    manufacturer_id: a3f1c8e7-4b9d-4e2a-b6d5-8c7f3a1e9d42
+    device_type: CT101
+    key_feature: temperature

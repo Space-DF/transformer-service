@@ -9,13 +9,10 @@ const coordScale = 10000000.0
 // Decode extracts sensor readings and location from an Abeeway Industrial Tracker uplink.
 // Binary protocol: 4-byte header (msgType, status, battery, temp) + message-specific data.
 func Decode(payload *common.RawPayload) (map[string]interface{}, *common.Location) {
-	// Try to extract sensor readings and location from metadata first.
-	sensors, location := extractMetadata(payload.Metadata)
-	if len(sensors) > 0 {
-		return sensors, location
-	}
+	sensors := make(map[string]interface{})
+	var location *common.Location
 
-	// If metadata extraction didn't yield results, parse the raw binary payload.
+	// Parse the raw binary payload.
 	b := common.ExtractBytes(payload)
 	if len(b) < 5 {
 		return sensors, location
@@ -80,40 +77,4 @@ func parseGPSPosition(data []byte, sensors map[string]interface{}, loc **common.
 			}
 		}
 	}
-}
-
-// extractMetadata extracts sensor readings and location from metadata in a simple, clear way.
-func extractMetadata(meta map[string]interface{}) (map[string]interface{}, *common.Location) {
-	sensors := make(map[string]interface{})
-	var location *common.Location
-	// Check both possible metadata keys
-	for _, key := range []string{"decoded_payload", "object"} {
-		src, ok := meta[key].(map[string]interface{})
-		if !ok {
-			continue
-		}
-		// Extract location if not already set
-		if location == nil {
-			if l := common.ExtractGPS(src); l != nil {
-				location = l
-			}
-		}
-		// Extract numeric sensor fields
-		for _, field := range []string{"battery_voltage", "battery_percent", "temperature", "speed", "heading"} {
-			if _, exists := sensors[field]; !exists {
-				if v, ok := src[field].(float64); ok {
-					sensors[field] = v
-				}
-			}
-		}
-		// Extract boolean sensor fields
-		for _, field := range []string{"sos_alert", "motion"} {
-			if _, exists := sensors[field]; !exists {
-				if v, ok := src[field].(bool); ok {
-					sensors[field] = v
-				}
-			}
-		}
-	}
-	return sensors, location
 }
