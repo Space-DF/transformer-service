@@ -11,72 +11,26 @@ import (
 // Payload format: Channel-based TLV (Type-Length-Value)
 // Each channel: channel_id (1 byte) + channel_type (1 byte) + data
 func Decode(payload *common.RawPayload) map[string]any {
-	// Try to extract sensor readings from metadata first
-	if sensors := extractMetadata(payload.Metadata); len(sensors) > 0 {
-		return sensors
-	}
-
 	// Parse the raw binary payload
 	b := common.ExtractBytes(payload)
 	if len(b) < 4 {
 		return make(map[string]any)
 	}
 
-	return decodeCT101Bytes(b)
-}
-
-// extractMetadata extracts sensor readings from metadata.
-func extractMetadata(meta map[string]any) map[string]any {
-	sensors := make(map[string]any)
-
-	// Check both possible metadata keys
-	for _, key := range []string{"decoded_payload", "object"} {
-		src, ok := meta[key].(map[string]any)
-		if !ok {
-			continue
-		}
-
-		// Extract all relevant sensor fields
-		for _, field := range []string{
-			"current", "total_current", "temperature",
-			"current_max", "current_min",
-			"hardware_version", "firmware_version", "serial_number",
-			"current_sensor_status", "temperature_sensor_status",
-		} {
-			if _, exists := sensors[field]; !exists {
-				if v, ok := src[field]; ok {
-					sensors[field] = v
-				}
-			}
-		}
-
-		// Handle current_alarm (nested map) - support both any and interface{} for compatibility
-		if v, ok := src["current_alarm"].(map[string]any); ok {
-			sensors["current_alarm"] = v
-		} else if v, ok := src["current_alarm"].(map[string]interface{}); ok {
-			// Convert interface{} to any for consistency
-			converted := make(map[string]any, len(v))
-			for k, val := range v {
-				converted[k] = val
-			}
-			sensors["current_alarm"] = converted
-		}
-
-		// Handle temperature_alarm (string)
-		if v, ok := src["temperature_alarm"].(string); ok {
-			sensors["temperature_alarm"] = v
-		}
+	data, err := decodeCT101Bytes(b)
+	if err != nil {
+		// Return empty map on error
+		return make(map[string]any)
 	}
-
-	return sensors
+	return data
 }
 
 // decodeCT101Bytes decodes CT101 sensor data from raw bytes.
 // CT101 payload format:
 // Channel (1 byte) + Type (1 byte) + Data (variable)
-func decodeCT101Bytes(bytes []byte) map[string]any {
+func decodeCT101Bytes(bytes []byte) (map[string]any, error) {
 	if len(bytes) < 4 {
-		return make(map[string]any)
+		return make(map[string]any), nil
 	}
 
 	data := make(map[string]any)
@@ -85,7 +39,7 @@ func decodeCT101Bytes(bytes []byte) map[string]any {
 	i := 0
 	for i < len(bytes) {
 		if i+1 >= len(bytes) {
-			return data
+			return data, nil
 		}
 
 		channelID := bytes[i]
@@ -96,86 +50,94 @@ func decodeCT101Bytes(bytes []byte) map[string]any {
 
 		switch key {
 		case 0xFF01: // IPSO VERSION
-			if i+2 < len(bytes) {
-				data["ipso_version"] = readProtocolVersion(bytes[i+2])
-				i += 3
+			if i+2 >= len(bytes) {
+				return nil, fmt.Errorf("truncated payload for IPSO version")
 			}
+			data["ipso_version"] = readProtocolVersion(bytes[i+2])
+			i += 3
 
 		case 0xFF09: // HARDWARE VERSION
-			if i+3 < len(bytes) {
-				data["hardware_version"] = readHardwareVersion(bytes[i+2 : i+4])
-				i += 4
+			if i+3 >= len(bytes) {
+				return nil, fmt.Errorf("truncated payload for hardware version")
 			}
+			data["hardware_version"] = readHardwareVersion(bytes[i+2 : i+4])
+			i += 4
 
 		case 0xFF0A: // FIRMWARE VERSION
-			if i+3 < len(bytes) {
-				data["firmware_version"] = readFirmwareVersion(bytes[i+2 : i+4])
-				i += 4
+			if i+3 >= len(bytes) {
+				return nil, fmt.Errorf("truncated payload for firmware version")
 			}
+			data["firmware_version"] = readFirmwareVersion(bytes[i+2 : i+4])
+			i += 4
 
 		case 0xFF16: // SERIAL NUMBER
-			if i+9 < len(bytes) {
-				data["serial_number"] = readSerialNumber(bytes[i+2 : i+10])
-				i += 10
+			if i+9 >= len(bytes) {
+				return nil, fmt.Errorf("truncated payload for serial number")
 			}
+			data["serial_number"] = readSerialNumber(bytes[i+2 : i+10])
+			i += 10
 
 		case 0x0397: // TOTAL CURRENT - 4 bytes UInt32LE / 100
-			if i+5 < len(bytes) {
-				value := common.U32LE(bytes, i+2)
-				data["total_current"] = float64(value) / 100.0
-				i += 6
+			if i+5 >= len(bytes) {
+				return nil, fmt.Errorf("truncated payload for total current")
 			}
+			value := common.U32LE(bytes, i+2)
+			data["total_current"] = float64(value) / 100.0
+			i += 6
 
 		case 0x0498: // CURRENT - 2 bytes UInt16LE / 100, or 0xFFFF for sensor status
-			if i+3 < len(bytes) {
-				value := common.U16LE(bytes, i+2)
-				if value == 0xFFFF {
-					data["current_sensor_status"] = "read failed"
-				} else {
-					data["current"] = float64(value) / 100.0
-				}
-				i += 4
+			if i+3 >= len(bytes) {
+				return nil, fmt.Errorf("truncated payload for current")
 			}
+			value := common.U16LE(bytes, i+2)
+			if value == 0xFFFF {
+				data["current_sensor_status"] = "read failed"
+			} else {
+				data["current"] = float64(value) / 100.0
+			}
+			i += 4
 
 		case 0x0967: // TEMPERATURE - 2 bytes Int16LE / 10
-			if i+3 < len(bytes) {
-				value := common.U16LE(bytes, i+2)
-				switch value {
-				case 0xFFFD:
-					data["temperature_sensor_status"] = "over range alarm"
-				case 0xFFFF:
-					data["temperature_sensor_status"] = "read failed"
-				default:
-					tempValue := common.I16LE(bytes, i+2)
-					data["temperature"] = float64(tempValue) / 10.0
-				}
-				i += 4
+			if i+3 >= len(bytes) {
+				return nil, fmt.Errorf("truncated payload for temperature")
 			}
-
-		case 0x8498: // CURRENT ALARM - 7 bytes data + 2 bytes header = 9 total
-			if i+8 < len(bytes) {
-				data["current_max"] = float64(common.U16LE(bytes, i+2)) / 100.0
-				data["current_min"] = float64(common.U16LE(bytes, i+4)) / 100.0
-				data["current"] = float64(common.U16LE(bytes, i+6)) / 100.0
-				data["current_alarm"] = readCurrentAlarm(bytes[i+8])
-				i += 9
-			}
-
-		case 0x8967: // TEMPERATURE ALARM - 3 bytes data + 2 bytes header = 5 total
-			if i+4 < len(bytes) {
+			value := common.U16LE(bytes, i+2)
+			switch value {
+			case 0xFFFD:
+				data["temperature_sensor_status"] = "over range alarm"
+			case 0xFFFF:
+				data["temperature_sensor_status"] = "read failed"
+			default:
 				tempValue := common.I16LE(bytes, i+2)
 				data["temperature"] = float64(tempValue) / 10.0
-				data["temperature_alarm"] = readTemperatureAlarm(bytes[i+4])
-				i += 5
 			}
+			i += 4
+
+		case 0x8498: // CURRENT ALARM - 7 bytes data + 2 bytes header = 9 total
+			if i+8 >= len(bytes) {
+				return nil, fmt.Errorf("truncated payload for current alarm")
+			}
+			data["current_max"] = float64(common.U16LE(bytes, i+2)) / 100.0
+			data["current_min"] = float64(common.U16LE(bytes, i+4)) / 100.0
+			data["current"] = float64(common.U16LE(bytes, i+6)) / 100.0
+			data["current_alarm"] = readCurrentAlarm(bytes[i+8])
+			i += 9
+
+		case 0x8967: // TEMPERATURE ALARM - 3 bytes data + 2 bytes header = 5 total
+			if i+4 >= len(bytes) {
+				return nil, fmt.Errorf("truncated payload for temperature alarm")
+			}
+			tempValue := common.I16LE(bytes, i+2)
+			data["temperature"] = float64(tempValue) / 10.0
+			data["temperature_alarm"] = readTemperatureAlarm(bytes[i+4])
+			i += 5
 
 		default:
-			// Unknown channel, stop parsing
-			return data
+			return data, nil
 		}
 	}
 
-	return data
+	return data, nil
 }
 
 // Helper functions for reading binary data
