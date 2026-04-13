@@ -64,24 +64,28 @@ func (c *Consumer) setupConnectionMonitoring() {
 	c.channelCloseNotifier = make(chan *amqp.Error, 1)
 	c.orgEventsChannel.NotifyClose(c.channelCloseNotifier)
 
-	// Start monitoring goroutine
-	go c.monitorConnection()
+	// Start monitoring goroutine with cancelable context
+	monitorCtx, monitorCancel := context.WithCancel(context.Background())
+	c.monitorCancel = monitorCancel
+	c.monitorWg.Add(1)
+	go c.monitorConnection(monitorCtx)
 }
 
 // monitorConnection monitors the connection and channel for unexpected closures
-func (c *Consumer) monitorConnection() {
+func (c *Consumer) monitorConnection(ctx context.Context) {
+	defer c.monitorWg.Done()
+
 	for {
 		select {
 		case <-c.done:
 			return
-
+		case <-ctx.Done():
+			return
 		case err, ok := <-c.connCloseNotifier:
 			if !ok {
-				// Channel closed, expected during shutdown
 				return
 			}
 			c.handleConnectionClosed(err)
-
 		case err, ok := <-c.channelCloseNotifier:
 			if !ok {
 				return
@@ -195,8 +199,17 @@ func (c *Consumer) reconnectConnection(ctx context.Context) error {
 
 			log.Printf("Re-established %d tenant connections", len(c.tenantConsumers))
 
-			// Restart the connection monitor goroutine to watch the new notifier channels
-			go c.monitorConnection()
+			// Cancel and wait for old monitor goroutine to exit
+			if c.monitorCancel != nil {
+				c.monitorCancel()
+				c.monitorWg.Wait()
+			}
+
+			// Start new monitor goroutine to watch the new notifier channels
+			monitorCtx, monitorCancel := context.WithCancel(ctx)
+			c.monitorCancel = monitorCancel
+			c.monitorWg.Add(1)
+			go c.monitorConnection(monitorCtx)
 
 			// Cancel old org events listener (stuck retrying on dead channel)
 			if c.orgEventsCancel != nil {

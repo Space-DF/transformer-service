@@ -57,6 +57,8 @@ type Consumer struct {
 	channelCloseNotifier chan *amqp.Error
 	reconnecting         atomic.Bool
 	orgEventsCancel      context.CancelFunc
+	monitorCancel        context.CancelFunc
+	monitorWg            sync.WaitGroup
 }
 
 // NewConsumer creates a new MQTT consumer
@@ -162,7 +164,10 @@ func (c *Consumer) reconnectionMonitor(ctx context.Context) {
 				// Drain stale reconnection requests (from resubscribeTenant, close handlers, etc.)
 				for {
 					select {
-					case <-c.reconnectChan:
+					case _, ok := <-c.reconnectChan:
+						if !ok {
+							goto done
+						}
 					default:
 						goto done
 					}
@@ -177,6 +182,13 @@ func (c *Consumer) reconnectionMonitor(ctx context.Context) {
 // Stop gracefully stops the consumer
 func (c *Consumer) Stop() error {
 	close(c.done)
+
+	// Cancel monitor goroutine
+	if c.monitorCancel != nil {
+		c.monitorCancel()
+	}
+	c.monitorWg.Wait()
+
 	c.stopAllConsumers()
 
 	if c.orgEventsChannel != nil {
