@@ -49,3 +49,7 @@ func U32LE(b []byte, off int) uint32 {
 func I16LE(b []byte, off int) int16 {
 	return int16(b[off]) | int16(b[off+1])<<8
 }
+
+func U16LE(b []byte, off int) uint16 {
+	return uint16(b[off]) | uint16(b[off+1])<<8
+}
