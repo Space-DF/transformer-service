@@ -108,6 +108,17 @@ func (c *Consumer) publishEntityTelemetry(channel *amqp.Channel, data *models.Te
 		return fmt.Errorf("exchange not configured for entity telemetry")
 	}
 
+	// Log summary of all entities first
+	var entitySummary []string
+	for _, entity := range data.Entities {
+		stateStr := fmt.Sprintf("%v", entity.State)
+		if entity.UnitOfMeas != "" {
+			stateStr += entity.UnitOfMeas
+		}
+		entitySummary = append(entitySummary, fmt.Sprintf("%s=%s", entity.Name, stateStr))
+	}
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📊", "Entities [%s]: %s", data.DeviceEUI, strings.Join(entitySummary, " | "))
+
 	for _, entity := range data.Entities {
 		entityID := entity.UniqueID
 		if entityID == "" {
@@ -135,8 +146,6 @@ func (c *Consumer) publishEntityTelemetry(channel *amqp.Channel, data *models.Te
 		}
 
 		routingKey := fmt.Sprintf(c.config.EntityBridgeRoutingKey, tenant.OrgSlug, spaceSlug, entityID)
-		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "🔍", "Entity telemetry payload for %s: %s", entityID, string(body))
-		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing entity telemetry to %s", routingKey)
 
 		if err := channel.PublishWithContext(
 			context.Background(),
