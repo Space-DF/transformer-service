@@ -18,3 +18,8 @@ manufacturers:
     name: Lily Go
     description: Lily Go Technology Limited
     portal_url:
+
+  - id: 6f1a2d24-ae59-4eed-ab31-3e8c836f893a
+    name: Mclimate-HT
+    description: Mclimate-HT Technology Limited
+    portal_url:
