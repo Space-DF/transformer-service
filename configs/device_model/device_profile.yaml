@@ -43,7 +43,7 @@ device_profiles:
 
   - id: 8f5c3e20-d4b9-5e67-0f2e-c658f9d78f47
     name: lorawan
-    manufacturer_id: b4f2d9f3-5c0e-3f1b-c7e6-9d8a4b2f0e5a
+    manufacturer_id: 6f1a2d24-ae59-4eed-ab31-3e8c836f893a
     device_type: MCLIMATE_HT
     key_feature: location
     

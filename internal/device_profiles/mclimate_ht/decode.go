@@ -25,11 +25,7 @@ const (
 // Temperature formula: t[°C] = (T[9:0] - 400) / 10
 // T[9:0] is a 10-bit value with bits 9:8 in byte 1 (bits 1:0) and bits 7:0 in byte 2
 func Decode(payload *common.RawPayload) map[string]interface{} {
-	// Try to extract sensor readings from metadata first.
-	sensors := extractMetadata(payload.Metadata)
-	if len(sensors) > 0 {
-		return sensors
-	}
+	sensors := make(map[string]interface{})
 
 	// If metadata extraction didn't yield results, parse the raw binary payload.
 	b := common.ExtractBytes(payload)
@@ -50,10 +46,9 @@ func Decode(payload *common.RawPayload) map[string]interface{} {
 		// This is a keepalive message
 		handleKeepalive(b, sensors)
 	} else {
-		// This is a response message - process response commands first
-		handleResponse(b, sensors)
-		// For response messages, the last 6 bytes always contain keepalive data
-		// (regardless of whether they start with 0x51)
+		// This is a response message
+		// TODO: Implement response parsing when response message format is finalized
+		// For now, extract keepalive data from the last 6 bytes (always present in response messages)
 		if len(b) >= 6 {
 			keepaliveBytes := b[len(b)-6:]
 			handleKeepalive(keepaliveBytes, sensors)
@@ -77,9 +72,9 @@ func handleKeepalive(bytes []byte, data map[string]interface{}) {
 
 	// Byte 1 (bits 1:0) and Byte 2: Internal temperature sensor data
 	// Formula: t[°C] = (T[9:0] - 400) / 10
-	tempHighBits := (bytes[1] & 0x03) << 8
-	tempLowBits := bytes[2]
-	tempValue := int(tempHighBits) | int(tempLowBits)
+	tempHighBits := uint16(bytes[1]&0x03) << 8
+	tempLowBits := uint16(bytes[2])
+	tempValue := int(tempHighBits | tempLowBits)
 	data["temperature"] = float64(tempValue-400) / 10.0
 
 	// Byte 3: Relative Humidity data
@@ -96,37 +91,6 @@ func handleKeepalive(bytes []byte, data map[string]interface{}) {
 	data["pir_trigger_count"] = bytes[5]
 }
 
-// handleResponse parses a response message and extracts configuration data.
-func handleResponse(bytes []byte, data map[string]interface{}) {
-	if len(bytes) < 1 {
-		return
-	}
-
-	// Response messages have various command IDs at byte 0
-	// The payload format is: [cmd][len][data...][cmd][len][data...]...
-	// followed by status bytes and optionally keepalive data
-
-	// For now, we focus on extracting keepalive data from response messages
-	// which is handled by the caller. Configuration responses can be added here if needed.
-
-	// Common response commands:
-	// 0x04: Device version (hardware, software)
-	// 0x12: Keep alive time
-	// 0x19: Join retry period
-	// 0x1b: Upllink type
-	// 0x1d: Watch dog params
-	// 0x2f: Uplink sending on button press
-	// 0x3d: PIR sensor status
-	// 0x3f: PIR sensor sensitivity
-	// 0x49: PIR measurement period
-	// 0x4b: PIR check period
-	// 0x37: PIR sensor state
-	// 0x39: Occupancy timeout
-	// 0x4d: PIR blind period
-	// 0xa4: Region
-	// 0xa6: Crystal oscillator error
-}
-
 // batteryPercentage estimates battery percentage from voltage.
 // Based on typical Li-SOCl2 battery discharge curve.
 func batteryPercentage(voltage float64) float64 {
@@ -139,32 +103,6 @@ func batteryPercentage(voltage float64) float64 {
 		return 0.0
 	}
 	return ((voltage - 2.0) / 1.6) * 100.0
-}
-
-// extractMetadata extracts sensor readings from metadata.
-func extractMetadata(meta map[string]interface{}) map[string]interface{} {
-	sensors := make(map[string]interface{})
-	// Check both possible metadata keys
-	for _, key := range []string{"decoded_payload", "object"} {
-		src, ok := meta[key].(map[string]interface{})
-		if !ok {
-			continue
-		}
-		// Extract sensor fields
-		for _, field := range []string{
-			"temperature", "humidity", "battery_voltage", "battery",
-			"occupancy", "pir_trigger_count", "pir_sensor_value",
-		} {
-			if _, exists := sensors[field]; !exists {
-				if v, ok := src[field].(float64); ok {
-					sensors[field] = v
-				} else if v, ok := src[field].(bool); ok {
-					sensors[field] = v
-				}
-			}
-		}
-	}
-	return sensors
 }
 
 // isHexASCII checks if the byte slice contains only ASCII hex characters (0-9, a-f, A-F)
