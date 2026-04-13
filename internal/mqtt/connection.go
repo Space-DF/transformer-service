@@ -98,9 +98,6 @@ func (c *Consumer) handleConnectionClosed(err *amqp.Error) {
 	// Invalidate all pooled vhost connections since they're also closed
 	c.vhostPool.InvalidateAll()
 
-	// Record failure in circuit breaker
-	c.circuitBreaker.RecordFailure()
-
 	// Notify reconnection goroutine
 	select {
 	case c.reconnectChan <- struct{}{}:
@@ -130,11 +127,12 @@ func (c *Consumer) reconnectConnection(ctx context.Context) error {
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		// Check circuit breaker
 		if c.circuitBreaker.State() == circuitbreaker.StateOpen {
-			log.Printf("Circuit breaker is open, waiting %v", 30*time.Second)
+			cbTimeout := c.circuitBreaker.ResetTimeout()
+			log.Printf("Circuit breaker is open, waiting %v", cbTimeout)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(30 * time.Second):
+			case <-time.After(cbTimeout):
 			}
 		}
 
@@ -181,17 +179,39 @@ func (c *Consumer) reconnectConnection(ctx context.Context) error {
 		if err == nil {
 			log.Printf("Successfully reconnected to AMQP broker (attempt %d)", attempt)
 
-			// Record success in circuit breaker
-			c.circuitBreaker.RecordSuccess()
+			// Reset circuit breaker
+			c.circuitBreaker.Reset()
 
 			// Wait a moment for connection to stabilize before re-establishing tenants
 			log.Println("Waiting for connection to stabilize before re-establishing tenants...")
-			time.Sleep(500 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(500 * time.Millisecond):
+			}
 
 			// Re-establish all tenant connections (with reconnecting flag still set)
 			c.reestablishTenantConnections(ctx)
 
 			log.Printf("Re-established %d tenant connections", len(c.tenantConsumers))
+
+			// Restart the connection monitor goroutine to watch the new notifier channels
+			go c.monitorConnection()
+
+			// Cancel old org events listener (stuck retrying on dead channel)
+			if c.orgEventsCancel != nil {
+				c.orgEventsCancel()
+			}
+
+			// Restart org events listener on the new EventManager
+			orgEventsCtx, orgEventsCancel := context.WithCancel(ctx)
+			c.orgEventsCancel = orgEventsCancel
+			go func() {
+				if err := c.eventManager.ListenToOrgEvents(orgEventsCtx, c.handleOrgEvent); err != nil {
+					log.Printf("Error listening to org events after reconnection: %v", err)
+				}
+			}()
+
 			return nil
 		}
 
