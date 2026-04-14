@@ -12,13 +12,10 @@ import (
 //	[8]     uint8  battery    (%)
 //	[9..10] int16  temperature (/ 100 °C)
 func Decode(payload *common.RawPayload) (map[string]interface{}, *common.Location) {
-	// Try to extract sensor readings and location from metadata first.
-	sensors, location := extractMetadata(payload.Metadata)
-	if len(sensors) > 0 {
-		return sensors, location
-	}
+	sensors := make(map[string]interface{})
+	var location *common.Location
 
-	// If metadata extraction didn't yield results, parse the raw binary payload.
+	// Parse the raw binary payload.
 	b := common.ExtractBytes(payload)
 	if len(b) < 11 {
 		return sensors, location
@@ -33,33 +30,5 @@ func Decode(payload *common.RawPayload) (map[string]interface{}, *common.Locatio
 	sensors["battery"] = float64(b[8])
 	sensors["temperature"] = float64(common.I16LE(b, 9)) / 100.0
 
-	return sensors, location
-}
-
-// extractMetadata extracts sensor readings and location from metadata.
-func extractMetadata(meta map[string]interface{}) (map[string]interface{}, *common.Location) {
-	sensors := make(map[string]interface{})
-	var location *common.Location
-	// Check both possible metadata keys
-	for _, key := range []string{"decoded_payload", "object"} {
-		src, ok := meta[key].(map[string]interface{})
-		if !ok {
-			continue
-		}
-		// Extract location if not already set
-		if location == nil {
-			if l := common.ExtractGPS(src); l != nil {
-				location = l
-			}
-		}
-		// Extract numeric sensor fields
-		for _, field := range []string{"battery", "temperature"} {
-			if _, exists := sensors[field]; !exists {
-				if v, ok := src[field].(float64); ok {
-					sensors[field] = v
-				}
-			}
-		}
-	}
 	return sensors, location
 }
