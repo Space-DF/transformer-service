@@ -156,7 +156,7 @@ func parseTemperature(b []byte, data map[string]interface{}) int {
 	if len(b) < 2 {
 		return 0
 	}
-	value := int16(binary.LittleEndian.Uint16(b[:2])) //nolint:gosec // G115: intentional conversion to interpret signed 16-bit little-endian value
+	value := int16(binary.LittleEndian.Uint16(b[:2])) // #nosec G115: intentional signed conversion
 	data["temperature"] = float64(value) / 10.0
 	return 2
 }
@@ -245,7 +245,7 @@ func parseHistory(b []byte, data map[string]interface{}, tvocInUgm3 bool) int {
 	}
 
 	// Temperature (int16LE / 10)
-	tempValue := int16(binary.LittleEndian.Uint16(b[4:6])) //nolint:gosec // G115: intentional conversion to interpret signed 16-bit little-endian value
+	tempValue := int16(binary.LittleEndian.Uint16(b[4:6])) // #nosec G115: intentional signed conversion
 	history["temperature"] = float64(tempValue) / 10.0
 
 	// Humidity (uint16LE / 2)
