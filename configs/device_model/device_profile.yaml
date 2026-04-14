@@ -41,6 +41,12 @@ device_profiles:
     device_type: YABBY_EDGE
     key_feature: location
 
+  - id: a1b2c3d4-e5f6-4a5b-8c7d-9e0f1a2b3c4d
+    name: lorawan
+    manufacturer_id: 6f1a2d24-ae59-4eed-ab31-3e8c836f893a
+    device_type: AM307
+    key_feature: indoor_air_quality
+
   - id: c9cff038-d15c-4edb-8273-ed0923f8b15a
     name: lorawan
     manufacturer_id: a3f1c8e7-4b9d-4e2a-b6d5-8c7f3a1e9d42
