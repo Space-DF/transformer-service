@@ -10,58 +10,56 @@ import (
 // Channel and Type constants for AM307 TLV format
 const (
 	// Channel IDs
-	ChannelBattery            = 0x01
-	ChannelTemperature        = 0x03
-	ChannelHumidity           = 0x04
-	ChannelPIR                = 0x05
-	ChannelLight              = 0x06
-	ChannelCO2                = 0x07
-	ChannelTVOC               = 0x08
-	ChannelPressure           = 0x09
-	ChannelHistory            = 0x20
-	ChannelHistoryTVOCug      = 0x21
-	ChannelResponse           = 0xfe
-	ChannelSystem             = 0xff
+	ChannelBattery       = 0x01
+	ChannelTemperature   = 0x03
+	ChannelHumidity      = 0x04
+	ChannelPIR           = 0x05
+	ChannelLight         = 0x06
+	ChannelCO2           = 0x07
+	ChannelTVOC          = 0x08
+	ChannelPressure      = 0x09
+	ChannelHistory       = 0x20
+	ChannelHistoryTVOCug = 0x21
+	ChannelResponse      = 0xfe
+	ChannelSystem        = 0xff
 
 	// Channel Types
-	TypeBattery           = 0x75
-	TypeTemperature       = 0x67
-	TypeHumidity          = 0x68
-	TypePIR               = 0x00
-	TypeLight             = 0xcb
-	TypeCO2               = 0x7d
-	TypeTVOCiaq           = 0x7d
-	TypeTVOCug            = 0xe6
-	TypePressure          = 0x73
-	TypeHistory           = 0xce
-	TypeProtocolVersion   = 0x01
-	TypeHardwareVersion   = 0x09
-	TypeFirmwareVersion   = 0x0a
-	TypeDeviceStatus      = 0x0b
-	TypeLoRaWANClass      = 0x0f
-	TypeSerialNumber      = 0x16
-	TypeTSLVersion        = 0xff
+	TypeBattery         = 0x75
+	TypeTemperature     = 0x67
+	TypeHumidity        = 0x68
+	TypePIR             = 0x00
+	TypeLight           = 0xcb
+	TypeCO2             = 0x7d
+	TypeTVOCiaq         = 0x7d
+	TypeTVOCug          = 0xe6
+	TypePressure        = 0x73
+	TypeHistory         = 0xce
+	TypeProtocolVersion = 0x01
+	TypeHardwareVersion = 0x09
+	TypeFirmwareVersion = 0x0a
+	TypeDeviceStatus    = 0x0b
+	TypeLoRaWANClass    = 0x0f
+	TypeSerialNumber    = 0x16
+	TypeTSLVersion      = 0xff
 )
 
 // Decode extracts sensor readings from a Milesight AM307 uplink.
 // The payload uses a TLV (Type-Length-Value) format:
-//   [channel_id][channel_type][data...]
+//
+//	[channel_id][channel_type][data...]
 //
 // Example payload structure:
-//   0x01 0x75 0x64           - Battery: 100%
-//   0x03 0x67 0x38 0x0b      - Temperature: 28.72°C (int16LE / 10)
-//   0x04 0x68 0x5a           - Humidity: 45% (value / 2)
-//   0x05 0x00 0x01           - PIR: trigger (0=idle, 1=trigger)
-//   0x06 0xcb 0x32           - Light level: 50
-//   0x07 0x7d 0x20 0x03      - CO2: 800 ppm (uint16LE)
-//   0x08 0x7d 0x10 0x00      - TVOC: 0.16 iaq (uint16LE / 100)
-//   0x09 0x73 0x70 0x1f      - Pressure: 8055.2 hPa (uint16LE / 10)
+//
+//	0x01 0x75 0x64           - Battery: 100%
+//	0x03 0x67 0x38 0x0b      - Temperature: 28.72°C (int16LE / 10)
+//	0x04 0x68 0x5a           - Humidity: 45% (value / 2)
+//	0x05 0x00 0x01           - PIR: trigger (0=idle, 1=trigger)
+//	0x06 0xcb 0x32           - Light level: 50
+//	0x07 0x7d 0x20 0x03      - CO2: 800 ppm (uint16LE)
+//	0x08 0x7d 0x10 0x00      - TVOC: 0.16 iaq (uint16LE / 100)
+//	0x09 0x73 0x70 0x1f      - Pressure: 8055.2 hPa (uint16LE / 10)
 func Decode(payload *common.RawPayload) map[string]interface{} {
-	// Try to extract sensor readings from metadata first
-	sensors := extractMetadata(payload.Metadata)
-	if len(sensors) > 0 {
-		return sensors
-	}
+	sensors := make(map[string]interface{})
 
 	// Parse the raw binary payload
 	b := common.ExtractBytes(payload)
@@ -158,7 +156,7 @@ func parseTemperature(b []byte, data map[string]interface{}) int {
 	if len(b) < 2 {
 		return 0
 	}
-	value := int16(binary.LittleEndian.Uint16(b[:2]))
+	value := int16(binary.LittleEndian.Uint16(b[:2])) //nolint:gosec // G115: intentional conversion to interpret signed 16-bit little-endian value
 	data["temperature"] = float64(value) / 10.0
 	return 2
 }
@@ -247,7 +245,7 @@ func parseHistory(b []byte, data map[string]interface{}, tvocInUgm3 bool) int {
 	}
 
 	// Temperature (int16LE / 10)
-	tempValue := int16(binary.LittleEndian.Uint16(b[4:6]))
+	tempValue := int16(binary.LittleEndian.Uint16(b[4:6])) //nolint:gosec // G115: intentional conversion to interpret signed 16-bit little-endian value
 	history["temperature"] = float64(tempValue) / 10.0
 
 	// Humidity (uint16LE / 2)
@@ -311,33 +309,6 @@ func skipSystemData(channelType byte, b []byte) int {
 		}
 	}
 	return 0
-}
-
-// extractMetadata extracts sensor readings from metadata
-func extractMetadata(meta map[string]interface{}) map[string]interface{} {
-	sensors := make(map[string]interface{})
-	for _, key := range []string{"decoded_payload", "object"} {
-		src, ok := meta[key].(map[string]interface{})
-		if !ok {
-			continue
-		}
-		for _, field := range []string{
-			"temperature", "humidity", "battery", "battery_voltage",
-			"occupancy", "pir_sensor_value", "pir_sensor_status",
-			"light_level", "co2", "tvoc", "tvoc_unit", "pressure",
-		} {
-			if _, exists := sensors[field]; !exists {
-				if v, ok := src[field].(float64); ok {
-					sensors[field] = v
-				} else if v, ok := src[field].(bool); ok {
-					sensors[field] = v
-				} else if v, ok := src[field].(string); ok {
-					sensors[field] = v
-				}
-			}
-		}
-	}
-	return sensors
 }
 
 // isHexASCII checks if the byte slice contains only ASCII hex characters
