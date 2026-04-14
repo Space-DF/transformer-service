@@ -6,10 +6,11 @@ import (
 	"github.com/Space-DF/transformer-service/internal/device_profiles/abeeway"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/am307"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
-	"github.com/Space-DF/transformer-service/internal/device_profiles/lcc01lb"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/ct101"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/cubicmeter"
+	"github.com/Space-DF/transformer-service/internal/device_profiles/lcc01lb"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/mclimate_ht"
+	"github.com/Space-DF/transformer-service/internal/device_profiles/netvox_r809ag"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/rak2270"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/rak4630"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/rak7200"
@@ -33,6 +34,7 @@ func RegisterAll(r *Component) error {
 		parser       common.Parser
 	}{
 		{abeeway.Model, abeeway.Manufacturer, abeeway.NewAbeewayComponent()},
+		{netvox_r809ag.Model, netvox_r809ag.Manufacturer, netvox_r809ag.NewR809AGComponent()},
 		{lcc01lb.Model, lcc01lb.Manufacturer, lcc01lb.NewLCC01LBComponent()},
 		{am307.Model, am307.Manufacturer, am307.NewAM307Component()},
 		{cubicmeter.Model, cubicmeter.Manufacturer, cubicmeter.NewCubicMeterComponent()},
