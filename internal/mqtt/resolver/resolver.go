@@ -125,6 +125,7 @@ func (r *Resolver) extractGPSFromDeviceParser(profile string, payload map[string
 		Timestamp: time.Now(),
 		Metadata:  payload,
 		LNSType:   lnsType,
+		FPort:     lns.ExtractFPort(payload, lnsType),
 	}
 
 	components := device_profiles.Global()

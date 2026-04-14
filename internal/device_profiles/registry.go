@@ -6,6 +6,7 @@ import (
 	"github.com/Space-DF/transformer-service/internal/device_profiles/abeeway"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/am307"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
+	"github.com/Space-DF/transformer-service/internal/device_profiles/lcc01lb"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/ct101"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/cubicmeter"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/mclimate_ht"
@@ -32,6 +33,7 @@ func RegisterAll(r *Component) error {
 		parser       common.Parser
 	}{
 		{abeeway.Model, abeeway.Manufacturer, abeeway.NewAbeewayComponent()},
+		{lcc01lb.Model, lcc01lb.Manufacturer, lcc01lb.NewLCC01LBComponent()},
 		{am307.Model, am307.Manufacturer, am307.NewAM307Component()},
 		{cubicmeter.Model, cubicmeter.Manufacturer, cubicmeter.NewCubicMeterComponent()},
 		{ct101.Model, ct101.Manufacturer, ct101.NewCT101Component()},

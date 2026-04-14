@@ -41,6 +41,12 @@ device_profiles:
     device_type: YABBY_EDGE
     key_feature: location
 
+  - id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+    name: lorawan
+    manufacturer_id: 735c87f8-b9c5-4637-b75e-0327626fb1c1
+    device_type: LCC01LB
+    key_feature: weight
+
   - id: a1b2c3d4-e5f6-4a5b-8c7d-9e0f1a2b3c4d
     name: lorawan
     manufacturer_id: 6f1a2d24-ae59-4eed-ab31-3e8c836f893a
