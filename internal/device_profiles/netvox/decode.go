@@ -37,14 +37,7 @@ const (
 //	Set Response: [81][status][00...]
 //	Read Response: [82][min_hi][min_lo][max_hi][max_lo][chg_hi][chg_lo][00]
 func Decode(payload *common.RawPayload) map[string]interface{} {
-	log.Printf("[R718N17] Decode called for devEUI=%s", payload.DeviceEUI)
-
-	// Try to extract sensor readings from metadata first
-	sensors := extractMetadata(payload.Metadata)
-	if len(sensors) > 0 {
-		log.Printf("[R718N17] Extracted %d fields from metadata", len(sensors))
-		return sensors
-	}
+	sensors := make(map[string]interface{})
 
 	// Parse the raw binary payload
 	b := common.ExtractBytes(payload)
@@ -159,32 +152,6 @@ func parseReadConfigResponse(b []byte, sensors map[string]interface{}) {
 		sensors["max_time_s"] = common.U16BE(b, 4)
 		sensors["current_change_ma"] = common.U16BE(b, 6)
 	}
-}
-
-// extractMetadata extracts sensor readings from LNS-decoded metadata
-func extractMetadata(meta map[string]interface{}) map[string]interface{} {
-	sensors := make(map[string]interface{})
-	for _, key := range []string{"decoded_payload", "object"} {
-		src, ok := meta[key].(map[string]interface{})
-		if !ok {
-			continue
-		}
-		for _, field := range []string{
-			"version", "device_type", "device_name", "battery_voltage",
-			"current_ma", "current_raw_ma", "multiplier",
-			"report_type", "report_mode",
-			"config_status", "config_type",
-			"min_time_s", "max_time_s", "current_change_ma",
-			"warning",
-		} {
-			if _, exists := sensors[field]; !exists {
-				if v, ok := src[field]; ok {
-					sensors[field] = v
-				}
-			}
-		}
-	}
-	return sensors
 }
 
 // twoHexDigits formats a byte as 2-digit uppercase hex

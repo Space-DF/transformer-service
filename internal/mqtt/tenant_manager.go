@@ -40,7 +40,7 @@ func (c *Consumer) subscribeToOrganization(parentCtx context.Context, orgSlug, v
 
 	// Don't allow tenant subscriptions while main connection is reconnecting
 	// The main reconnection will handle all tenants together
-	if !bypassReconnectingCheck && c.reconnecting {
+	if !bypassReconnectingCheck && c.reconnecting.Load() {
 		logging.Tenant(orgSlug, vhost, "⏳", "Main connection reconnecting, skipping individual tenant subscription")
 		return fmt.Errorf("main connection is reconnecting, tenant subscription deferred")
 	}
@@ -207,10 +207,11 @@ func (c *Consumer) resubscribeTenant(ctx context.Context, oldTenant *TenantConsu
 	// Check if main connection is down - trigger reconnection
 	if c.orgEventsConn == nil || c.orgEventsConn.IsClosed() {
 		logging.Tenant(oldTenant.OrgSlug, oldTenant.Vhost, "⏳", "Main connection down, triggering centralized reconnection")
-		// Trigger reconnection
-		select {
-		case c.reconnectChan <- struct{}{}:
-		default:
+		if !c.reconnecting.Load() {
+			select {
+			case c.reconnectChan <- struct{}{}:
+			default:
+			}
 		}
 		return
 	}
@@ -220,10 +221,11 @@ func (c *Consumer) resubscribeTenant(ctx context.Context, oldTenant *TenantConsu
 	_, vhostErr := c.vhostPool.Acquire(oldTenant.Vhost)
 	if vhostErr != nil {
 		logging.Tenant(oldTenant.OrgSlug, oldTenant.Vhost, "⚠️", "Vhost connection unavailable, triggering centralized reconnection: %v", vhostErr)
-		// Trigger reconnection
-		select {
-		case c.reconnectChan <- struct{}{}:
-		default:
+		if !c.reconnecting.Load() {
+			select {
+			case c.reconnectChan <- struct{}{}:
+			default:
+			}
 		}
 		return
 	}
