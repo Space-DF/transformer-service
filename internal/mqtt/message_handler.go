@@ -198,7 +198,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	processingInfo.LocationResult = &models.LocationResult{
 		Latitude:  deviceLocation.Latitude,
 		Longitude: deviceLocation.Longitude,
-		Accuracy:  transformedData.Location.Accuracy,
+		Accuracy: transformedData.Location.Accuracy,
 	}
 
 	// Publish transformed data to output topic
