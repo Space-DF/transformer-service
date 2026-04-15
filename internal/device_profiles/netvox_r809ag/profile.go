@@ -23,6 +23,7 @@ func (p *R809AGComponent) GetSupportedPorts() []int { return []int{6, 7} }
 func (p *R809AGComponent) GetSupportedEntityTypes() []string {
 	return []string{
 		"switch", "voltage", "current", "power", "energy",
+		"overcurrent_alarm", "dash_current_alarm", "power_off_alarm",
 	}
 }
 

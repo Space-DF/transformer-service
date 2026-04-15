@@ -23,6 +23,9 @@ func (p *CubicMeterComponent) GetSupportedEntityTypes() []string {
 		"water_temperature_max",
 		"battery_active",
 		"battery_recovered",
+		"error_code",
+		"leak_state",
+		"is_sensing",
 	}
 }
 

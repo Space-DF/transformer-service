@@ -64,6 +64,9 @@ func (p *R809AGComponent) ParseToEntities(orgSlug, model string, payload *common
 		{"current", "Current", "current", "current", "mA", []string{"chart", "gauge", "value"}},
 		{"power", "Power", "power", "power", "W", []string{"chart", "gauge", "value"}},
 		{"energy", "Energy", "energy", "energy", "Wh", []string{"chart", "value"}},
+		{"overcurrent_alarm", "Over Current Alarm", "binary_sensor", "power", "", []string{"value"}},
+		{"dash_current_alarm", "Dash Current Alarm", "binary_sensor", "power", "", []string{"value"}},
+		{"power_off_alarm", "Power Off Alarm", "binary_sensor", "power", "", []string{"value"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {
@@ -80,17 +83,6 @@ func (p *R809AGComponent) ParseToEntities(orgSlug, model string, payload *common
 			UnitOfMeas:  def.unit,
 			Enabled:     true,
 			Timestamp:   ts,
-		}
-		if def.key == "switch" {
-			overCurrentAlarm, _ := parsed.SensorData["overcurrent_alarm"].(bool)
-			dashCurrentAlarm, _ := parsed.SensorData["dash_current_alarm"].(bool)
-			powerOffAlarm, _ := parsed.SensorData["power_off_alarm"].(bool)
-			entity.Attributes = map[string]interface{}{
-				"overcurrent_alarm":  overCurrentAlarm,
-				"dash_current_alarm": dashCurrentAlarm,
-				"power_off_alarm":    powerOffAlarm,
-				"device_model":       model,
-			}
 		}
 		entities = append(entities, entity)
 	}

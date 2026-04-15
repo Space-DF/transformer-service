@@ -53,9 +53,21 @@ func Decode(payload *common.RawPayload) map[string]interface{} {
 			sensors["switch"] = "on"
 		}
 		sensors["energy"] = float64(common.U32BE(b, 4))
-		sensors["overcurrent_alarm"] = b[8] != 0x00
-		sensors["dash_current_alarm"] = b[9] != 0x00
-		sensors["power_off_alarm"] = b[10] != 0x00
+		if b[8] == 0x00 {
+			sensors["overcurrent_alarm"] = float64(0)
+		} else {
+			sensors["overcurrent_alarm"] = float64(1)
+		}
+		if b[9] == 0x00 {
+			sensors["dash_current_alarm"] = float64(0)
+		} else {
+			sensors["dash_current_alarm"] = float64(1)
+		}
+		if b[10] == 0x00 {
+			sensors["power_off_alarm"] = float64(0)
+		} else {
+			sensors["power_off_alarm"] = float64(1)
+		}
 
 	case reportTypeMeasure:
 		if len(b) < 9 {
