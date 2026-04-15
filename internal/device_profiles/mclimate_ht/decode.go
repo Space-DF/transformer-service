@@ -79,7 +79,7 @@ func handleKeepalive(bytes []byte, data map[string]interface{}) {
 
 	// Byte 3: Relative Humidity data
 	// Formula: RH[%] = (XX * 100) / 256
-	data["humidity"] = float64(bytes[3]*100) / 256.0
+	data["humidity"] = float64(bytes[3]) * 100.0 / 256.0
 
 	// Byte 4: Device battery voltage data
 	// Battery voltage [V] = (((XX * 2200) / 255) + 1600) / 1000
