@@ -65,6 +65,9 @@ func (p *CubicMeterComponent) ParseToEntities(orgSlug, model string, payload *co
 		{"water_temperature_max", "Water Temp Max", "temperature", "temperature", "°C", []string{"chart", "value"}},
 		{"battery_active", "Battery Voltage (Active)", "battery_voltage", "battery_voltage", "mV", []string{"chart", "gauge", "value", "slider"}},
 		{"battery_recovered", "Battery Voltage (Recovered)", "battery_voltage", "battery_voltage", "mV", []string{"chart", "gauge", "value", "slider"}},
+		{"error_code", "Error Code", "error_code", "problem", "", []string{"value"}},
+		{"leak_state", "Leak State", "leak_state", "problem", "", []string{"value"}},
+		{"is_sensing", "Is Sensing", "is_sensing", "problem", "", []string{"value"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {
