@@ -25,6 +25,11 @@ func (p *LCC01LBComponent) GetSupportedEntityTypes() []string {
 		"weight_state",
 		"scale_factor",
 		"weight_flag",
+		"mod",
+		"sensor_model",
+		"firmware_version",
+		"frequency_band",
+		"sub_band",
 	}
 }
 
