@@ -21,6 +21,7 @@ func (p *NetvoxR718N17Component) GetSupportedEntityTypes() []string {
 	return []string{
 		"location",
 		"battery_voltage",
+		"low_battery",
 		"current_ma",
 		"current_raw_ma",
 		"multiplier",
@@ -30,6 +31,9 @@ func (p *NetvoxR718N17Component) GetSupportedEntityTypes() []string {
 		"min_time_s",
 		"max_time_s",
 		"current_change_ma",
+		"sw_version",
+		"hw_version",
+		"date_code",
 	}
 }
 

@@ -85,6 +85,7 @@ func (p *NetvoxR718N17Component) ParseToEntities(orgSlug, model string, payload 
 	}
 	for _, def := range []sensorDef{
 		{"battery_voltage", "Battery Voltage", "battery_voltage", "voltage", "V", "mdi:battery", []string{"gauge", "value"}},
+		{"low_battery", "Low Battery", "binary_sensor", "battery", "", "mdi:battery-alert", []string{"value"}},
 		{"current_ma", "Current", "current", "current", "mA", "mdi:current-ac", []string{"chart", "gauge", "value"}},
 		{"current_raw_ma", "Current (Raw)", "current_raw", "current", "mA", "mdi:current-ac", []string{"value"}},
 		{"multiplier", "Multiplier", "multiplier", "", "", "mdi:calculator", []string{"value"}},
@@ -94,6 +95,9 @@ func (p *NetvoxR718N17Component) ParseToEntities(orgSlug, model string, payload 
 		{"min_time_s", "Min Time Interval", "min_time_s", "duration", "s", "mdi:timer", []string{"value"}},
 		{"max_time_s", "Max Time Interval", "max_time_s", "duration", "s", "mdi:timer", []string{"value"}},
 		{"current_change_ma", "Current Change Threshold", "current_change_ma", "current", "mA", "mdi:current-ac", []string{"value"}},
+		{"sw_version", "Software Version", "sw_version", "", "", "mdi:information", []string{"value"}},
+		{"hw_version", "Hardware Version", "hw_version", "", "", "mdi:information", []string{"value"}},
+		{"date_code", "Date Code", "date_code", "", "", "mdi:calendar", []string{"value"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {
