@@ -89,8 +89,6 @@ func (p *NetvoxR718N17Component) ParseToEntities(orgSlug, model string, payload 
 		{"current_ma", "Current", "current", "current", "mA", "mdi:current-ac", []string{"chart", "gauge", "value"}},
 		{"current_raw_ma", "Current (Raw)", "current_raw", "current", "mA", "mdi:current-ac", []string{"value"}},
 		{"multiplier", "Multiplier", "multiplier", "", "", "mdi:calculator", []string{"value"}},
-		{"report_type", "Report Type", "report_type", "", "", "mdi:information", []string{"value"}},
-		{"report_mode", "Report Mode", "report_mode", "", "", "mdi:information", []string{"value"}},
 		{"config_status", "Config Status", "config_status", "", "", "mdi:information", []string{"value"}},
 		{"min_time_s", "Min Time Interval", "min_time_s", "duration", "s", "mdi:timer", []string{"value"}},
 		{"max_time_s", "Max Time Interval", "max_time_s", "duration", "s", "mdi:timer", []string{"value"}},

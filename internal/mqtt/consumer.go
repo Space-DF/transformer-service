@@ -103,7 +103,7 @@ func (c *Consumer) Start(ctx context.Context) error {
 	go c.reconnectionMonitor(ctx)
 
 	// Start listening to organization events in a separate goroutine
-	orgEventsCtx, orgEventsCancel := context.WithCancel(ctx)
+	orgEventsCtx, orgEventsCancel := context.WithCancel(ctx) //#nosec G118
 	c.orgEventsCancel = orgEventsCancel
 	go func() {
 		if err := c.eventManager.ListenToOrgEvents(orgEventsCtx, c.handleOrgEvent); err != nil {

@@ -64,9 +64,9 @@ func (p *R809AGComponent) ParseToEntities(orgSlug, model string, payload *common
 		{"current", "Current", "current", "current", "mA", []string{"chart", "gauge", "value"}},
 		{"power", "Power", "power", "power", "W", []string{"chart", "gauge", "value"}},
 		{"energy", "Energy", "energy", "energy", "Wh", []string{"chart", "value"}},
-		{"overcurrent_alarm", "Over Current Alarm", "binary_sensor", "power", "", []string{"value"}},
-		{"dash_current_alarm", "Dash Current Alarm", "binary_sensor", "power", "", []string{"value"}},
-		{"power_off_alarm", "Power Off Alarm", "binary_sensor", "power", "", []string{"value"}},
+		{"overcurrent_alarm", "Over Current Alarm", "switch", "power", "", []string{"switch"}},
+		{"dash_current_alarm", "Dash Current Alarm", "switch", "power", "", []string{"switch"}},
+		{"power_off_alarm", "Power Off Alarm", "switch", "power", "", []string{"switch"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {
