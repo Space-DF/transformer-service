@@ -217,7 +217,7 @@ func (c *Consumer) reconnectConnection(ctx context.Context) error {
 			}
 
 			// Restart org events listener on the new EventManager
-			orgEventsCtx, orgEventsCancel := context.WithCancel(ctx)
+			orgEventsCtx, orgEventsCancel := context.WithCancel(ctx) //#nosec G118
 			c.orgEventsCancel = orgEventsCancel
 			go func() {
 				if err := c.eventManager.ListenToOrgEvents(orgEventsCtx, c.handleOrgEvent); err != nil {

@@ -25,8 +25,6 @@ func (p *NetvoxR718N17Component) GetSupportedEntityTypes() []string {
 		"current_ma",
 		"current_raw_ma",
 		"multiplier",
-		"report_type",
-		"report_mode",
 		"config_status",
 		"min_time_s",
 		"max_time_s",
