@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Space-DF/transformer-service/internal/components"
 	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 )
@@ -31,7 +30,7 @@ func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLoc
 	accuracy := ts.determineLocationAccuracy(gatewayCount)
 
 	// Extract LNS type from payload
-	lnsType := components.ExtractLNSSource(originalPayload)
+	lnsType := lns.ExtractLNSSource(originalPayload)
 
 	// Extract additional metadata from original payload
 	metadata := ts.extractMetadata(originalPayload, lnsType)

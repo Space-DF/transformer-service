@@ -40,7 +40,7 @@ func (c *Consumer) subscribeToOrganization(parentCtx context.Context, orgSlug, v
 
 	// Don't allow tenant subscriptions while main connection is reconnecting
 	// The main reconnection will handle all tenants together
-	if !bypassReconnectingCheck && c.reconnecting {
+	if !bypassReconnectingCheck && c.reconnecting.Load() {
 		logging.Tenant(orgSlug, vhost, "⏳", "Main connection reconnecting, skipping individual tenant subscription")
 		return fmt.Errorf("main connection is reconnecting, tenant subscription deferred")
 	}
@@ -161,7 +161,6 @@ func (c *Consumer) handleOrgEvent(ctx context.Context, msg amqp.Delivery) error 
 	}
 
 	switch event.EventType {
-
 	case models.OrgCreated:
 		// New org created - subscribe to its queue
 		if vhost == "" {
@@ -208,13 +207,32 @@ func (c *Consumer) resubscribeTenant(ctx context.Context, oldTenant *TenantConsu
 	// Check if main connection is down - trigger reconnection
 	if c.orgEventsConn == nil || c.orgEventsConn.IsClosed() {
 		logging.Tenant(oldTenant.OrgSlug, oldTenant.Vhost, "⏳", "Main connection down, triggering centralized reconnection")
-		// Trigger reconnection
-		select {
-		case c.reconnectChan <- struct{}{}:
-		default:
+		if !c.reconnecting.Load() {
+			select {
+			case c.reconnectChan <- struct{}{}:
+			default:
+			}
 		}
 		return
 	}
+
+	// Check if vhost connection is healthy - if not, trigger main reconnection instead of individual resubscription
+	// This prevents failing individual resubscription attempts when the vhost connection itself is the problem
+	_, vhostErr := c.vhostPool.Acquire(oldTenant.Vhost)
+	if vhostErr != nil {
+		logging.Tenant(oldTenant.OrgSlug, oldTenant.Vhost, "⚠️", "Vhost connection unavailable, triggering centralized reconnection: %v", vhostErr)
+		if !c.reconnecting.Load() {
+			select {
+			case c.reconnectChan <- struct{}{}:
+			default:
+			}
+		}
+		return
+	}
+
+	// Release the connection immediately - this verifies if it's available
+	// subscribeToOrganization will acquire it again properly
+	c.vhostPool.Release(oldTenant.Vhost)
 
 	// Cancel the old consumer goroutine
 	oldTenant.Cancel()

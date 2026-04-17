@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Space-DF/transformer-service/internal/circuitbreaker"
@@ -54,7 +55,10 @@ type Consumer struct {
 	reconnectChan        chan struct{}
 	connCloseNotifier    chan *amqp.Error
 	channelCloseNotifier chan *amqp.Error
-	reconnecting         bool // Flag to prevent concurrent reconnections
+	reconnecting         atomic.Bool
+	orgEventsCancel      context.CancelFunc
+	monitorCancel        context.CancelFunc
+	monitorWg            sync.WaitGroup
 }
 
 // NewConsumer creates a new MQTT consumer
@@ -99,8 +103,10 @@ func (c *Consumer) Start(ctx context.Context) error {
 	go c.reconnectionMonitor(ctx)
 
 	// Start listening to organization events in a separate goroutine
+	orgEventsCtx, orgEventsCancel := context.WithCancel(ctx) //#nosec G118
+	c.orgEventsCancel = orgEventsCancel
 	go func() {
-		if err := c.eventManager.ListenToOrgEvents(ctx, c.handleOrgEvent); err != nil {
+		if err := c.eventManager.ListenToOrgEvents(orgEventsCtx, c.handleOrgEvent); err != nil {
 			log.Printf("Org events listener error: %v", err)
 		}
 	}()
@@ -135,20 +141,17 @@ func (c *Consumer) reconnectionMonitor(ctx context.Context) {
 		case <-c.done:
 			return
 		case <-c.reconnectChan:
-			// Check if already reconnecting to prevent concurrent reconnections
-			if c.reconnecting {
+			if c.reconnecting.Load() {
 				log.Println("Already reconnecting, skipping duplicate request")
 				continue
 			}
 
-			// Set flag before calling reconnectConnection
-			c.reconnecting = true
+			c.reconnecting.Store(true)
 
 			log.Println("Reconnection triggered, attempting to reconnect...")
 			if err := c.reconnectConnection(ctx); err != nil {
-				c.reconnecting = false
+				c.reconnecting.Store(false)
 				log.Printf("Failed to reconnect: %v", err)
-				// Schedule another reconnection attempt
 				go func() {
 					time.Sleep(10 * time.Second)
 					select {
@@ -157,14 +160,20 @@ func (c *Consumer) reconnectionMonitor(ctx context.Context) {
 					}
 				}()
 			} else {
-				// Successfully reconnected - keep reconnecting flag true briefly
-				// to filter out any stale close events from the old connection
+				c.reconnecting.Store(false)
+				// Drain stale reconnection requests (from resubscribeTenant, close handlers, etc.)
+				for {
+					select {
+					case _, ok := <-c.reconnectChan:
+						if !ok {
+							goto done
+						}
+					default:
+						goto done
+					}
+				}
+			done:
 				log.Println("Successfully reconnected and re-established all tenants")
-				go func() {
-					time.Sleep(5 * time.Second)
-					c.reconnecting = false
-					log.Println("Reconnection window closed, ready for new events")
-				}()
 			}
 		}
 	}
@@ -173,6 +182,13 @@ func (c *Consumer) reconnectionMonitor(ctx context.Context) {
 // Stop gracefully stops the consumer
 func (c *Consumer) Stop() error {
 	close(c.done)
+
+	// Cancel monitor goroutine
+	if c.monitorCancel != nil {
+		c.monitorCancel()
+	}
+	c.monitorWg.Wait()
+
 	c.stopAllConsumers()
 
 	if c.orgEventsChannel != nil {

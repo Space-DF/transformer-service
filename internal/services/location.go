@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/Space-DF/transformer-service/internal/components"
 	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 )
@@ -38,19 +37,19 @@ func (ls *LocationService) CalculateDeviceLocationWithLNS(payload map[string]int
 	}
 
 	// Extract rx_metadata using LNS-aware helper
-	rxMetadata, err := components.ExtractRxMetadata(payload, lnsType)
+	rxMetadata, err := lns.ExtractRxMetadata(payload, lnsType)
 	if err != nil {
 		return nil, err
 	}
 
 	// Extract frequency using LNS-aware helper
-	frequency, err := components.ExtractFrequency(payload, lnsType)
+	frequency, err := lns.ExtractFrequency(payload, lnsType)
 	if err != nil {
 		return nil, err
 	}
 
 	// Extract device EUI using LNS-aware helper
-	devEUI := components.ExtractDevEUI(payload, lnsType)
+	devEUI := lns.ExtractDevEUI(payload, lnsType)
 	if devEUI == "" {
 		return nil, fmt.Errorf("dev_eui not found in payload")
 	}

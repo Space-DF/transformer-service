@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Space-DF/transformer-service/internal/components"
-	"github.com/Space-DF/transformer-service/internal/components/registry"
+	device_profiles "github.com/Space-DF/transformer-service/internal/device_profiles"
+	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
 	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 	"github.com/Space-DF/transformer-service/internal/mqtt/helpers"
@@ -57,14 +57,14 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 			r.logTenant(orgSlug, vhost, "⚠️", "Could not get device mapping for %s: %v. Proceeding with location calculation.", devEUI, mappingErr)
 		}
 
-		deviceType := components.DeviceTypeUnknown
+		deviceType := common.DeviceTypeUnknown
 		if mapping != nil {
 			deviceType = r.profileToDeviceType(mapping.Profile)
 		}
 
 		requiresCalculation := true
-		if components := registry.GetGlobalRegistry().GetComponentsForDevice(deviceType); len(components) > 0 {
-			requiresCalculation = !components[0].SupportsGPS(deviceType)
+		if components := device_profiles.Global(); components != nil {
+			requiresCalculation = !components.SupportsGPS(deviceType)
 		}
 
 		if requiresCalculation {
@@ -98,6 +98,11 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 		deviceLocation.Organization = orgSlug
 	}
 
+	// Set LocationCalculated flag based on successful location calculation
+	if deviceLocation != nil && deviceLocation.Latitude != 0 && deviceLocation.Longitude != 0 {
+		info.LocationCalculated = true
+	}
+
 	if err != nil {
 		info.ErrorMessage = err.Error()
 		return nil, &info, fmt.Errorf("failed to calculate device location: %w", err)
@@ -110,33 +115,29 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 func (r *Resolver) extractGPSFromDeviceParser(profile string, payload map[string]interface{}, organization string, lnsType lns.LNSType) (*models.DeviceLocationData, error) {
 	// Convert profile to device type
 	deviceType := r.profileToDeviceType(profile)
-	if deviceType == components.DeviceTypeUnknown {
+	if deviceType == common.DeviceTypeUnknown {
 		return nil, fmt.Errorf("unknown device profile: %s", profile)
 	}
 
-	// Create raw payload structure for component system
-	// Use LNS-aware extraction if LNS type is known
-	deviceEUI := components.ExtractDevEUI(payload, lnsType)
-	rawPayload := &components.RawPayload{
+	deviceEUI := lns.ExtractDevEUI(payload, lnsType)
+	rawPayload := &common.RawPayload{
 		DeviceEUI: deviceEUI,
 		Timestamp: time.Now(),
 		Metadata:  payload,
-		LNSType:   lnsType, // Pass LNS type to component for efficient extraction
+		LNSType:   lnsType,
+		FPort:     lns.ExtractFPort(payload, lnsType),
 	}
 
-	// Find component that can handle this device type
-	component := registry.FindComponent(deviceType, rawPayload)
-	if component == nil {
-		return nil, fmt.Errorf("no component found for device type: %s", deviceType)
+	components := device_profiles.Global()
+	if components == nil || !components.CanHandle(deviceType, rawPayload) {
+		return nil, fmt.Errorf("no component found for device type nb: %s", deviceType)
 	}
 
-	// Check if device supports GPS
-	if !component.SupportsGPS(deviceType) {
+	if !components.SupportsGPS(deviceType) {
 		return nil, fmt.Errorf("device type %s does not support GPS", deviceType)
 	}
 
-	// Parse using the component
-	parsedData, err := component.Parse(r.ctx(), deviceType, rawPayload)
+	parsedData, err := components.Parse(r.ctx(), deviceType, rawPayload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse GPS data with component: %w", err)
 	}
@@ -155,19 +156,17 @@ func (r *Resolver) extractGPSFromDeviceParser(profile string, payload map[string
 	return locationData, nil
 }
 
-// profileToDeviceType converts a profile string to DeviceType
-func (r *Resolver) profileToDeviceType(profile string) components.DeviceType {
+// profileToDeviceType converts a profile string to DeviceType.
+func (r *Resolver) profileToDeviceType(profile string) common.DeviceType {
 	if profile == "" {
-		return components.DeviceTypeUnknown
+		return common.DeviceTypeUnknown
 	}
-
-	dt := components.DeviceType(profile)
-
-	if registry.IsDeviceTypeRegistered(dt) {
+	dt := common.DeviceType(profile)
+	if components := device_profiles.Global(); components != nil && components.CanHandle(dt, nil) {
 		return dt
 	}
 
-	return components.DeviceTypeUnknown
+	return common.DeviceTypeUnknown
 }
 
 // ctx returns a background context for component operations

@@ -6,14 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Space-DF/transformer-service/internal/components"
-	"github.com/Space-DF/transformer-service/internal/components/registry"
+	device_profiles "github.com/Space-DF/transformer-service/internal/device_profiles"
+	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
 	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 )
 
 // parseEntities attempts to parse entities for telemetry and returns the device mapping
-func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]interface{}, deviceLocation *components.Location, lnsType lns.LNSType) (*components.ParseResult, *models.DeviceMapping, error) {
+func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]interface{}, deviceLocation *common.Location, lnsType lns.LNSType) (*common.ParseResult, *models.DeviceMapping, error) {
 	if devEUI == "" {
 		return nil, nil, fmt.Errorf("dev_eui missing")
 	}
@@ -23,28 +23,29 @@ func (c *Consumer) parseEntities(orgSlug, devEUI string, payload map[string]inte
 		return nil, nil, fmt.Errorf("device mapping not found: %w", err)
 	}
 
-	deviceType := components.DeviceType(strings.ToUpper(mapping.Profile))
-	raw := &components.RawPayload{
+	deviceType := common.DeviceType(strings.ToUpper(mapping.Profile))
+	raw := &common.RawPayload{
 		DeviceEUI: devEUI,
 		Timestamp: time.Now(),
 		Metadata:  payload,
 		LNSType:   lnsType,
+		FPort:     lns.ExtractFPort(payload, lnsType),
 	}
 
-	// Extract data field from the most likely location first
-	raw.Data = c.extractDataField(payload)
+	// Extract data field using LNS-aware handler
+	raw.Data = lns.ExtractPayloadDataFromMetadata(payload, lnsType)
 
-	component := registry.FindComponent(deviceType, raw)
-	if component == nil {
+	comp := device_profiles.Global()
+	if comp == nil || !comp.CanHandle(deviceType, raw) {
 		return nil, nil, fmt.Errorf("no component found for device type: %s", deviceType)
 	}
 
-	parseResult, err := component.ParseToEntities(context.Background(), orgSlug, mapping.Profile, deviceType, raw, deviceLocation)
+	parseResult, err := comp.ParseToEntities(context.Background(), orgSlug, mapping.Profile, deviceType, raw, deviceLocation)
 	return parseResult, mapping, err
 }
 
 // buildTelemetryPayload converts parse result to telemetry payload
-func (c *Consumer) buildTelemetryPayload(parseResult *components.ParseResult, orgSlug string, mapping *models.DeviceMapping) (*models.TelemetryPayload, error) {
+func (c *Consumer) buildTelemetryPayload(parseResult *common.ParseResult, orgSlug string, mapping *models.DeviceMapping) (*models.TelemetryPayload, error) {
 	if parseResult == nil {
 		return nil, fmt.Errorf("parse result is nil")
 	}
