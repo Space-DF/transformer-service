@@ -244,3 +244,84 @@ func (h *TTNHandler) ExtractGatewayLocations(rxMetadata []interface{}) ([]Gatewa
 
 	return gateways, nil
 }
+
+func (h *TTNHandler) ExtractEventType(payload map[string]interface{}) EventType {
+	if payload == nil {
+		return EventUnknown
+	}
+
+	decoded, ok := payload["decoded_raw_data"].(map[string]interface{})
+	if !ok {
+		return EventUnknown
+	}
+
+	if _, ok := decoded["uplink_message"]; ok {
+		return EventUplink
+	}
+	if _, ok := decoded["join_accept"]; ok {
+		return EventJoin
+	}
+	if _, ok := decoded["downlink_failed"]; ok {
+		return EventAlert
+	}
+	if _, ok := decoded["downlink_nack"]; ok {
+		return EventAlert
+	}
+	if _, ok := decoded["downlink_ack"]; ok {
+		return EventAck
+	}
+	if _, ok := decoded["downlink_queued"]; ok {
+		return EventAck
+	}
+	if _, ok := decoded["downlink_sent"]; ok {
+		return EventAck
+	}
+	if _, ok := decoded["location_solved"]; ok {
+		return EventAck
+	}
+	if _, ok := decoded["service_data"]; ok {
+		return EventAck
+	}
+
+	return EventUnknown
+}
+
+func (h *TTNHandler) ExtractAlert(payload map[string]interface{}) *LNSAlert {
+	if payload == nil {
+		return nil
+	}
+
+	decoded, ok := payload["decoded_raw_data"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	if df, ok := decoded["downlink_failed"].(map[string]interface{}); ok {
+		if errObj, ok := df["error"].(map[string]interface{}); ok {
+			return &LNSAlert{
+				Code:    getStrField(errObj, "name"),
+				Level:   "ERROR",
+				Message: getStrField(errObj, "message_format"),
+				Source:  "ttn",
+			}
+		}
+	}
+
+	if _, ok := decoded["downlink_nack"]; ok {
+		return &LNSAlert{
+			Code:    "DOWNLINK_NACK",
+			Level:   "WARNING",
+			Message: "Downlink was not acknowledged by device",
+			Source:  "ttn",
+		}
+	}
+
+	return nil
+}
+
+func getStrField(m map[string]interface{}, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
