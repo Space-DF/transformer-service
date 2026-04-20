@@ -186,7 +186,7 @@ func (c *Consumer) publishLNSEvent(tenant *TenantConsumer, event map[string]inte
 		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Cannot publish LNS event: missing spaceSlug or deviceID (space=%s, device=%s), skipping", spaceSlug, deviceID)
 		return nil
 	}
-	routingKey := fmt.Sprintf("tenant.%s.space.%s.device.%s.event", orgSlug, spaceSlug, deviceID)
+	routingKey := fmt.Sprintf("tenant.%s.transformed.telemetry.device.location", orgSlug)
 
 	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing LNS event to routing key: %s", routingKey)
 	if err := tenant.Channel.Publish(
