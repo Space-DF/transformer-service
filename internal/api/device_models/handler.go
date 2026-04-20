@@ -56,3 +56,21 @@ func getDeviceModels(dps *services.DeviceProfileService) echo.HandlerFunc {
 		})
 	}
 }
+
+func getDeviceModelByID(dps *services.DeviceProfileService) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		deviceModelID := c.Param("device_model_id")
+		if deviceModelID == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "Device model ID is required",
+			})
+		}
+		deviceModel := dps.GetDeviceModelByID(deviceModelID)
+		if deviceModel == nil {
+			return c.JSON(http.StatusNotFound, map[string]string{
+				"error": "Device model not found",
+			})
+		}
+		return c.JSON(http.StatusOK, deviceModel)
+	}
+}
