@@ -121,17 +121,14 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 
 	eventType := lns.ExtractEventType(payload, lnsType)
 	switch eventType {
-	case lns.EventUplink:
 	case lns.EventJoin:
-		return c.handleJoinEvent(orgSlug, vhost, tenant, payload, lnsType, devEUI)
+		return c.handleJoinEvent(ctx, orgSlug, vhost, tenant, payload, lnsType, devEUI)
 	case lns.EventAlert:
-		return c.handleAlertEvent(orgSlug, vhost, tenant, payload, lnsType, devEUI)
+		return c.handleAlertEvent(ctx, orgSlug, vhost, tenant, payload, lnsType, devEUI)
 	case lns.EventStatus, lns.EventAck:
 		logging.Tenant(orgSlug, vhost, "ℹ️", "Received %s event for device %s, skipping processing", eventType, devEUI)
 		return nil
-	default:
-		logging.Tenant(orgSlug, vhost, "⚠️", "Unhandled event type: %s for device %s", eventType, devEUI)
-		return nil
+	case lns.EventUplink, lns.EventUnknown:
 	}
 
 	// Check if device should be skipped
@@ -251,7 +248,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	return nil
 }
 
-func (c *Consumer) handleJoinEvent(orgSlug string, vhost string, tenant *TenantConsumer, payload map[string]interface{}, lnsType lns.LNSType, devEUI string) error {
+func (c *Consumer) handleJoinEvent(ctx context.Context, orgSlug string, vhost string, tenant *TenantConsumer, payload map[string]interface{}, lnsType lns.LNSType, devEUI string) error {
 	logging.Tenant(orgSlug, vhost, "🔗", "Received join event for device %s from %s", devEUI, lnsType)
 
 	deviceID, spaceSlug := c.lookupDeviceForEvent(orgSlug, vhost, devEUI)
@@ -276,7 +273,7 @@ func (c *Consumer) handleJoinEvent(orgSlug string, vhost string, tenant *TenantC
 	return nil
 }
 
-func (c *Consumer) handleAlertEvent(orgSlug string, vhost string, tenant *TenantConsumer, payload map[string]interface{}, lnsType lns.LNSType, devEUI string) error {
+func (c *Consumer) handleAlertEvent(ctx context.Context, orgSlug string, vhost string, tenant *TenantConsumer, payload map[string]interface{}, lnsType lns.LNSType, devEUI string) error {
 	alert := lns.ExtractAlert(payload, lnsType)
 	if alert == nil {
 		logging.Tenant(orgSlug, vhost, "⚠️", "Alert event detected but no alert extracted for device %s", devEUI)
