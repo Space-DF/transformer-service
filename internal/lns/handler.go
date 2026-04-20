@@ -28,4 +28,8 @@ type LNSHandler interface {
 	// ExtractGatewayLocations extracts gateway locations with signal strength
 	// Returns structured gateway data for location calculation
 	ExtractGatewayLocations(rxMetadata []interface{}) ([]GatewayMetadata, error)
+
+	ExtractEventType(payload map[string]interface{}) EventType
+
+	ExtractAlert(payload map[string]interface{}) *LNSAlert
 }

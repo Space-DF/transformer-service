@@ -63,3 +63,19 @@ func ExtractLNSSource(payload map[string]interface{}) LNSType {
 	}
 	return ParseLNSType(source)
 }
+
+func ExtractEventType(payload map[string]interface{}, lnsType LNSType) EventType {
+	handler, err := GetLNSHandler(lnsType)
+	if err != nil {
+		return EventUnknown
+	}
+	return handler.ExtractEventType(payload)
+}
+
+func ExtractAlert(payload map[string]interface{}, lnsType LNSType) *LNSAlert {
+	handler, err := GetLNSHandler(lnsType)
+	if err != nil {
+		return nil
+	}
+	return handler.ExtractAlert(payload)
+}

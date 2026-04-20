@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
 	"github.com/Space-DF/transformer-service/internal/lns"
@@ -112,12 +113,23 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	// Log with LNS type for debugging
 	if lnsType == lns.LNSTypeUnknown || lnsType == "" {
 		logging.Tenant(orgSlug, vhost, "⚠️", "Unknown or empty LNS type, using fallback extraction")
-	} else {
-		logging.Tenant(orgSlug, vhost, "📡", "Processing message from LNS: %s", lnsType)
 	}
 
-	// Extract devEUI using LNS-aware extraction (efficient, single lookup)
+	logging.Tenant(orgSlug, vhost, "📡", "Processing message from LNS: %s", lnsType)
+
 	var devEUI string = lns.ExtractDevEUI(payload, lnsType)
+
+	eventType := lns.ExtractEventType(payload, lnsType)
+	switch eventType {
+	case lns.EventJoin:
+		return c.handleJoinEvent(ctx, orgSlug, vhost, tenant, payload, lnsType, devEUI)
+	case lns.EventAlert:
+		return c.handleAlertEvent(ctx, orgSlug, vhost, tenant, payload, lnsType, devEUI)
+	case lns.EventStatus, lns.EventAck:
+		logging.Tenant(orgSlug, vhost, "ℹ️", "Received %s event for device %s, skipping processing", eventType, devEUI)
+		return nil
+	case lns.EventUplink, lns.EventUnknown:
+	}
 
 	// Check if device should be skipped
 	deviceLocation, processingInfo, err := c.resolver.Resolve(orgSlug, vhost, devEUI, payload, locationPayload, lnsType)
@@ -234,4 +246,79 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 		otellog.Int("gateway_count", processingInfo.GatewayCount),
 	)
 	return nil
+}
+
+func (c *Consumer) handleJoinEvent(ctx context.Context, orgSlug string, vhost string, tenant *TenantConsumer, payload map[string]interface{}, lnsType lns.LNSType, devEUI string) error {
+	logging.Tenant(orgSlug, vhost, "🔗", "Received join event for device %s from %s", devEUI, lnsType)
+
+	deviceID, spaceSlug := c.lookupDeviceForEvent(orgSlug, vhost, devEUI)
+
+	event := map[string]interface{}{
+		"event_type":    "lns_join",
+		"event_level":   "lns_join",
+		"organization":  orgSlug,
+		"space_slug":    spaceSlug,
+		"device_id":     deviceID,
+		"title":         fmt.Sprintf("Device joined via %s", lnsType),
+		"time_fired_ts": time.Now().UnixMilli(),
+		"source":        string(lnsType),
+	}
+
+	if err := c.publishLNSEvent(tenant, event, orgSlug, spaceSlug, deviceID); err != nil {
+		logging.Tenant(orgSlug, vhost, "❌", "Failed to publish join event for device %s: %v", devEUI, err)
+		return err
+	}
+
+	logging.Tenant(orgSlug, vhost, "✅", "Published join event for device %s", devEUI)
+	return nil
+}
+
+func (c *Consumer) handleAlertEvent(ctx context.Context, orgSlug string, vhost string, tenant *TenantConsumer, payload map[string]interface{}, lnsType lns.LNSType, devEUI string) error {
+	alert := lns.ExtractAlert(payload, lnsType)
+	if alert == nil {
+		logging.Tenant(orgSlug, vhost, "⚠️", "Alert event detected but no alert extracted for device %s", devEUI)
+		return nil
+	}
+
+	logging.Tenant(orgSlug, vhost, "🚨", "Received alert from %s for device %s: [%s] %s - %s", lnsType, devEUI, alert.Level, alert.Code, alert.Message)
+
+	deviceID, spaceSlug := c.lookupDeviceForEvent(orgSlug, vhost, devEUI)
+
+	event := map[string]interface{}{
+		"event_type":    "lns_alert",
+		"event_level":   "lns_alert",
+		"organization":  orgSlug,
+		"space_slug":    spaceSlug,
+		"device_id":     deviceID,
+		"title":         fmt.Sprintf("[%s] %s: %s", alert.Level, alert.Code, alert.Message),
+		"time_fired_ts": time.Now().UnixMilli(),
+		"lns_alert": map[string]interface{}{
+			"code":    alert.Code,
+			"level":   alert.Level,
+			"message": alert.Message,
+			"source":  alert.Source,
+		},
+	}
+
+	if err := c.publishLNSEvent(tenant, event, orgSlug, spaceSlug, deviceID); err != nil {
+		logging.Tenant(orgSlug, vhost, "❌", "Failed to publish alert event for device %s: %v", devEUI, err)
+		return err
+	}
+
+	logging.Tenant(orgSlug, vhost, "✅", "Published alert event for device %s: [%s] %s", devEUI, alert.Level, alert.Code)
+	return nil
+}
+
+func (c *Consumer) lookupDeviceForEvent(orgSlug string, vhost string, devEUI string) (deviceID string, spaceSlug string) {
+	if c.deviceProfileService == nil || devEUI == "" {
+		return "", ""
+	}
+
+	mapping, err := c.deviceProfileService.GetDeviceMapping(orgSlug, devEUI)
+	if err != nil {
+		logging.Tenant(orgSlug, vhost, "⚠️", "Could not lookup device %s for LNS event: %v", devEUI, err)
+		return "", ""
+	}
+
+	return mapping.DeviceID, mapping.SpaceSlug
 }

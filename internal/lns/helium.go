@@ -228,3 +228,26 @@ func (h *HeliumHandler) ExtractGatewayLocations(rxMetadata []interface{}) ([]Gat
 
 	return locations, nil
 }
+
+func (h *HeliumHandler) ExtractEventType(payload map[string]interface{}) EventType {
+	if payload == nil {
+		return EventUnknown
+	}
+
+	decoded, ok := payload["decoded_raw_data"].(map[string]interface{})
+	if !ok {
+		return EventUnknown
+	}
+
+	for _, key := range []string{"payload", "hotspots", "fport"} {
+		if _, ok := decoded[key]; ok {
+			return EventUplink
+		}
+	}
+
+	return EventUnknown
+}
+
+func (h *HeliumHandler) ExtractAlert(payload map[string]interface{}) *LNSAlert {
+	return nil
+}
