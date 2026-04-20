@@ -157,6 +157,28 @@ func (dps *DeviceProfileService) GetAllDeviceModels() []models.DeviceModel {
 	return result
 }
 
+// GetDeviceModelByID returns a device model by its ID with manufacturer name resolved.
+func (dps *DeviceProfileService) GetDeviceModelByID(deviceModelID string) *models.DeviceModel {
+	profile, ok := dps.profilesByID[deviceModelID]
+	if !ok {
+		return nil
+	}
+
+	manufacturerName := profile.ManufacturerID
+	if m, ok := dps.manufacturers[profile.ManufacturerID]; ok {
+		manufacturerName = m.Name
+	}
+
+	return &models.DeviceModel{
+		ID:               profile.ID,
+		Name:             profile.Name,
+		ManufacturerID:   profile.ManufacturerID,
+		ManufacturerName: manufacturerName,
+		DeviceType:       profile.DeviceType,
+		KeyFeature:       profile.KeyFeature,
+	}
+}
+
 func (dps *DeviceProfileService) GetDeviceMapping(orgSlug, devEUI string) (*models.DeviceMapping, error) {
 	if devEUI == "" {
 		return nil, fmt.Errorf("dev_eui is required")

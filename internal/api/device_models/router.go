@@ -8,4 +8,5 @@ import (
 func RegisterRoutes(e *echo.Group, dps *services.DeviceProfileService) {
 	group := e.Group("/device-models")
 	group.GET("/", getDeviceModels(dps))
+	group.GET("/:device_model_id", getDeviceModelByID(dps))
 }
