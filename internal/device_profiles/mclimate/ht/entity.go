@@ -1,4 +1,4 @@
-package mclimate_ht
+package ht
 
 import (
 	"fmt"

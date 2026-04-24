@@ -1,4 +1,4 @@
-package netvox
+package r718n17
 
 import (
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
