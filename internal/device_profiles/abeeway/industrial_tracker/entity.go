@@ -1,4 +1,4 @@
-package abeeway
+package industrial_tracker
 
 import (
 	"fmt"

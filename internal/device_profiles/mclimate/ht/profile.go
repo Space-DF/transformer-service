@@ -1,4 +1,4 @@
-package mclimate_ht
+package ht
 
 import (
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"

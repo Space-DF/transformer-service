@@ -1,4 +1,4 @@
-package abeeway
+package industrial_tracker
 
 import (
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"

@@ -1,4 +1,4 @@
-package netvox_r809ag
+package r809ag
 
 import (
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
