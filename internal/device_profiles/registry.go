@@ -5,6 +5,7 @@ import (
 
 	"github.com/Space-DF/transformer-service/internal/device_profiles/abeeway/industrial_tracker"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
+	"github.com/Space-DF/transformer-service/internal/device_profiles/digital_matter/g62"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/digital_matter/yabby_edge"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/dragino/lcc01lb"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/dragino/lsn50v2_s31"
@@ -51,6 +52,7 @@ func RegisterAll(r *Component) error {
 		{tbeam.Model, tbeam.Manufacturer, tbeam.NewTBeamComponent()},
 		{wlbv1.Model, wlbv1.Manufacturer, wlbv1.NewWLBV1Component()},
 		{yabby_edge.Model, yabby_edge.Manufacturer, yabby_edge.NewYabbyEdgeComponent()},
+		{g62.Model, g62.Manufacturer, g62.NewG62Component()},
 	}
 
 	for _, e := range entries {
