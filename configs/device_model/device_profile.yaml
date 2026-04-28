@@ -88,3 +88,9 @@ device_profiles:
     manufacturer_id: 36d2051a-ee48-4d48-b49b-26cf3bc63af8
     device_type: LSN50V2_S31
     key_feature: temperature
+
+  - id: e5f6a7b8-c9d0-4e1f-0a2b-3c4d5e6f7a81
+    name: lorawan
+    manufacturer_id: a3f1c8e7-4b9d-4e2a-b6d5-8c7f3a1e9d42
+    device_type: G62
+    key_feature: location
