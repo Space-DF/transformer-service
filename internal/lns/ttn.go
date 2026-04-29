@@ -238,10 +238,6 @@ func (h *TTNHandler) ExtractGatewayLocations(rxMetadata []interface{}) ([]Gatewa
 		}
 	}
 
-	if len(gateways) == 0 {
-		return nil, fmt.Errorf("TTN gateway location requires gateway registry lookup or device GPS")
-	}
-
 	return gateways, nil
 }
 
