@@ -70,6 +70,12 @@ func (ls *LocationService) CalculateDeviceLocationWithLNS(payload map[string]int
 		}
 	}
 
+	if len(locations) == 0 {
+		return &models.DeviceLocationData{
+			DevEUI: devEUI,
+		}, nil
+	}
+
 	// Calculate device location based on number of gateways
 	var lat, lon float64
 
