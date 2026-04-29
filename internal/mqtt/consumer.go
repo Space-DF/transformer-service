@@ -62,8 +62,7 @@ type Consumer struct {
 }
 
 // NewConsumer creates a new MQTT consumer
-func NewConsumer(cfg config.AMQPConfig, orgEventsCfg config.OrgEventsConfig, loggerService *services.LoggerService, deviceProfileService *services.DeviceProfileService) *Consumer {
-	locationSvc := services.NewLocationService()
+func NewConsumer(cfg config.AMQPConfig, orgEventsCfg config.OrgEventsConfig, loggerService *services.LoggerService, deviceProfileService *services.DeviceProfileService, locationService *services.LocationService) *Consumer {
 	parser := payload.NewParser()
 
 	// Create circuit breaker
@@ -78,14 +77,14 @@ func NewConsumer(cfg config.AMQPConfig, orgEventsCfg config.OrgEventsConfig, log
 		parser:               parser,
 		config:               cfg,
 		orgEventsConfig:      orgEventsCfg,
-		locationService:      locationSvc,
+		locationService:      locationService,
 		transformService:     services.NewTransformService(deviceProfileService),
 		loggerService:        loggerService,
 		deviceProfileService: deviceProfileService,
 		done:                 make(chan bool, 1),
 		tenantConsumers:      make(map[string]*TenantConsumer),
 		vhostPool:            pool.New(cfg.BrokerURL),
-		resolver:             resolver.New(locationSvc, deviceProfileService, logging.Tenant),
+		resolver:             resolver.New(locationService, deviceProfileService, logging.Tenant),
 		circuitBreaker:       cb,
 		reconnectChan:        make(chan struct{}, 1),
 		connCloseNotifier:    make(chan *amqp.Error, 1),

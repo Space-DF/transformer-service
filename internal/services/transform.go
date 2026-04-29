@@ -48,6 +48,7 @@ func (ts *TransformService) TransformDeviceData(deviceLocation *models.DeviceLoc
 			Latitude:  deviceLocation.Latitude,
 			Longitude: deviceLocation.Longitude,
 			Accuracy:  accuracy,
+			Bearing:   deviceLocation.Bearing,
 		},
 		Timestamp:    time.Now().UTC().Format(time.RFC3339),
 		Organization: deviceLocation.Organization,
