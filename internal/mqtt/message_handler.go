@@ -132,7 +132,7 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	}
 
 	// Check if device should be skipped
-	deviceLocation, processingInfo, err := c.resolver.Resolve(orgSlug, vhost, devEUI, payload, locationPayload, lnsType)
+	deviceLocation, processingInfo, err := c.resolver.Resolve(ctx, orgSlug, vhost, devEUI, payload, locationPayload, lnsType)
 	if errors.Is(err, resolver.ErrDeviceSkipped) {
 		span.AddEvent("device_skipped")
 		telemetry.LogInfo(ctx, fmt.Sprintf("[%s][VHOST:%s] Device %s skipped by resolver (should_skip=true)", orgSlug, vhost, devEUI),

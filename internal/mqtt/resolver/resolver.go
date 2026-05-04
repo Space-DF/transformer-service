@@ -32,7 +32,7 @@ func New(locationService *services.LocationService, deviceProfileService *servic
 	}
 }
 
-func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPayload map[string]interface{}, lnsType ...lns.LNSType) (*models.DeviceLocationData, *models.ProcessingInfo, error) {
+func (r *Resolver) Resolve(ctx context.Context, orgSlug, vhost, devEUI string, payload, locationPayload map[string]interface{}, lnsType ...lns.LNSType) (*models.DeviceLocationData, *models.ProcessingInfo, error) {
 	info := models.ProcessingInfo{
 		HasLocationData: helpers.HasLocationData(locationPayload),
 		GatewayCount:    helpers.CountGateways(locationPayload),
@@ -71,7 +71,7 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 			r.logTenant(orgSlug, vhost, "📍", "Calculating location for device %s using trilateration", devEUI)
 			// Calculate device location using decoded data if available, otherwise original payload
 			// Use LNS-aware extraction
-			deviceLocation, err = r.locationService.CalculateDeviceLocationWithLNS(locationPayload, r.getLNSType(lnsType...))
+			deviceLocation, err = r.locationService.CalculateDeviceLocationWithLNSContext(ctx, locationPayload, r.getLNSType(lnsType...))
 			if err == nil && deviceLocation != nil {
 				// Set organization from device mapping if available
 				if mapping != nil {
@@ -83,7 +83,7 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 			// Device has GPS, extract coordinates using device-specific parser
 			r.logTenant(orgSlug, vhost, "🛰️", "Device %s has GPS capability, extracting GPS coordinates", devEUI)
 			// Pass LNS type if provided
-			deviceLocation, err = r.extractGPSFromDeviceParser(mapping.Profile, locationPayload, orgSlug, r.getLNSType(lnsType...))
+			deviceLocation, err = r.extractGPSFromDeviceParser(ctx, mapping.Profile, locationPayload, orgSlug, r.getLNSType(lnsType...))
 			if err == nil && deviceLocation != nil && mapping != nil {
 				deviceLocation.Manufacture = mapping.Manufacture
 			}
@@ -91,7 +91,7 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 	} else {
 		// No device profile service or devEUI, fall back to standard calculation
 		r.logTenant(orgSlug, vhost, "⚠️", "No device profile service or devEUI, proceeding with location calculation")
-		deviceLocation, err = r.locationService.CalculateDeviceLocationWithLNS(locationPayload, r.getLNSType(lnsType...))
+		deviceLocation, err = r.locationService.CalculateDeviceLocationWithLNSContext(ctx, locationPayload, r.getLNSType(lnsType...))
 	}
 
 	if deviceLocation != nil && deviceLocation.Organization == "" {
@@ -112,7 +112,7 @@ func (r *Resolver) Resolve(orgSlug, vhost, devEUI string, payload, locationPaylo
 }
 
 // extractGPSFromDeviceParser extracts GPS coordinates using component-based parser
-func (r *Resolver) extractGPSFromDeviceParser(profile string, payload map[string]interface{}, organization string, lnsType lns.LNSType) (*models.DeviceLocationData, error) {
+func (r *Resolver) extractGPSFromDeviceParser(ctx context.Context, profile string, payload map[string]interface{}, organization string, lnsType lns.LNSType) (*models.DeviceLocationData, error) {
 	// Convert profile to device type
 	deviceType := r.profileToDeviceType(profile)
 	if deviceType == common.DeviceTypeUnknown {
@@ -137,7 +137,7 @@ func (r *Resolver) extractGPSFromDeviceParser(profile string, payload map[string
 		return nil, fmt.Errorf("device type %s does not support GPS", deviceType)
 	}
 
-	parsedData, err := components.Parse(r.ctx(), deviceType, rawPayload)
+	parsedData, err := components.Parse(ctx, deviceType, rawPayload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse GPS data with component: %w", err)
 	}
@@ -167,11 +167,6 @@ func (r *Resolver) profileToDeviceType(profile string) common.DeviceType {
 	}
 
 	return common.DeviceTypeUnknown
-}
-
-// ctx returns a background context for component operations
-func (r *Resolver) ctx() context.Context {
-	return context.Background()
 }
 
 // getLNSType safely extracts LNS type from variadic args, defaulting to unknown

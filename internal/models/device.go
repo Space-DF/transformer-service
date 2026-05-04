@@ -35,11 +35,12 @@ type EndDeviceIDs struct {
 
 // DeviceLocationData represents the calculated device location
 type DeviceLocationData struct {
-	Latitude     float64 `json:"latitude"`
-	Longitude    float64 `json:"longitude"`
-	DevEUI       string  `json:"dev_eui"`
-	Organization string  `json:"organization"`
-	Manufacture  string  `json:"manufacture,omitempty"`
+	Latitude     float64  `json:"latitude"`
+	Longitude    float64  `json:"longitude"`
+	DevEUI       string   `json:"dev_eui"`
+	Organization string   `json:"organization"`
+	Manufacture  string   `json:"manufacture,omitempty"`
+	Bearing      *float64 `json:"bearing,omitempty"`
 }
 
 // TransformedDeviceData represents the final transformed output (DEPRECATED: Use TelemetryPayload)
@@ -106,9 +107,10 @@ type TelemetryEntity struct {
 
 // LocationCoordinates represents geographic coordinates
 type LocationCoordinates struct {
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-	Accuracy  float64 `json:"accuracy"`
+	Latitude  float64  `json:"latitude"`
+	Longitude float64  `json:"longitude"`
+	Accuracy  float64  `json:"accuracy"`
+	Bearing   *float64 `json:"bearing,omitempty"`
 }
 
 // LocationPoint represents a point in 2D space

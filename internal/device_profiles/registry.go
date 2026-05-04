@@ -21,6 +21,7 @@ import (
 	"github.com/Space-DF/transformer-service/internal/device_profiles/rakwireless/rak4630"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/rakwireless/rak7200"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/seeed/sensecap_t1000"
+	"github.com/Space-DF/transformer-service/internal/services"
 )
 
 // NewComponentRegistry creates a new Component for dependency injection.
@@ -30,7 +31,7 @@ func NewComponentRegistry() *Component {
 }
 
 // RegisterAll explicitly registers all known device parsers into r with error handling.
-func RegisterAll(r *Component) error {
+func RegisterAll(r *Component, locationService *services.LocationService) error {
 	entries := []struct {
 		model        string
 		manufacturer string
@@ -46,7 +47,7 @@ func RegisterAll(r *Component) error {
 		{ct101.Model, ct101.Manufacturer, ct101.NewCT101Component()},
 		{ht.Model, ht.Manufacturer, ht.NewMclimateHTComponent()},
 		{rak2270.Model, rak2270.Manufacturer, rak2270.NewRAK2270Component()},
-		{rak4630.Model, rak4630.Manufacturer, rak4630.NewRAK4630Component()},
+		{rak4630.Model, rak4630.Manufacturer, rak4630.NewRAK4630Component(locationService)},
 		{rak7200.Model, rak7200.Manufacturer, rak7200.NewRAK7200Component()},
 		{sensecap_t1000.Model, sensecap_t1000.Manufacturer, sensecap_t1000.NewSenseCapT1000Component()},
 		{tbeam.Model, tbeam.Manufacturer, tbeam.NewTBeamComponent()},
