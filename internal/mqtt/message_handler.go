@@ -187,7 +187,9 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 		entityLocation = &common.Location{
 			Latitude:  deviceLocation.Latitude,
 			Longitude: deviceLocation.Longitude,
-			Bearing:   *deviceLocation.Bearing,
+		}
+		if deviceLocation.Bearing != nil {
+			entityLocation.Bearing = *deviceLocation.Bearing
 		}
 	} else {
 		logging.Tenant(orgSlug, vhost, "⚠️", "Invalid location for device %s (lat=%f, lon=%f): location entity will be excluded from telemetry", devEUI, deviceLocation.Latitude, deviceLocation.Longitude)
