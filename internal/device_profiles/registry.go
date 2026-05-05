@@ -47,7 +47,7 @@ func RegisterAll(r *Component, locationService *services.LocationService) error 
 		{ct101.Model, ct101.Manufacturer, ct101.NewCT101Component()},
 		{ht.Model, ht.Manufacturer, ht.NewMclimateHTComponent()},
 		{rak2270.Model, rak2270.Manufacturer, rak2270.NewRAK2270Component()},
-		{rak4630.Model, rak4630.Manufacturer, rak4630.NewRAK4630Component(locationService)},
+		{rak4630.Model, rak4630.Manufacturer, rak4630.NewRAK4630Component()},
 		{rak7200.Model, rak7200.Manufacturer, rak7200.NewRAK7200Component()},
 		{sensecap_t1000.Model, sensecap_t1000.Manufacturer, sensecap_t1000.NewSenseCapT1000Component()},
 		{tbeam.Model, tbeam.Manufacturer, tbeam.NewTBeamComponent()},
