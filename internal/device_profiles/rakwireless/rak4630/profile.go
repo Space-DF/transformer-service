@@ -2,7 +2,6 @@ package rak4630
 
 import (
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
-	"github.com/Space-DF/transformer-service/internal/services"
 )
 
 const (
@@ -11,13 +10,9 @@ const (
 )
 
 // RAK4630Component implements devicecommon.RAK4630Component for the RAK4630.
-type RAK4630Component struct {
-	locationService *services.LocationService
-}
+type RAK4630Component struct{}
 
-func NewRAK4630Component(locationService *services.LocationService) *RAK4630Component {
-	return &RAK4630Component{locationService: locationService}
-}
+func NewRAK4630Component() *RAK4630Component { return &RAK4630Component{} }
 
 func (p *RAK4630Component) SupportsGPS() bool        { return true }
 func (p *RAK4630Component) GetSupportedPorts() []int { return []int{1, 2, 3, 4, 5} }

@@ -145,9 +145,10 @@ type ProcessingInfo struct {
 
 // LocationResult contains the calculated location information for logging
 type LocationResult struct {
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-	Accuracy  float64 `json:"accuracy"`
+	Latitude  float64  `json:"latitude"`
+	Longitude float64  `json:"longitude"`
+	Accuracy  float64  `json:"accuracy"`
+	Bearing   *float64 `json:"bearing,omitempty"`
 }
 
 // DeviceLookupResponse represents the payload returned by the device lookup API

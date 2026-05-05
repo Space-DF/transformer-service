@@ -1,7 +1,6 @@
 package rak4630
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -57,16 +56,8 @@ func (p *RAK4630Component) ParseToEntities(orgSlug, model string, payload *commo
 	if loc == nil {
 		loc = deviceLocation
 	}
-
-	var bearing *float64
-	if parsed.Location != nil && p.locationService != nil {
-		var err error
-		bearing, err = p.locationService.ProcessLocation(
-			context.Background(), devEUI, parsed.Location.Latitude, parsed.Location.Longitude,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to process location: %w", err)
-		}
+	if loc != nil && deviceLocation != nil {
+		loc.Bearing = deviceLocation.Bearing
 	}
 
 	if loc != nil {
@@ -87,7 +78,7 @@ func (p *RAK4630Component) ParseToEntities(orgSlug, model string, payload *commo
 				"device_model": model,
 				"latitude":     loc.Latitude,
 				"longitude":    loc.Longitude,
-				"bearing":      bearing,
+				"bearing":      loc.Bearing,
 			},
 			Enabled:   true,
 			Timestamp: ts,
