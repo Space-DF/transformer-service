@@ -14,7 +14,7 @@ import (
 
 func getDeviceModels(dps *services.DeviceProfileService) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		deviceModels := dps.GetAllDeviceModels()
+		deviceModels := dps.GetAllDeviceModels(c.Scheme() + "://" + c.Request().Host)
 
 		// Filter by search query (limit length to prevent abuse)
 		search := strings.TrimSpace(strings.ToLower(c.QueryParam("search")))
@@ -65,7 +65,7 @@ func getDeviceModelByID(dps *services.DeviceProfileService) echo.HandlerFunc {
 				"error": "Device model ID is required",
 			})
 		}
-		deviceModel := dps.GetDeviceModelByID(deviceModelID)
+		deviceModel := dps.GetDeviceModelByID(deviceModelID, c.Scheme()+"://"+c.Request().Host)
 		if deviceModel == nil {
 			return c.JSON(http.StatusNotFound, map[string]string{
 				"error": "Device model not found",
