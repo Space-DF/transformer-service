@@ -8,6 +8,7 @@ type DeviceModel struct {
 	ManufacturerName string `json:"manufacturer_name"`
 	DeviceType       string `json:"device_type"`
 	KeyFeature       string `json:"key_feature"`
+	Logo             string `json:"logo"`
 }
 
 // DeviceProfile represents the YAML structure for device profiles
@@ -17,6 +18,7 @@ type DeviceProfile struct {
 	ManufacturerID        string   `yaml:"manufacturer_id"`
 	DeviceType            string   `yaml:"device_type"`
 	KeyFeature            string   `yaml:"key_feature"`
+	Logo                  string   `yaml:"logo"`
 	Protocol              string   `yaml:"protocol"`
 	Capabilities          []string `yaml:"capabilities"`
 	GPSCapable            bool     `yaml:"gps_capable"`
