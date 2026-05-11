@@ -83,12 +83,12 @@ func (p *MclimateHTComponent) ParseToEntities(orgSlug, model string, payload *co
 		display                                     []string
 	}
 	for _, def := range []sensorDef{
-		{"temperature", "Temperature", "temperature", "temperature", "°C", "mdi:thermometer", []string{"chart", "gauge", "value"}},
-		{"humidity", "Humidity", "humidity", "humidity", "%", "mdi:water-percent", []string{"chart", "gauge", "value"}},
-		{"battery_voltage", "Battery Voltage", "battery_voltage", "battery_voltage", "V", "mdi:battery-charging", []string{"chart", "gauge", "value"}},
-		{"battery", "Battery", "battery", "battery", "%", "mdi:battery", []string{"gauge", "value"}},
-		{"occupancy", "Occupancy", "occupancy", "occupancy", "", "mdi:motion-sensor", []string{"value"}},
-		{"pir_trigger_count", "PIR Trigger Count", "pir_trigger_count", "", "", "mdi:counter", []string{"value"}},
+		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
+		{"humidity", "Humidity", "humidity", "humidity", "%", "humidity.svg", []string{"chart", "gauge", "value"}},
+		{"battery_voltage", "Battery Voltage", "battery_voltage", "battery_voltage", "V", "battery_voltage.svg", []string{"chart", "gauge", "value"}},
+		{"battery", "Battery", "battery", "battery", "%", "battery_percent.svg", []string{"gauge", "value"}},
+		{"occupancy", "Occupancy", "occupancy", "occupancy", "", "occupancy.svg", []string{"value"}},
+		{"pir_trigger_count", "PIR Trigger Count", "pir_trigger_count", "", "", "pir_trigger_count.svg", []string{"value"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {

@@ -86,14 +86,14 @@ func (p *RAK4630Component) ParseToEntities(orgSlug, model string, payload *commo
 	}
 
 	type sensorDef struct {
-		key, name, entityType, devClass, unit string
-		display                               []string
+		key, name, entityType, devClass, unit, icon string
+		display                                     []string
 	}
 	for _, def := range []sensorDef{
-		{"temperature", "Temperature", "temperature", "temperature", "°C", []string{"chart", "gauge", "value"}},
-		{"humidity", "Humidity", "humidity", "humidity", "%", []string{"chart", "gauge", "value"}},
-		{"pressure", "Pressure", "pressure", "pressure", "kPa", []string{"chart"}},
-		{"battery_voltage", "Battery Voltage", "battery_voltage", "battery_voltage", "V", []string{"chart", "gauge", "value", "slider"}},
+		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
+		{"humidity", "Humidity", "humidity", "humidity", "%", "humidity.svg", []string{"chart", "gauge", "value"}},
+		{"pressure", "Pressure", "pressure", "pressure", "kPa", "pressure.svg", []string{"chart"}},
+		{"battery_voltage", "Battery Voltage", "battery_voltage", "battery_voltage", "V", "battery_voltage.svg", []string{"chart", "gauge", "value", "slider"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {
@@ -108,6 +108,7 @@ func (p *RAK4630Component) ParseToEntities(orgSlug, model string, payload *commo
 			State:       val,
 			DisplayType: def.display,
 			UnitOfMeas:  def.unit,
+			Icon:        def.icon,
 			Enabled:     true,
 			Timestamp:   ts,
 		})

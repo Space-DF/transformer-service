@@ -79,12 +79,12 @@ func (p *RAK2270Component) ParseToEntities(orgSlug, model string, payload *commo
 	})
 
 	type sensorDef struct {
-		key, name, entityType, devClass, unit string
-		display                               []string
+		key, name, entityType, devClass, unit, icon string
+		display                                     []string
 	}
 	for _, def := range []sensorDef{
-		{"temperature", "Temperature", "temperature", "temperature", "°C", []string{"chart", "gauge", "value"}},
-		{"battery_voltage", "Battery Voltage", "battery_voltage", "battery_voltage", "V", []string{"chart", "gauge", "value"}},
+		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
+		{"battery_voltage", "Battery Voltage", "battery_voltage", "battery_voltage", "V", "battery_voltage.svg", []string{"chart", "gauge", "value"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {
@@ -99,6 +99,7 @@ func (p *RAK2270Component) ParseToEntities(orgSlug, model string, payload *commo
 			State:       val,
 			DisplayType: def.display,
 			UnitOfMeas:  def.unit,
+			Icon:        def.icon,
 			Enabled:     true,
 			Timestamp:   ts,
 		})

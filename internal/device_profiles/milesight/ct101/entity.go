@@ -59,12 +59,12 @@ func (p *CT101Component) ParseToEntities(orgSlug, model string, payload *common.
 	}
 	for _, def := range []sensorDef{
 		// Simple sensor entities
-		{"current", "Current", "current", "current", "A", "mdi:current-ac", []string{"chart", "gauge", "value"}, nil},
-		{"total_current", "Total Current", "total_current", "current", "A", "mdi:current-ac", []string{"chart", "gauge", "value"}, nil},
-		{"temperature", "Temperature", "temperature", "temperature", "°C", "mdi:thermometer", []string{"chart", "gauge", "value"}, nil},
+		{"current", "Current", "current", "current", "A", "current.svg", []string{"chart", "gauge", "value"}, nil},
+		{"total_current", "Total Current", "total_current", "current", "A", "total_current.svg", []string{"chart", "gauge", "value"}, nil},
+		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}, nil},
 		// Alarm entities with transform
 		{
-			"current_alarm", "Current Alarm", "current_alarm", "problem", "", "mdi:alert", []string{"indicator"},
+			"current_alarm", "Current Alarm", "current_alarm", "problem", "", "current alarm.svg", []string{"indicator"},
 			func(v any) (any, map[string]any) {
 				val, ok := v.(map[string]any)
 				if !ok {
@@ -80,7 +80,7 @@ func (p *CT101Component) ParseToEntities(orgSlug, model string, payload *common.
 			},
 		},
 		{
-			"temperature_alarm", "Temperature Alarm", "temperature_alarm", "problem", "", "mdi:alert", []string{"indicator"},
+			"temperature_alarm", "Temperature Alarm", "temperature_alarm", "problem", "", "temperature_alarm.svg", []string{"indicator"},
 			func(v any) (any, map[string]any) {
 				val, ok := v.(string)
 				if !ok {
@@ -94,8 +94,8 @@ func (p *CT101Component) ParseToEntities(orgSlug, model string, payload *common.
 			},
 		},
 		// Sensor status entities
-		{"current_sensor_status", "Current Sensor Status", "sensor", "problem", "", "mdi:sensor-alert", []string{"text"}, nil},
-		{"temperature_sensor_status", "Temperature Sensor Status", "sensor", "problem", "", "mdi:sensor-alert", []string{"text"}, nil},
+		{"current_sensor_status", "Current Sensor Status", "sensor", "problem", "", "current_sensor_status.svg", []string{"text"}, nil},
+		{"temperature_sensor_status", "Temperature Sensor Status", "sensor", "problem", "", "tempt_sensor_status.svg", []string{"text"}, nil},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {

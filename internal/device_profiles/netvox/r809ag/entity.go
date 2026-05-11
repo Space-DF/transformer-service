@@ -55,18 +55,18 @@ func (p *R809AGComponent) ParseToEntities(orgSlug, model string, payload *common
 
 	// Add all entities, including switch, in the loop.
 	type sensorDef struct {
-		key, name, entityType, devClass, unit string
-		display                               []string
+		key, name, entityType, devClass, unit, icon string
+		display                                     []string
 	}
 	for _, def := range []sensorDef{
-		{"switch", "Outlet", "switch", "outlet", "", []string{"toggle"}},
-		{"voltage", "Voltage", "voltage", "voltage", "V", []string{"chart", "value"}},
-		{"current", "Current", "current", "current", "mA", []string{"chart", "gauge", "value"}},
-		{"power", "Power", "power", "power", "W", []string{"chart", "gauge", "value"}},
-		{"energy", "Energy", "energy", "energy", "Wh", []string{"chart", "value"}},
-		{"overcurrent_alarm", "Over Current Alarm", "switch", "power", "", []string{"switch"}},
-		{"dash_current_alarm", "Dash Current Alarm", "switch", "power", "", []string{"switch"}},
-		{"power_off_alarm", "Power Off Alarm", "switch", "power", "", []string{"switch"}},
+		{"switch", "Outlet", "switch", "outlet", "", "switch.svg", []string{"toggle"}},
+		{"voltage", "Voltage", "voltage", "voltage", "V", "external_voltage.svg", []string{"chart", "value"}},
+		{"current", "Current", "current", "current", "mA", "current.svg", []string{"chart", "gauge", "value"}},
+		{"power", "Power", "power", "power", "W", "power.svg", []string{"chart", "gauge", "value"}},
+		{"energy", "Energy", "energy", "energy", "Wh", "energy.svg", []string{"chart", "value"}},
+		{"overcurrent_alarm", "Over Current Alarm", "switch", "power", "", "over_current alarm.svg", []string{"switch"}},
+		{"dash_current_alarm", "Dash Current Alarm", "switch", "power", "", "dash_current_alarm.svg", []string{"switch"}},
+		{"power_off_alarm", "Power Off Alarm", "switch", "power", "", "power_off_alarm.svg", []string{"switch"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {
@@ -81,6 +81,7 @@ func (p *R809AGComponent) ParseToEntities(orgSlug, model string, payload *common
 			State:       val,
 			DisplayType: def.display,
 			UnitOfMeas:  def.unit,
+			Icon:        def.icon,
 			Enabled:     true,
 			Timestamp:   ts,
 		}

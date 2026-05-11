@@ -81,12 +81,12 @@ func (p *WLBV1Component) ParseToEntities(orgSlug, model string, payload *common.
 	}
 
 	type sensorDef struct {
-		key, name, entityType, devClass, unit string
-		display                               []string
+		key, name, entityType, devClass, unit, icon string
+		display                                     []string
 	}
 	for _, def := range []sensorDef{
-		{"battery", "Battery Voltage", "battery", "battery", "V", []string{"chart", "gauge", "value", "slider"}},
-		{"water_depth", "Water Depth", "water_depth", "distance", "cm", []string{"chart", "gauge", "value", "slider"}},
+		{"battery", "Battery Voltage", "battery", "battery", "V", "battery_voltage.svg", []string{"chart", "gauge", "value", "slider"}},
+		{"water_depth", "Water Depth", "water_depth", "distance", "cm", "water_depth.svg", []string{"chart", "gauge", "value", "slider"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {
@@ -101,6 +101,7 @@ func (p *WLBV1Component) ParseToEntities(orgSlug, model string, payload *common.
 			State:       val,
 			DisplayType: def.display,
 			UnitOfMeas:  def.unit,
+			Icon:        def.icon,
 			Enabled:     true,
 			Timestamp:   ts,
 		})

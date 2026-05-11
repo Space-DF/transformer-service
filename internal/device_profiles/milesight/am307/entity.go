@@ -83,16 +83,16 @@ func (p *AM307Component) ParseToEntities(orgSlug, model string, payload *common.
 		display                                     []string
 	}
 	for _, def := range []sensorDef{
-		{"temperature", "Temperature", "temperature", "temperature", "°C", "mdi:thermometer", []string{"chart", "gauge", "value"}},
-		{"humidity", "Humidity", "humidity", "humidity", "%", "mdi:water-percent", []string{"chart", "gauge", "value"}},
-		{"battery", "Battery", "battery", "battery", "%", "mdi:battery", []string{"gauge", "value"}},
-		{"occupancy", "Occupancy", "occupancy", "occupancy", "", "mdi:motion-sensor", []string{"value"}},
-		{"pir_sensor_value", "PIR Sensor Value", "pir_sensor_value", "", "", "mdi:motion-sensor", []string{"value"}},
-		{"pir_sensor_status", "PIR Sensor Status", "pir_sensor_status", "", "", "mdi:motion-sensor", []string{"value"}},
-		{"light_level", "Light Level", "light_level", "illuminance", "lx", "mdi:brightness-5", []string{"chart", "gauge", "value"}},
-		{"co2", "CO2", "co2", "carbon_dioxide", "ppm", "mdi:molecule-co2", []string{"chart", "gauge", "value"}},
-		{"tvoc", "TVOC", "tvoc", "volatile_organic_compounds", "", "mdi:molecule", []string{"chart", "gauge", "value"}},
-		{"pressure", "Pressure", "pressure", "pressure", "hPa", "mdi:gauge", []string{"chart", "gauge", "value"}},
+		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
+		{"humidity", "Humidity", "humidity", "humidity", "%", "humidity.svg", []string{"chart", "gauge", "value"}},
+		{"battery", "Battery", "battery", "battery", "%", "battery_percent.svg", []string{"gauge", "value"}},
+		{"occupancy", "Occupancy", "occupancy", "occupancy", "", "occupancy.svg", []string{"value"}},
+		{"pir_sensor_value", "PIR Sensor Value", "pir_sensor_value", "", "", "pir_sensor_value.svg", []string{"value"}},
+		{"pir_sensor_status", "PIR Sensor Status", "pir_sensor_status", "", "", "pir_trigger_status.svg", []string{"value"}},
+		{"light_level", "Light Level", "light_level", "illuminance", "lx", "light_level.svg", []string{"chart", "gauge", "value"}},
+		{"co2", "CO2", "co2", "carbon_dioxide", "ppm", "co2.svg", []string{"chart", "gauge", "value"}},
+		{"tvoc", "TVOC", "tvoc", "volatile_organic_compounds", "", "volatile_organic_compounds.svg", []string{"chart", "gauge", "value"}},
+		{"pressure", "Pressure", "pressure", "pressure", "hPa", "pressure.svg", []string{"chart", "gauge", "value"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {
