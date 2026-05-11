@@ -140,7 +140,7 @@ func (dps *DeviceProfileService) GetProfileByID(profileID string) (*models.Devic
 }
 
 // GetAllDeviceModels returns all device models with manufacturer names resolved.
-func (dps *DeviceProfileService) GetAllDeviceModels(baseURL string) []models.DeviceModel {
+func (dps *DeviceProfileService) GetAllDeviceModels() []models.DeviceModel {
 	result := make([]models.DeviceModel, 0, len(dps.profilesByID))
 	for _, profile := range dps.profilesByID {
 		manufacturerName := profile.ManufacturerID
@@ -154,14 +154,14 @@ func (dps *DeviceProfileService) GetAllDeviceModels(baseURL string) []models.Dev
 			ManufacturerName: manufacturerName,
 			DeviceType:       profile.DeviceType,
 			KeyFeature:       profile.KeyFeature,
-			Logo:             dps.resolveLogoURL(profile.Logo, baseURL),
+			Logo:             dps.resolveLogoURL(profile.Logo),
 		})
 	}
 	return result
 }
 
 // GetDeviceModelByID returns a device model by its ID with manufacturer name resolved.
-func (dps *DeviceProfileService) GetDeviceModelByID(deviceModelID, baseURL string) *models.DeviceModel {
+func (dps *DeviceProfileService) GetDeviceModelByID(deviceModelID string) *models.DeviceModel {
 	profile, ok := dps.profilesByID[deviceModelID]
 	if !ok {
 		return nil
@@ -179,11 +179,11 @@ func (dps *DeviceProfileService) GetDeviceModelByID(deviceModelID, baseURL strin
 		ManufacturerName: manufacturerName,
 		DeviceType:       profile.DeviceType,
 		KeyFeature:       profile.KeyFeature,
-		Logo:             dps.resolveLogoURL(profile.Logo, baseURL),
+		Logo:             dps.resolveLogoURL(profile.Logo),
 	}
 }
 
-func (dps *DeviceProfileService) resolveLogoURL(logo, baseURL string) string {
+func (dps *DeviceProfileService) resolveLogoURL(logo string) string {
 	logo = strings.TrimSpace(logo)
 	if logo == "" {
 		return ""
@@ -196,10 +196,6 @@ func (dps *DeviceProfileService) resolveLogoURL(logo, baseURL string) string {
 	path := logo
 	if !strings.HasPrefix(path, "/") {
 		path = "/static/images/devices/" + strings.TrimLeft(path, "/")
-	}
-
-	if baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/"); baseURL != "" {
-		return baseURL + path
 	}
 
 	if dps.publicBaseURL == "" {
