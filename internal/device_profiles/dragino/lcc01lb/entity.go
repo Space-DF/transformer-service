@@ -50,22 +50,22 @@ func (p *LCC01LBComponent) ParseToEntities(orgSlug, model string, payload *commo
 	var entities []common.Entity
 
 	type sensorDef struct {
-		key, name, entityType, devClass, unit string
-		display                               []string
+		key, name, entityType, devClass, unit, icon string
+		display                                     []string
 	}
 
 	for _, def := range []sensorDef{
-		{"battery_voltage", "Battery Voltage", "battery_voltage", "battery", "V", []string{"chart", "gauge", "value", "slider"}},
-		{"actual_weight_g", "Actual Weight", "weight", "weight", "g", []string{"chart", "gauge", "value"}},
-		{"weight_reading", "Weight Reading", "weight_reading", "weight", "", []string{"chart", "value"}},
-		{"weight_state", "Weight State", "weight_state", "enum", "", []string{"value"}},
-		{"scale_factor", "Scale Factor", "scale_factor", "scale_factor", "", []string{"value"}},
-		{"weight_flag", "Weight Flag", "weight_flag", "weight_flag", "", []string{"value"}},
-		{"mod", "MOD", "mod", "", "", []string{"value"}},
-		{"sensor_model", "Sensor Model", "sensor_model", "", "", []string{"value"}},
-		{"firmware_version", "Firmware Version", "firmware", "", "", []string{"value"}},
-		{"frequency_band", "Frequency Band", "freq_band", "", "", []string{"value"}},
-		{"sub_band", "Sub Band", "sub_band", "", "", []string{"value"}},
+		{"battery_voltage", "Battery Voltage", "battery_voltage", "battery", "V", "battery_voltage.svg", []string{"chart", "gauge", "value", "slider"}},
+		{"actual_weight_g", "Actual Weight", "weight", "weight", "g", "actual_weight.svg", []string{"chart", "gauge", "value"}},
+		{"weight_reading", "Weight Reading", "weight_reading", "weight", "", "weight_reading.svg", []string{"chart", "value"}},
+		{"weight_state", "Weight State", "weight_state", "enum", "", "weight_state.svg", []string{"value"}},
+		{"scale_factor", "Scale Factor", "scale_factor", "scale_factor", "", "scale_factor.svg", []string{"value"}},
+		{"weight_flag", "Weight Flag", "weight_flag", "weight_flag", "", "weight_flag.svg", []string{"value"}},
+		{"mod", "MOD", "mod", "", "", "mod.svg", []string{"value"}},
+		{"sensor_model", "Sensor Model", "sensor_model", "", "", "sensor_model.svg", []string{"value"}},
+		{"firmware_version", "Firmware Version", "firmware", "", "", "firmware_version.svg", []string{"value"}},
+		{"frequency_band", "Frequency Band", "freq_band", "", "", "frequency_band.svg", []string{"value"}},
+		{"sub_band", "Sub Band", "sub_band", "", "", "sub_band.svg", []string{"value"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {
@@ -80,6 +80,7 @@ func (p *LCC01LBComponent) ParseToEntities(orgSlug, model string, payload *commo
 			State:       val,
 			DisplayType: def.display,
 			UnitOfMeas:  def.unit,
+			Icon:        def.icon,
 			Enabled:     true,
 			Timestamp:   ts,
 		})

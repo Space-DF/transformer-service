@@ -85,15 +85,15 @@ func (p *YabbyEdgeComponent) ParseToEntities(orgSlug, model string, payload *com
 		display                                     []string
 	}
 	for _, def := range []sensorDef{
-		{"battery_voltage", "Battery Voltage", "battery", "voltage", "V", "mdi:battery", []string{"chart", "gauge", "value"}},
-		{"battery_level", "Battery Level", "battery", "battery", "%", "mdi:battery", []string{"chart", "gauge", "value", "slider"}},
-		{"trip_status", "Trip Status", "binary_sensor", "moving", "", "", []string{"value"}},
-		{"inactivity", "Inactivity", "binary_sensor", "problem", "", "", []string{"value"}},
-		{"trip_count", "Trip Count", "sensor", "trip_count", "", "", []string{"chart", "value"}},
-		{"firmware", "Firmware Version", "sensor", "firmware", "", "", []string{"value"}},
-		{"battery_stats", "Battery Statistics", "sensor", "battery_stats", "", "", []string{"value"}},
-		{"downlink_ack", "Downlink ACK", "sensor", "status", "", "", []string{"value"}},
-		{"connect", "Connection Status", "sensor", "connectivity", "", "", []string{"value"}},
+		{"battery_voltage", "Battery Voltage", "battery", "voltage", "V", "", []string{"chart", "gauge", "value"}},
+		{"battery_level", "Battery Level", "battery", "battery", "%", "", []string{"chart", "gauge", "value", "slider"}},
+		{"trip_status", "Trip Status", "binary_sensor", "moving", "", "trip_status.svg", []string{"value"}},
+		{"inactivity", "Inactivity", "binary_sensor", "problem", "", "inactivity.svg", []string{"value"}},
+		{"trip_count", "Trip Count", "sensor", "trip_count", "", "trip_count.svg", []string{"chart", "value"}},
+		{"firmware", "Firmware Version", "sensor", "firmware", "", "firmware.svg", []string{"value"}},
+		{"battery_stats", "Battery Statistics", "sensor", "battery_stats", "", "battery_stats.svg", []string{"value"}},
+		{"downlink_ack", "Downlink ACK", "sensor", "status", "", "data_code.svg", []string{"value"}},
+		{"connect", "Connection Status", "sensor", "connectivity", "", "connect.svg", []string{"value"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {

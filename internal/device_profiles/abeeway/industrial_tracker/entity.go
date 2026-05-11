@@ -85,13 +85,13 @@ func (p *AbeewayComponent) ParseToEntities(orgSlug, model string, payload *commo
 		display                                     []string
 	}
 	for _, def := range []sensorDef{
-		{"battery_voltage", "Battery Voltage", "battery", "battery", "V", "mdi:battery", []string{"chart", "gauge", "value"}},
-		{"battery_percent", "Battery Level", "battery", "battery", "%", "mdi:battery", []string{"chart", "gauge", "value", "slider"}},
-		{"temperature", "Temperature", "temperature", "temperature", "°C", "mdi:thermometer", []string{"chart", "gauge", "value"}},
-		{"speed", "Speed", "sensor", "speed", "km/h", "mdi:speedometer", []string{"gauge", "value"}},
-		{"heading", "Heading", "sensor", "heading", "deg", "mdi:compass", []string{"value"}},
-		{"sos_alert", "SOS Alert", "binary_sensor", "safety", "", "mdi:alert-circle", []string{"value"}},
-		{"motion", "Motion", "binary_sensor", "motion", "", "mdi:run-fast", []string{"value"}},
+		{"battery_voltage", "Battery Voltage", "battery", "battery", "V", "battery_voltage.svg", []string{"chart", "gauge", "value"}},
+		{"battery_percent", "Battery Level", "battery", "battery", "%", "battery_percent.svg", []string{"chart", "gauge", "value", "slider"}},
+		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
+		{"speed", "Speed", "sensor", "speed", "km/h", "speed.svg", []string{"gauge", "value"}},
+		{"heading", "Heading", "sensor", "heading", "deg", "direction.svg", []string{"value"}},
+		{"sos_alert", "SOS Alert", "binary_sensor", "safety", "", "sos_alert.svg", []string{"value"}},
+		{"motion", "Motion", "binary_sensor", "motion", "", "motion.svg", []string{"value"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {

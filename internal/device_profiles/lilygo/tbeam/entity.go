@@ -88,10 +88,10 @@ func (p *TBeamComponent) ParseToEntities(orgSlug, model string, payload *common.
 		display                                     []string
 	}
 	for _, def := range []sensorDef{
-		{"temperature", "Temperature", "sensor", "temperature", "°C", "mdi:thermometer", []string{"chart", "gauge", "value"}},
-		{"humidity", "Humidity", "sensor", "humidity", "%", "mdi:water-percent", []string{"chart", "gauge", "value"}},
-		{"pressure", "Pressure", "sensor", "pressure", "hPa", "mdi:gauge", []string{"chart", "gauge", "value"}},
-		{"illuminance", "Illuminance", "sensor", "illuminance", "lx", "mdi:brightness-5", []string{"chart", "gauge", "value"}},
+		{"temperature", "Temperature", "sensor", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
+		{"humidity", "Humidity", "sensor", "humidity", "%", "humidity.svg", []string{"chart", "gauge", "value"}},
+		{"pressure", "Pressure", "sensor", "pressure", "hPa", "pressure.svg", []string{"chart", "gauge", "value"}},
+		{"illuminance", "Illuminance", "sensor", "illuminance", "lx", "illuminance.svg", []string{"chart", "gauge", "value"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {

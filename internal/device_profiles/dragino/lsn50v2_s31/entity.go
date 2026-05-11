@@ -55,20 +55,20 @@ func (p *LSN50v2S31Component) ParseToEntities(orgSlug, model string, payload *co
 	}
 
 	for _, def := range []sensorDef{
-		{"battery_voltage", "Battery Voltage", "battery", "voltage", "V", "mdi:battery", []string{"gauge", "value"}},
-		{"exti_trigger", "EXTI Trigger", "binary_sensor", "", "", "mdi:bell", []string{"value"}},
-		{"door_status", "Door Status", "binary_sensor", "door", "", "mdi:door", []string{"value"}},
-		{"work_mode", "Work Mode", "work_mode", "", "", "mdi:cog", []string{"value"}},
-		{"temperature_sht31", "SHT31 Temperature", "temperature", "temperature", "°C", "mdi:thermometer", []string{"chart", "gauge", "value"}},
-		{"humidity_sht31", "SHT31 Humidity", "humidity", "humidity", "%", "mdi:water-percent", []string{"chart", "gauge", "value"}},
-		{"data_time", "Data Time", "timestamp", "", "", "mdi:clock", []string{"value"}},
-		{"sht_temp_min", "SHT Temp Min", "temperature", "temperature", "°C", "mdi:thermometer-low", []string{"value"}},
-		{"sht_temp_max", "SHT Temp Max", "temperature", "temperature", "°C", "mdi:thermometer-high", []string{"value"}},
-		{"sht_hum_min", "SHT Humidity Min", "humidity", "humidity", "%", "mdi:water-percent", []string{"value"}},
-		{"sht_hum_max", "SHT Humidity Max", "humidity", "humidity", "%", "mdi:water-percent", []string{"value"}},
-		{"firmware_version", "Firmware Version", "firmware", "", "", "mdi:information", []string{"value"}},
-		{"freq_band", "Frequency Band", "freq_band", "", "", "mdi:access-point", []string{"value"}},
-		{"tdc_sec", "TDC Interval", "duration", "duration", "s", "mdi:timer", []string{"value"}},
+		{"battery_voltage", "Battery Voltage", "battery", "voltage", "V", "battery_voltage.svg", []string{"gauge", "value"}},
+		{"exti_trigger", "EXTI Trigger", "binary_sensor", "", "", "exti_trigger.svg", []string{"value"}},
+		{"door_status", "Door Status", "binary_sensor", "door", "", "door_status.svg", []string{"value"}},
+		{"work_mode", "Work Mode", "work_mode", "", "", "work_mode.svg", []string{"value"}},
+		{"temperature_sht31", "SHT31 Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
+		{"humidity_sht31", "SHT31 Humidity", "humidity", "humidity", "%", "humidity.svg", []string{"chart", "gauge", "value"}},
+		{"data_time", "Data Time", "timestamp", "", "", "data_time.svg", []string{"value"}},
+		{"sht_temp_min", "SHT Temp Min", "temperature", "temperature", "°C", "sht_temp_min.svg", []string{"value"}},
+		{"sht_temp_max", "SHT Temp Max", "temperature", "temperature", "°C", "sht_temp_max.svg", []string{"value"}},
+		{"sht_hum_min", "SHT Humidity Min", "humidity", "humidity", "%", "sht_hum_min.svg", []string{"value"}},
+		{"sht_hum_max", "SHT Humidity Max", "humidity", "humidity", "%", "sht_hum_max.svg", []string{"value"}},
+		{"firmware_version", "Firmware Version", "firmware", "", "", "firmware_version.svg", []string{"value"}},
+		{"freq_band", "Frequency Band", "freq_band", "", "", "freq_band.svg", []string{"value"}},
+		{"tdc_sec", "TDC Interval", "duration", "duration", "s", "tdc_sec.svg", []string{"value"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {

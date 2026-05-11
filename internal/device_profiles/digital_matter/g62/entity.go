@@ -85,22 +85,22 @@ func (p *G62Component) ParseToEntities(orgSlug, model string, payload *common.Ra
 		display                                     []string
 	}
 	for _, def := range []sensorDef{
-		{"heading", "Heading", "heading", "", "°", "mdi:compass", []string{"value"}},
-		{"speed", "Speed", "speed", "speed", "km/h", "mdi:speedometer", []string{"chart", "gauge", "value"}},
-		{"battery_voltage", "Battery Voltage", "battery", "voltage", "V", "mdi:battery", []string{"chart", "gauge", "value"}},
-		{"external_voltage", "External Voltage", "sensor", "voltage", "V", "mdi:flash", []string{"chart", "gauge", "value"}},
-		{"analog_input", "Analog Input", "sensor", "voltage", "V", "mdi:analog", []string{"chart", "value"}},
-		{"temperature", "Temperature", "temperature", "temperature", "°C", "mdi:thermometer", []string{"chart", "gauge", "value"}},
-		{"gps_accuracy", "GPS Accuracy", "sensor", "distance", "m", "mdi:crosshairs-gps", []string{"value"}},
-		{"trip_type", "Trip Type", "sensor", "", "", "mdi:car", []string{"value"}},
-		{"ignition", "Ignition", "binary_sensor", "power", "", "mdi:engine", []string{"value"}},
-		{"dig_in_1", "Digital Input 1", "binary_sensor", "", "", "mdi:electric-switch", []string{"value"}},
-		{"dig_in_2", "Digital Input 2", "binary_sensor", "", "", "mdi:electric-switch", []string{"value"}},
-		{"dig_out", "Digital Output", "switch", "", "", "mdi:electric-switch-closed", []string{"toggle"}},
-		{"odometer", "Odometer", "sensor", "distance", "km", "mdi:counter", []string{"chart", "value"}},
-		{"runtime", "Runtime", "sensor", "duration", "", "mdi:timer", []string{"value"}},
-		{"firmware", "Firmware Version", "sensor", "firmware", "", "mdi:information", []string{"value"}},
-		{"downlink_ack", "Downlink ACK", "sensor", "status", "", "mdi:check-circle", []string{"value"}},
+		{"heading", "Heading", "heading", "", "°", "direction.svg", []string{"value"}},
+		{"speed", "Speed", "speed", "speed", "km/h", "speed.svg", []string{"chart", "gauge", "value"}},
+		{"battery_voltage", "Battery Voltage", "battery", "voltage", "V", "battery_voltage.svg", []string{"chart", "gauge", "value"}},
+		{"external_voltage", "External Voltage", "sensor", "voltage", "V", "external_voltage.svg", []string{"chart", "gauge", "value"}},
+		{"analog_input", "Analog Input", "sensor", "voltage", "V", "analog_input.svg", []string{"chart", "value"}},
+		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
+		{"gps_accuracy", "GPS Accuracy", "sensor", "distance", "m", "gps_accuracy.svg", []string{"value"}},
+		{"trip_type", "Trip Type", "sensor", "", "", "trip_type.svg", []string{"value"}},
+		{"ignition", "Ignition", "binary_sensor", "power", "", "ignition.svg", []string{"value"}},
+		{"dig_in_1", "Digital Input 1", "binary_sensor", "", "", "dig_out.svg", []string{"value"}},
+		{"dig_in_2", "Digital Input 2", "binary_sensor", "", "", "dig_out.svg", []string{"value"}},
+		{"dig_out", "Digital Output", "switch", "", "", "dig_out.svg", []string{"toggle"}},
+		{"odometer", "Odometer", "sensor", "distance", "km", "odometer.svg", []string{"chart", "value"}},
+		{"runtime", "Runtime", "sensor", "duration", "", "runtime.svg", []string{"value"}},
+		{"firmware", "Firmware Version", "sensor", "firmware", "", "firmware.svg", []string{"value"}},
+		{"downlink_ack", "Downlink ACK", "sensor", "status", "", "data_code.svg", []string{"value"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {

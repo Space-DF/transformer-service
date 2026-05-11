@@ -85,8 +85,8 @@ func (p *RAK7200Component) ParseToEntities(orgSlug, model string, payload *commo
 		display                                     []string
 	}
 	for _, def := range []sensorDef{
-		{"battery", "Battery Level", "battery", "battery", "%", "mdi:battery", []string{"chart", "gauge", "value"}},
-		{"temperature", "Temperature", "temperature", "temperature", "°C", "mdi:thermometer", []string{"chart", "gauge", "value"}},
+		{"battery", "Battery Level", "battery", "battery", "%", "battery_percent.svg", []string{"chart", "gauge", "value"}},
+		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
 	} {
 		val, ok := parsed.SensorData[def.key]
 		if !ok {
