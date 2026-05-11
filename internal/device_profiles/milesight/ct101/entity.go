@@ -64,7 +64,7 @@ func (p *CT101Component) ParseToEntities(orgSlug, model string, payload *common.
 		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}, nil},
 		// Alarm entities with transform
 		{
-			"current_alarm", "Current Alarm", "current_alarm", "problem", "", "current alarm.svg", []string{"indicator"},
+			"current_alarm", "Current Alarm", "current_alarm", "problem", "", "current_alarm.svg", []string{"indicator"},
 			func(v any) (any, map[string]any) {
 				val, ok := v.(map[string]any)
 				if !ok {

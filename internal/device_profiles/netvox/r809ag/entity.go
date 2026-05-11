@@ -64,7 +64,7 @@ func (p *R809AGComponent) ParseToEntities(orgSlug, model string, payload *common
 		{"current", "Current", "current", "current", "mA", "current.svg", []string{"chart", "gauge", "value"}},
 		{"power", "Power", "power", "power", "W", "power.svg", []string{"chart", "gauge", "value"}},
 		{"energy", "Energy", "energy", "energy", "Wh", "energy.svg", []string{"chart", "value"}},
-		{"overcurrent_alarm", "Over Current Alarm", "switch", "power", "", "over_current alarm.svg", []string{"switch"}},
+		{"overcurrent_alarm", "Over Current Alarm", "switch", "power", "", "over_current_alarm.svg", []string{"switch"}},
 		{"dash_current_alarm", "Dash Current Alarm", "switch", "power", "", "dash_current_alarm.svg", []string{"switch"}},
 		{"power_off_alarm", "Power Off Alarm", "switch", "power", "", "power_off_alarm.svg", []string{"switch"}},
 	} {

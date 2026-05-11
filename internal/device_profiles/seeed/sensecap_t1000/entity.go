@@ -89,7 +89,7 @@ func (p *SenseCapT1000Component) ParseToEntities(orgSlug, model string, payload 
 		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
 		{"light", "Light Level", "sensor", "illuminance", "%", "light_level.svg", []string{"chart", "gauge", "value"}},
 		{"motion", "Motion", "binary_sensor", "motion", "", "motion.svg", []string{"value"}},
-		{"shock_event", "Shock Event", "binary_sensor", "vibration", "", "light_shock_event .svg", []string{"value"}},
+		{"shock_event", "Shock Event", "binary_sensor", "vibration", "", "light_shock_event.svg", []string{"value"}},
 		{"sos_alert", "SOS Alert", "binary_sensor", "safety", "", "sos_alert.svg", []string{"value"}},
 		{"temperature_event", "Temperature Event", "binary_sensor", "heat", "", "temperature_event.svg", []string{"value"}},
 		{"light_event", "Light Event", "binary_sensor", "light", "", "light_event.svg", []string{"value"}},
