@@ -52,13 +52,7 @@ func (p *RAK4630Component) ParseToEntities(orgSlug, model string, payload *commo
 	mdl := strings.ToLower(model)
 	var entities []common.Entity
 
-	loc := parsed.Location
-	if loc == nil {
-		loc = deviceLocation
-	}
-	if loc != nil && deviceLocation != nil {
-		loc.Bearing = deviceLocation.Bearing
-	}
+	loc := common.ResolveLocationBearing(parsed.Location, deviceLocation, parsed.SensorData)
 
 	if loc != nil {
 		entities = append(entities, common.Entity{

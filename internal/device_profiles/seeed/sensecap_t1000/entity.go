@@ -52,10 +52,7 @@ func (p *SenseCapT1000Component) ParseToEntities(orgSlug, model string, payload 
 	mdl := strings.ToLower(model)
 	var entities []common.Entity
 
-	loc := parsed.Location
-	if loc == nil {
-		loc = deviceLocation
-	}
+	loc := common.ResolveLocationBearing(parsed.Location, deviceLocation, parsed.SensorData)
 	if loc != nil {
 		entities = append(entities, common.Entity{
 			UniqueID: common.GenerateUniqueID(model, devEUI, "location"),
@@ -74,6 +71,7 @@ func (p *SenseCapT1000Component) ParseToEntities(orgSlug, model string, payload 
 				"device_model": model,
 				"latitude":     loc.Latitude,
 				"longitude":    loc.Longitude,
+				"bearing":      loc.Bearing,
 			},
 			Enabled:   true,
 			Timestamp: ts,

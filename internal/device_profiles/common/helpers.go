@@ -89,3 +89,61 @@ func LocationSource(deviceGPS *Location) string {
 	}
 	return "gateway"
 }
+
+// ResolveLocationBearing returns the preferred bearing for a location, using a device-reported
+// heading when present and otherwise falling back to the computed device location bearing.
+func ResolveLocationBearing(parsedLocation, deviceLocation *Location, sensorData map[string]interface{}) *Location {
+	var source *Location
+	switch {
+	case parsedLocation != nil:
+		source = parsedLocation
+	case deviceLocation != nil:
+		source = deviceLocation
+	default:
+		return nil
+	}
+
+	resolved := *source
+
+	if heading, ok := extractBearingValue(sensorData, "heading"); ok {
+		resolved.Bearing = normalizeBearing(heading)
+		return &resolved
+	}
+
+	if bearing, ok := extractBearingValue(sensorData, "bearing"); ok {
+		resolved.Bearing = normalizeBearing(bearing)
+		return &resolved
+	}
+
+	if deviceLocation != nil {
+		resolved.Bearing = deviceLocation.Bearing
+	}
+
+	return &resolved
+}
+
+func extractBearingValue(sensorData map[string]interface{}, key string) (float64, bool) {
+	if sensorData == nil {
+		return 0, false
+	}
+
+	raw, exists := sensorData[key]
+	if !exists {
+		return 0, false
+	}
+
+	value, ok := raw.(float64)
+	if !ok {
+		return 0, false
+	}
+
+	return value, true
+}
+
+func normalizeBearing(value float64) float64 {
+	normalized := math.Mod(value, 360)
+	if normalized < 0 {
+		normalized += 360
+	}
+	return normalized
+}

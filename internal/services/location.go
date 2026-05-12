@@ -6,6 +6,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
 	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 )
@@ -135,30 +136,37 @@ func (ls *LocationService) ProcessLocation(ctx context.Context, devEUI string, l
 		return nil, nil
 	}
 
+	if err := common.ValidateCoordinates(lat, lon); err != nil {
+		fmt.Printf("Skipping cache save for device %s: invalid location lat=%.6f lon=%.6f\n", devEUI, lat, lon)
+		return nil, nil
+	}
+
 	// Get cached locations
 	cachedLocations, err := ls.locationCache.GetLatestLocations(ctx, devEUI)
 	if err != nil {
 		fmt.Printf("Failed to get location history: %v\n", err)
 	}
 
-	// Add current point
-	points := append([]LocationEntry{
-		{
-			Latitude:  lat,
-			Longitude: lon,
-		},
-	}, cachedLocations...)
-
-	points = FilterPoints(points)
+	if len(cachedLocations) > 1 && isSameLocation(cachedLocations[0], lat, lon) {
+		fmt.Printf("Skipping cache save for device %s: location unchanged lat=%.6f lon=%.6f\n", devEUI, lat, lon)
+		b := CalculateBearingFromPoints(cachedLocations[:2])
+		return &b, nil
+	}
 
 	var bearingValue *float64
-
-	if len(points) >= 2 {
+	if len(cachedLocations) > 0 {
+		points := []LocationEntry{
+			{
+				Latitude:  lat,
+				Longitude: lon,
+			},
+			cachedLocations[0],
+		}
 		b := CalculateBearingFromPoints(points)
 		bearingValue = &b
 		fmt.Printf("Computed bearing for device %s: %.2f\n", devEUI, b)
 	} else {
-		fmt.Printf("Skipping bearing for device %s: need at least 2 distinct points, got %d\n", devEUI, len(points))
+		fmt.Printf("Skipping bearing for device %s: need previous cached location\n", devEUI)
 	}
 
 	entry := LocationEntry{
