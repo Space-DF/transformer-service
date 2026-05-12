@@ -1,15 +1,15 @@
 package services
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/Space-DF/transformer-service/internal/models"
+	"github.com/google/uuid"
 )
 
 // LoggerService handles raw data logging for training purposes
@@ -20,6 +20,7 @@ type LoggerService struct {
 	maxFileSize     int64 // in bytes
 	currentLogFile  *os.File
 	currentFileSize int64
+	mu              sync.Mutex
 }
 
 // LoggerConfig contains configuration for the logger service
@@ -60,27 +61,15 @@ func NewLoggerService(config LoggerConfig) (*LoggerService, error) {
 // LogRawData logs raw data for training purposes
 func (ls *LoggerService) LogRawData(
 	originalPayload map[string]interface{},
-	decodedRawData interface{},
+	devEUI string,
 	processingInfo models.ProcessingInfo,
-) error {
-
-	// Extract device information
-	deviceEUI := extractDeviceEUI(decodedRawData)
-	deviceID := extractStringFromPayload(originalPayload, "device_id")
-	deviceName := extractStringFromPayload(originalPayload, "device_name")
-	eventType := extractStringFromPayload(originalPayload, "event_type")
-	rawData := extractStringFromPayload(originalPayload, "raw_data")
+) (models.RawDataLog, error) {
 
 	// Create log entry
 	logEntry := models.RawDataLog{
-		ID:              generateID(),
+		ID:              uuid.New().String(),
 		Timestamp:       time.Now().UTC().Format(time.RFC3339),
-		DeviceEUI:       deviceEUI,
-		DeviceID:        deviceID,
-		DeviceName:      deviceName,
-		EventType:       eventType,
-		RawData:         rawData,
-		DecodedRawData:  decodedRawData,
+		DeviceEUI:       devEUI,
 		OriginalPayload: originalPayload,
 		ProcessingInfo:  processingInfo,
 	}
@@ -88,18 +77,18 @@ func (ls *LoggerService) LogRawData(
 	// Log to JSON format if enabled
 	if ls.enableJSONLog {
 		if err := ls.logToJSON(logEntry); err != nil {
-			return fmt.Errorf("failed to log to JSON: %w", err)
+			return logEntry, fmt.Errorf("failed to log to JSON: %w", err)
 		}
 	}
 
 	// Log to file if enabled
 	if ls.enableFileLog {
 		if err := ls.logToFile(logEntry); err != nil {
-			return fmt.Errorf("failed to log to file: %w", err)
+			return logEntry, fmt.Errorf("failed to log to file: %w", err)
 		}
 	}
 
-	return nil
+	return logEntry, nil
 }
 
 // logToJSON logs the entry as structured JSON to stdout
@@ -115,6 +104,8 @@ func (ls *LoggerService) logToJSON(entry models.RawDataLog) error {
 
 // logToFile logs the entry to a file
 func (ls *LoggerService) logToFile(entry models.RawDataLog) error {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
 	// Check if we need to rotate the log file
 	if ls.currentLogFile == nil || ls.currentFileSize >= ls.maxFileSize {
 		if err := ls.rotateLogFile(); err != nil {
@@ -170,51 +161,6 @@ func (ls *LoggerService) rotateLogFile() error {
 	ls.currentFileSize = 0
 
 	return nil
-}
-
-// extractDeviceEUI extracts device EUI from various possible locations
-func extractDeviceEUI(decodedData interface{}) string {
-	if decodedData == nil {
-		return ""
-	}
-
-	if dataMap, ok := decodedData.(map[string]interface{}); ok {
-		// Try deviceInfo.devEui
-		if deviceInfo, exists := dataMap["deviceInfo"].(map[string]interface{}); exists {
-			if devEui, exists := deviceInfo["devEui"].(string); exists {
-				return devEui
-			}
-		}
-
-		// Try direct devEui field
-		if devEui, exists := dataMap["devEui"].(string); exists {
-			return devEui
-		}
-
-		// Try dev_eui field
-		if devEui, exists := dataMap["dev_eui"].(string); exists {
-			return devEui
-		}
-	}
-
-	return ""
-}
-
-// extractStringFromPayload extracts a string value from the payload
-func extractStringFromPayload(payload map[string]interface{}, key string) string {
-	if value, exists := payload[key]; exists {
-		if strVal, ok := value.(string); ok {
-			return strVal
-		}
-	}
-	return ""
-}
-
-// generateID generates a simple random ID
-func generateID() string {
-	bytes := make([]byte, 16)
-	_, _ = rand.Read(bytes)
-	return hex.EncodeToString(bytes)
 }
 
 // Close closes the logger service and any open files

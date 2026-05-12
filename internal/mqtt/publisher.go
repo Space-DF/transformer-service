@@ -206,3 +206,38 @@ func (c *Consumer) publishLNSEvent(tenant *TenantConsumer, event map[string]inte
 
 	return nil
 }
+
+func (c *Consumer) publishRawLog(tenant *TenantConsumer, logEntry models.RawDataLog) error {
+	if tenant.Channel == nil {
+		return fmt.Errorf("tenant channel is nil")
+	}
+
+	body, err := segmentjson.Marshal(logEntry)
+	if err != nil {
+		return fmt.Errorf("failed to marshal raw log entry: %w", err)
+	}
+
+	exchange := tenant.Exchange
+	if exchange == "" {
+		exchange = fmt.Sprintf("%s.exchange", tenant.OrgSlug)
+	}
+
+	routingKey := fmt.Sprintf("tenant.%s.device.%s.raw_data_log", tenant.OrgSlug, logEntry.DeviceEUI)
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing raw log entry to routing key: %s", routingKey)
+	if err := tenant.Channel.Publish(
+		exchange,
+		routingKey,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType:  "application/json",
+			Body:         body,
+			Timestamp:    time.Now(),
+			DeliveryMode: amqp.Persistent,
+		},
+	); err != nil {
+		return fmt.Errorf("failed to publish raw log entry to %s: %w", routingKey, err)
+	}
+
+	return nil
+}
