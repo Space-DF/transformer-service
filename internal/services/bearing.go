@@ -1,10 +1,6 @@
 package services
 
-import (
-	"math"
-)
-
-const minBearingDistanceMeters = 5.0
+import "math"
 
 // Coordinate represents a geographic coordinate
 type Coordinate struct {
@@ -67,37 +63,6 @@ func CalculateBearingFromPoints(points []LocationEntry) float64 {
 	return math.Mod(avg+360, 360)
 }
 
-func FilterPoints(points []LocationEntry) []LocationEntry {
-	if len(points) < 2 {
-		return points
-	}
-
-	var result []LocationEntry
-	result = append(result, points[0])
-
-	for i := 1; i < len(points); i++ {
-		if distanceMeters(result[len(result)-1], points[i]) >= minBearingDistanceMeters {
-			result = append(result, points[i])
-		}
-	}
-
-	return result
-}
-
-func distanceMeters(a, b LocationEntry) float64 {
-	const earthRadiusMeters = 6371000.0
-
-	lat1 := a.Latitude * math.Pi / 180
-	lon1 := a.Longitude * math.Pi / 180
-	lat2 := b.Latitude * math.Pi / 180
-	lon2 := b.Longitude * math.Pi / 180
-
-	dLat := lat2 - lat1
-	dLon := lon2 - lon1
-
-	sinLat := math.Sin(dLat / 2)
-	sinLon := math.Sin(dLon / 2)
-
-	h := sinLat*sinLat + math.Cos(lat1)*math.Cos(lat2)*sinLon*sinLon
-	return 2 * earthRadiusMeters * math.Atan2(math.Sqrt(h), math.Sqrt(1-h))
+func isSameLocation(entry LocationEntry, lat, lon float64) bool {
+	return entry.Latitude == lat && entry.Longitude == lon
 }

@@ -54,10 +54,7 @@ func (p *TBeamComponent) ParseToEntities(orgSlug, model string, payload *common.
 
 	// Use GPS from device payload; fall back to the pre-computed deviceLocation (e.g. gateway
 	// trilateration) when the device has no satellite fix.
-	loc := parsed.Location
-	if loc == nil {
-		loc = deviceLocation
-	}
+	loc := common.ResolveLocationBearing(parsed.Location, deviceLocation, parsed.SensorData)
 
 	if loc != nil {
 		entities = append(entities, common.Entity{
@@ -77,6 +74,7 @@ func (p *TBeamComponent) ParseToEntities(orgSlug, model string, payload *common.
 				"device_model": model,
 				"latitude":     loc.Latitude,
 				"longitude":    loc.Longitude,
+				"bearing":      loc.Bearing,
 			},
 			Enabled:   true,
 			Timestamp: ts,

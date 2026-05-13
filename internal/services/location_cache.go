@@ -35,7 +35,7 @@ type LocationCache struct {
 func NewLocationCache() *LocationCache {
 	cache := &LocationCache{
 		locations:  make(map[string][]LocationEntry),
-		maxEntries: 10,
+		maxEntries: 2,
 		ttl:        24 * time.Hour,
 	}
 
@@ -58,7 +58,7 @@ func (c *LocationCache) SaveLocation(ctx context.Context, deviceID string, entry
 	// Add new entry at the front (newest first)
 	entries = append([]LocationEntry{entry}, entries...)
 
-	// Keep only the latest 10
+	// Keep only the latest two
 	if len(entries) > c.maxEntries {
 		entries = entries[:c.maxEntries]
 	}
@@ -70,7 +70,7 @@ func (c *LocationCache) SaveLocation(ctx context.Context, deviceID string, entry
 	return nil
 }
 
-// GetLatestLocations retrieves the 10 most recent location entries for a device
+// GetLatestLocations retrieves the most recent location entries for a device
 func (c *LocationCache) GetLatestLocations(ctx context.Context, deviceID string) ([]LocationEntry, error) {
 	if c.client != nil {
 		return c.getLatestLocationsRedis(ctx, deviceID)
