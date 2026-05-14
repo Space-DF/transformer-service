@@ -78,39 +78,30 @@ func (p *YabbyEdgeComponent) ParseToEntities(orgSlug, model string, payload *com
 		})
 	}
 
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
-	}
-	for _, def := range []sensorDef{
-		{"battery_voltage", "Battery Voltage", "battery", "voltage", "V", "", []string{"chart", "gauge", "value"}},
-		{"battery_level", "Battery Level", "battery", "battery", "%", "", []string{"chart", "gauge", "value", "slider"}},
-		{"trip_status", "Trip Status", "binary_sensor", "moving", "", "trip_status.svg", []string{"value"}},
-		{"inactivity", "Inactivity", "binary_sensor", "problem", "", "inactivity.svg", []string{"value"}},
-		{"trip_count", "Trip Count", "sensor", "trip_count", "", "trip_count.svg", []string{"chart", "value"}},
-		{"firmware", "Firmware Version", "sensor", "firmware", "", "firmware.svg", []string{"value"}},
-		{"battery_stats", "Battery Statistics", "sensor", "battery_stats", "", "battery_stats.svg", []string{"value"}},
-		{"downlink_ack", "Downlink ACK", "sensor", "status", "", "data_code.svg", []string{"value"}},
-		{"connect", "Connection Status", "sensor", "connectivity", "", "connect.svg", []string{"value"}},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.key), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       val,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
+	entities = append(entities, common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts)...)
 
 	return entities, nil
+}
+
+func (p *YabbyEdgeComponent) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	entities := []common.Entity{
+		common.BuildLocationTemplate("", model, Manufacturer, mdl, devEUI, true, false),
+	}
+	entities = append(entities, common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())...)
+	return entities
+}
+
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "battery_voltage", Name: "Battery Voltage", EntityType: "battery", DeviceClass: "voltage", UnitOfMeas: "V", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "battery_level", Name: "Battery Level", EntityType: "battery", DeviceClass: "battery", UnitOfMeas: "%", DisplayType: []string{"chart", "gauge", "value", "slider"}},
+		{Key: "trip_status", Name: "Trip Status", EntityType: "binary_sensor", DeviceClass: "moving", Icon: "trip_status.svg", DisplayType: []string{"value"}},
+		{Key: "inactivity", Name: "Inactivity", EntityType: "binary_sensor", DeviceClass: "problem", Icon: "inactivity.svg", DisplayType: []string{"value"}},
+		{Key: "trip_count", Name: "Trip Count", EntityType: "sensor", DeviceClass: "trip_count", Icon: "trip_count.svg", DisplayType: []string{"chart", "value"}},
+		{Key: "firmware", Name: "Firmware Version", EntityType: "sensor", DeviceClass: "firmware", Icon: "firmware.svg", DisplayType: []string{"value"}},
+		{Key: "battery_stats", Name: "Battery Statistics", EntityType: "sensor", DeviceClass: "battery_stats", Icon: "battery_stats.svg", DisplayType: []string{"value"}},
+		{Key: "downlink_ack", Name: "Downlink ACK", EntityType: "sensor", DeviceClass: "status", Icon: "data_code.svg", DisplayType: []string{"value"}},
+		{Key: "connect", Name: "Connection Status", EntityType: "sensor", DeviceClass: "connectivity", Icon: "connect.svg", DisplayType: []string{"value"}},
+	}
 }

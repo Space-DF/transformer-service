@@ -47,47 +47,29 @@ func (p *LSN50v2S31Component) ParseToEntities(orgSlug, model string, payload *co
 	}
 
 	mdl := strings.ToLower(model)
-	var entities []common.Entity
+	return common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts), nil
+}
 
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
+func (p *LSN50v2S31Component) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	return common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())
+}
+
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "battery_voltage", Name: "Battery Voltage", EntityType: "battery", DeviceClass: "voltage", UnitOfMeas: "V", Icon: "battery_voltage.svg", DisplayType: []string{"gauge", "value"}},
+		{Key: "exti_trigger", Name: "EXTI Trigger", EntityType: "binary_sensor", Icon: "exti_trigger.svg", DisplayType: []string{"value"}},
+		{Key: "door_status", Name: "Door Status", EntityType: "binary_sensor", DeviceClass: "door", Icon: "door_status.svg", DisplayType: []string{"value"}},
+		{Key: "work_mode", Name: "Work Mode", EntityType: "work_mode", Icon: "work_mode.svg", DisplayType: []string{"value"}},
+		{Key: "temperature_sht31", Name: "SHT31 Temperature", EntityType: "temperature", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "temperature.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "humidity_sht31", Name: "SHT31 Humidity", EntityType: "humidity", DeviceClass: "humidity", UnitOfMeas: "%", Icon: "humidity.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "data_time", Name: "Data Time", EntityType: "timestamp", Icon: "data_time.svg", DisplayType: []string{"value"}},
+		{Key: "sht_temp_min", Name: "SHT Temp Min", EntityType: "temperature", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "sht_temp_min.svg", DisplayType: []string{"value"}},
+		{Key: "sht_temp_max", Name: "SHT Temp Max", EntityType: "temperature", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "sht_temp_max.svg", DisplayType: []string{"value"}},
+		{Key: "sht_hum_min", Name: "SHT Humidity Min", EntityType: "humidity", DeviceClass: "humidity", UnitOfMeas: "%", Icon: "sht_hum_min.svg", DisplayType: []string{"value"}},
+		{Key: "sht_hum_max", Name: "SHT Humidity Max", EntityType: "humidity", DeviceClass: "humidity", UnitOfMeas: "%", Icon: "sht_hum_max.svg", DisplayType: []string{"value"}},
+		{Key: "firmware_version", Name: "Firmware Version", EntityType: "firmware", Icon: "firmware_version.svg", DisplayType: []string{"value"}},
+		{Key: "freq_band", Name: "Frequency Band", EntityType: "freq_band", Icon: "freq_band.svg", DisplayType: []string{"value"}},
+		{Key: "tdc_sec", Name: "TDC Interval", EntityType: "duration", DeviceClass: "duration", UnitOfMeas: "s", Icon: "tdc_sec.svg", DisplayType: []string{"value"}},
 	}
-
-	for _, def := range []sensorDef{
-		{"battery_voltage", "Battery Voltage", "battery", "voltage", "V", "battery_voltage.svg", []string{"gauge", "value"}},
-		{"exti_trigger", "EXTI Trigger", "binary_sensor", "", "", "exti_trigger.svg", []string{"value"}},
-		{"door_status", "Door Status", "binary_sensor", "door", "", "door_status.svg", []string{"value"}},
-		{"work_mode", "Work Mode", "work_mode", "", "", "work_mode.svg", []string{"value"}},
-		{"temperature_sht31", "SHT31 Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
-		{"humidity_sht31", "SHT31 Humidity", "humidity", "humidity", "%", "humidity.svg", []string{"chart", "gauge", "value"}},
-		{"data_time", "Data Time", "timestamp", "", "", "data_time.svg", []string{"value"}},
-		{"sht_temp_min", "SHT Temp Min", "temperature", "temperature", "°C", "sht_temp_min.svg", []string{"value"}},
-		{"sht_temp_max", "SHT Temp Max", "temperature", "temperature", "°C", "sht_temp_max.svg", []string{"value"}},
-		{"sht_hum_min", "SHT Humidity Min", "humidity", "humidity", "%", "sht_hum_min.svg", []string{"value"}},
-		{"sht_hum_max", "SHT Humidity Max", "humidity", "humidity", "%", "sht_hum_max.svg", []string{"value"}},
-		{"firmware_version", "Firmware Version", "firmware", "", "", "firmware_version.svg", []string{"value"}},
-		{"freq_band", "Frequency Band", "freq_band", "", "", "freq_band.svg", []string{"value"}},
-		{"tdc_sec", "TDC Interval", "duration", "duration", "s", "tdc_sec.svg", []string{"value"}},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.key), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       val,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
-
-	return entities, nil
 }

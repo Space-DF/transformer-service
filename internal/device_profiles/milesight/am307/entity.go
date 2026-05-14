@@ -78,40 +78,31 @@ func (p *AM307Component) ParseToEntities(orgSlug, model string, payload *common.
 		Timestamp:   ts,
 	})
 
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
-	}
-	for _, def := range []sensorDef{
-		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
-		{"humidity", "Humidity", "humidity", "humidity", "%", "humidity.svg", []string{"chart", "gauge", "value"}},
-		{"battery", "Battery", "battery", "battery", "%", "battery_percent.svg", []string{"gauge", "value"}},
-		{"occupancy", "Occupancy", "occupancy", "occupancy", "", "occupancy.svg", []string{"value"}},
-		{"pir_sensor_value", "PIR Sensor Value", "pir_sensor_value", "", "", "pir_sensor_value.svg", []string{"value"}},
-		{"pir_sensor_status", "PIR Sensor Status", "pir_sensor_status", "", "", "pir_trigger_status.svg", []string{"value"}},
-		{"light_level", "Light Level", "light_level", "illuminance", "lx", "light_level.svg", []string{"chart", "gauge", "value"}},
-		{"co2", "CO2", "co2", "carbon_dioxide", "ppm", "co2.svg", []string{"chart", "gauge", "value"}},
-		{"tvoc", "TVOC", "tvoc", "volatile_organic_compounds", "", "volatile_organic_compounds.svg", []string{"chart", "gauge", "value"}},
-		{"pressure", "Pressure", "pressure", "pressure", "hPa", "pressure.svg", []string{"chart", "gauge", "value"}},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.key), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       val,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
+	entities = append(entities, common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts)...)
 
 	return entities, nil
+}
+
+func (p *AM307Component) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	entities := []common.Entity{
+		common.BuildLocationTemplate("", model, Manufacturer, mdl, devEUI, false, true),
+	}
+	entities = append(entities, common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())...)
+	return entities
+}
+
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "temperature", Name: "Temperature", EntityType: "temperature", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "temperature.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "humidity", Name: "Humidity", EntityType: "humidity", DeviceClass: "humidity", UnitOfMeas: "%", Icon: "humidity.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "battery", Name: "Battery", EntityType: "battery", DeviceClass: "battery", UnitOfMeas: "%", Icon: "battery_percent.svg", DisplayType: []string{"gauge", "value"}},
+		{Key: "occupancy", Name: "Occupancy", EntityType: "occupancy", DeviceClass: "occupancy", Icon: "occupancy.svg", DisplayType: []string{"value"}},
+		{Key: "pir_sensor_value", Name: "PIR Sensor Value", EntityType: "pir_sensor_value", Icon: "pir_sensor_value.svg", DisplayType: []string{"value"}},
+		{Key: "pir_sensor_status", Name: "PIR Sensor Status", EntityType: "pir_sensor_status", Icon: "pir_trigger_status.svg", DisplayType: []string{"value"}},
+		{Key: "light_level", Name: "Light Level", EntityType: "light_level", DeviceClass: "illuminance", UnitOfMeas: "lx", Icon: "light_level.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "co2", Name: "CO2", EntityType: "co2", DeviceClass: "carbon_dioxide", UnitOfMeas: "ppm", Icon: "co2.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "tvoc", Name: "TVOC", EntityType: "tvoc", DeviceClass: "volatile_organic_compounds", Icon: "volatile_organic_compounds.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "pressure", Name: "Pressure", EntityType: "pressure", DeviceClass: "pressure", UnitOfMeas: "hPa", Icon: "pressure.svg", DisplayType: []string{"chart", "gauge", "value"}},
+	}
 }

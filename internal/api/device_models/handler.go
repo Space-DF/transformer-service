@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/Space-DF/transformer-service/internal/api/common"
+	deviceprofile "github.com/Space-DF/transformer-service/internal/device_profiles"
+	dpcommon "github.com/Space-DF/transformer-service/internal/device_profiles/common"
 	"github.com/Space-DF/transformer-service/internal/models"
 	"github.com/Space-DF/transformer-service/internal/services"
 	"github.com/labstack/echo/v4"
@@ -73,4 +75,67 @@ func getDeviceModelByID(dps *services.DeviceProfileService) echo.HandlerFunc {
 		}
 		return c.JSON(http.StatusOK, deviceModel)
 	}
+}
+
+func getDeviceModelEntityTemplates(dps *services.DeviceProfileService) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		deviceModelID := strings.TrimSpace(c.Param("device_model_id"))
+
+		if deviceModelID == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "device_model_id is required",
+			})
+		}
+
+		templates, err := buildEntityTemplates(dps, deviceModelID)
+		if err != nil {
+			return err
+		}
+
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"count":   len(templates),
+			"results": templates,
+		})
+	}
+}
+
+func buildEntityTemplates(dps *services.DeviceProfileService, deviceModelID string) ([]models.DeviceEntityTemplate, error) {
+	profile, err := dps.GetProfileByID(deviceModelID)
+	if err != nil {
+		return nil, err
+	}
+
+	registry := deviceprofile.Global()
+	if registry == nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "device profile registry is not initialized")
+	}
+
+	entities, err := registry.GetEntityTemplates(dpcommon.DeviceType(profile.DeviceType), profile.DeviceType, "")
+	if err != nil {
+		return nil, err
+	}
+	if len(entities) == 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "no entity templates registered for this device model")
+	}
+
+	templates := make([]models.DeviceEntityTemplate, 0, len(entities))
+	for _, entity := range entities {
+		key := strings.TrimSpace(entity.Key)
+		if key == "" {
+			return nil, echo.NewHTTPError(http.StatusInternalServerError, "entity template missing key")
+		}
+		templates = append(templates, models.DeviceEntityTemplate{
+			Key:         key,
+			UniqueID:    key,
+			ModelKey:    profile.DeviceType,
+			EntityType:  entity.EntityType,
+			Category:    entity.EntityType,
+			Name:        entity.Name,
+			UnitOfMeas:  entity.UnitOfMeas,
+			Icon:        entity.Icon,
+			DisplayType: entity.DisplayType,
+		})
+	}
+
+	return templates, nil
 }
