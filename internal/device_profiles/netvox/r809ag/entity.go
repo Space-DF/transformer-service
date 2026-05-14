@@ -51,42 +51,23 @@ func (p *R809AGComponent) ParseToEntities(orgSlug, model string, payload *common
 	}
 
 	mdl := strings.ToLower(model)
-	var entities []common.Entity
+	return common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts), nil
+}
 
-	// Add all entities, including switch, in the loop.
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
-	}
-	for _, def := range []sensorDef{
-		{"switch", "Outlet", "switch", "outlet", "", "switch.svg", []string{"toggle"}},
-		{"voltage", "Voltage", "voltage", "voltage", "V", "external_voltage.svg", []string{"chart", "value"}},
-		{"current", "Current", "current", "current", "mA", "current.svg", []string{"chart", "gauge", "value"}},
-		{"power", "Power", "power", "power", "W", "power.svg", []string{"chart", "gauge", "value"}},
-		{"energy", "Energy", "energy", "energy", "Wh", "energy.svg", []string{"chart", "value"}},
-		{"overcurrent_alarm", "Over Current Alarm", "switch", "power", "", "over_current_alarm.svg", []string{"switch"}},
-		{"dash_current_alarm", "Dash Current Alarm", "switch", "power", "", "dash_current_alarm.svg", []string{"switch"}},
-		{"power_off_alarm", "Power Off Alarm", "switch", "power", "", "power_off_alarm.svg", []string{"switch"}},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-		entity := common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.key), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       val,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		}
-		entities = append(entities, entity)
-	}
+func (p *R809AGComponent) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	return common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())
+}
 
-	return entities, nil
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "switch", Name: "Outlet", EntityType: "switch", DeviceClass: "outlet", Icon: "switch.svg", DisplayType: []string{"toggle"}},
+		{Key: "voltage", Name: "Voltage", EntityType: "voltage", DeviceClass: "voltage", UnitOfMeas: "V", Icon: "external_voltage.svg", DisplayType: []string{"chart", "value"}},
+		{Key: "current", Name: "Current", EntityType: "current", DeviceClass: "current", UnitOfMeas: "mA", Icon: "current.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "power", Name: "Power", EntityType: "power", DeviceClass: "power", UnitOfMeas: "W", Icon: "power.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "energy", Name: "Energy", EntityType: "energy", DeviceClass: "energy", UnitOfMeas: "Wh", Icon: "energy.svg", DisplayType: []string{"chart", "value"}},
+		{Key: "overcurrent_alarm", Name: "Over Current Alarm", EntityType: "switch", DeviceClass: "power", Icon: "over_current_alarm.svg", DisplayType: []string{"switch"}},
+		{Key: "dash_current_alarm", Name: "Dash Current Alarm", EntityType: "switch", DeviceClass: "power", Icon: "dash_current_alarm.svg", DisplayType: []string{"switch"}},
+		{Key: "power_off_alarm", Name: "Power Off Alarm", EntityType: "switch", DeviceClass: "power", Icon: "power_off_alarm.svg", DisplayType: []string{"switch"}},
+	}
 }

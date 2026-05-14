@@ -78,32 +78,23 @@ func (p *WLBV1Component) ParseToEntities(orgSlug, model string, payload *common.
 		})
 	}
 
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
-	}
-	for _, def := range []sensorDef{
-		{"battery", "Battery Voltage", "battery", "battery", "V", "battery_voltage.svg", []string{"chart", "gauge", "value", "slider"}},
-		{"water_depth", "Water Depth", "water_depth", "distance", "cm", "water_depth.svg", []string{"chart", "gauge", "value", "slider"}},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.key), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       val,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
+	entities = append(entities, common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts)...)
 
 	return entities, nil
+}
+
+func (p *WLBV1Component) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	entities := []common.Entity{
+		common.BuildLocationTemplate("", model, Manufacturer, mdl, devEUI, true, false),
+	}
+	entities = append(entities, common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())...)
+	return entities
+}
+
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "battery", Name: "Battery Voltage", EntityType: "battery", DeviceClass: "battery", UnitOfMeas: "V", Icon: "battery_voltage.svg", DisplayType: []string{"chart", "gauge", "value", "slider"}},
+		{Key: "water_depth", Name: "Water Depth", EntityType: "water_depth", DeviceClass: "distance", UnitOfMeas: "cm", Icon: "water_depth.svg", DisplayType: []string{"chart", "gauge", "value", "slider"}},
+	}
 }

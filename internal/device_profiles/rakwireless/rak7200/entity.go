@@ -78,32 +78,23 @@ func (p *RAK7200Component) ParseToEntities(orgSlug, model string, payload *commo
 		})
 	}
 
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
-	}
-	for _, def := range []sensorDef{
-		{"battery", "Battery Level", "battery", "battery", "%", "battery_percent.svg", []string{"chart", "gauge", "value"}},
-		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.key), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       val,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
+	entities = append(entities, common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts)...)
 
 	return entities, nil
+}
+
+func (p *RAK7200Component) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	entities := []common.Entity{
+		common.BuildLocationTemplate("", model, Manufacturer, mdl, devEUI, true, false),
+	}
+	entities = append(entities, common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())...)
+	return entities
+}
+
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "battery", Name: "Battery Level", EntityType: "battery", DeviceClass: "battery", UnitOfMeas: "%", Icon: "battery_percent.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "temperature", Name: "Temperature", EntityType: "temperature", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "temperature.svg", DisplayType: []string{"chart", "gauge", "value"}},
+	}
 }

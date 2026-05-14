@@ -79,34 +79,25 @@ func (p *RAK4630Component) ParseToEntities(orgSlug, model string, payload *commo
 		})
 	}
 
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
-	}
-	for _, def := range []sensorDef{
-		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
-		{"humidity", "Humidity", "humidity", "humidity", "%", "humidity.svg", []string{"chart", "gauge", "value"}},
-		{"pressure", "Pressure", "pressure", "pressure", "kPa", "pressure.svg", []string{"chart"}},
-		{"battery_voltage", "Battery Voltage", "battery_voltage", "battery_voltage", "V", "battery_voltage.svg", []string{"chart", "gauge", "value", "slider"}},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.key), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       val,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
+	entities = append(entities, common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts)...)
 
 	return entities, nil
+}
+
+func (p *RAK4630Component) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	entities := []common.Entity{
+		common.BuildLocationTemplate("", model, Manufacturer, mdl, devEUI, true, false),
+	}
+	entities = append(entities, common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())...)
+	return entities
+}
+
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "temperature", Name: "Temperature", EntityType: "temperature", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "temperature.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "humidity", Name: "Humidity", EntityType: "humidity", DeviceClass: "humidity", UnitOfMeas: "%", Icon: "humidity.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "pressure", Name: "Pressure", EntityType: "pressure", DeviceClass: "pressure", UnitOfMeas: "kPa", Icon: "pressure.svg", DisplayType: []string{"chart"}},
+		{Key: "battery_voltage", Name: "Battery Voltage", EntityType: "battery_voltage", DeviceClass: "battery_voltage", UnitOfMeas: "V", Icon: "battery_voltage.svg", DisplayType: []string{"chart", "gauge", "value", "slider"}},
+	}
 }

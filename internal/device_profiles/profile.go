@@ -122,6 +122,20 @@ func (c *Component) GetSupportedEntityTypes(deviceType common.DeviceType) []stri
 	return parser.GetSupportedEntityTypes()
 }
 
+func (c *Component) GetEntityTemplates(deviceType common.DeviceType, model, devEUI string) ([]common.Entity, error) {
+	parser, exists := c.parsers[deviceType]
+	if !exists {
+		return nil, errNoParser(string(deviceType))
+	}
+
+	provider, ok := parser.(common.TemplateProvider)
+	if !ok {
+		return nil, fmt.Errorf("parser does not provide entity templates: %s", deviceType)
+	}
+
+	return provider.GetEntityTemplates(model, devEUI), nil
+}
+
 // Sentinel errors returned by the Component.
 var (
 	ErrNoParser      = errors.New("no parser registered for device type")
