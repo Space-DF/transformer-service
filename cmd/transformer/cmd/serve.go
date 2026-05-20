@@ -66,7 +66,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 		LogDir:        cfg.RawDataLog.LogDir,
 		EnableFileLog: cfg.RawDataLog.EnableFileLog,
 		EnableJSONLog: cfg.RawDataLog.EnableJSONLog,
-		MaxFileSize:   cfg.RawDataLog.MaxFileSize,
 	}
 
 	loggerService, err := services.NewLoggerService(loggerConfig)
@@ -98,7 +97,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	log.Printf("Connected to AMQP broker: %s", cfg.AMQP.BrokerURL)
 	log.Printf("Consuming from queue: %s with routing key: %s", cfg.AMQP.Queue, cfg.AMQP.RoutingKey)
-	log.Printf("Publishing to topics: %v", cfg.AMQP.OutputTopics)
 	log.Printf("Raw data logging enabled - File: %t, JSON: %t, Dir: %s", cfg.RawDataLog.EnableFileLog, cfg.RawDataLog.EnableJSONLog, cfg.RawDataLog.LogDir)
 
 	// Initialize Echo framework
