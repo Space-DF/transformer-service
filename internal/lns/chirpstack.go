@@ -3,6 +3,7 @@ package lns
 import (
 	"encoding/base64"
 	"fmt"
+	"strings"
 )
 
 // ChirpStackHandler handles data from ChirpStack webhook payloads
@@ -248,4 +249,67 @@ func (h *ChirpStackHandler) ExtractGatewayLocations(rxMetadata []interface{}) ([
 	}
 
 	return locations, nil
+}
+
+func (h *ChirpStackHandler) ExtractEventType(payload map[string]interface{}) EventType {
+	if payload == nil {
+		return EventUnknown
+	}
+
+	metadata, ok := payload["metadata"].(map[string]interface{})
+	if !ok {
+		return EventUnknown
+	}
+
+	query, ok := metadata["query"].(string)
+	if !ok || query == "" {
+		return EventUnknown
+	}
+
+	switch {
+	case strings.Contains(query, "event=up"):
+		return EventUplink
+	case strings.Contains(query, "event=join"):
+		return EventJoin
+	case strings.Contains(query, "event=log"):
+		return EventAlert
+	case strings.Contains(query, "event=status"):
+		return EventStatus
+	case strings.Contains(query, "event=ack"):
+		return EventAck
+	case strings.Contains(query, "event=txack"):
+		return EventAck
+	case strings.Contains(query, "event=location"):
+		return EventAck
+	case strings.Contains(query, "event=integration"):
+		return EventAck
+	default:
+		return EventUnknown
+	}
+}
+
+func (h *ChirpStackHandler) ExtractAlert(payload map[string]interface{}) *LNSAlert {
+	if payload == nil {
+		return nil
+	}
+
+	decoded, ok := payload["decoded_raw_data"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	level, _ := decoded["level"].(string)
+	code, _ := decoded["code"].(string)
+	desc, _ := decoded["description"].(string)
+
+	if code == "" {
+		return nil
+	}
+
+	return &LNSAlert{
+		Code:    code,
+		Level:   level,
+		Message: desc,
+		Source:  "chirpstack",
+	}
 }

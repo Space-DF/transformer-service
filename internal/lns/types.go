@@ -57,3 +57,23 @@ type GatewayMetadata struct {
 	Longitude float64
 	RSSI      int
 }
+
+// EventType represents the type of LNS event received
+type EventType string
+
+const (
+	EventUplink  EventType = "uplink"
+	EventJoin    EventType = "join"
+	EventAlert   EventType = "alert"
+	EventStatus  EventType = "status"
+	EventAck     EventType = "ack"
+	EventUnknown EventType = "unknown"
+)
+
+// LNSAlert represents an alert or error from the LNS
+type LNSAlert struct {
+	Code    string `json:"code"`
+	Level   string `json:"level"`
+	Message string `json:"message"`
+	Source  string `json:"source"`
+}

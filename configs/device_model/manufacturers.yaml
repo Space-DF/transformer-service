@@ -4,6 +4,16 @@ manufacturers:
     description: RAKwireless Technology Limited
     portal_url:
 
+  - id: a6d0d038-a0fb-4c5c-ad8a-ba5d3e88b187
+    name: Seeed Studio
+    description: Seeed Technology
+    portal_url:
+
+  - id: a9d79241-8823-4f3c-8905-319be9c2d70d
+    name: Abeeway
+    description: Abeeway Technology
+    portal_url:
+
   - id: 957e6842-c686-40ae-8b28-bf3ddb1ad141
     name: DUT
     description: DUT Technology
@@ -27,4 +37,14 @@ manufacturers:
   - id: 6f1a2d24-ae59-4eed-ab31-3e8c836f893a
     name: Mclimate-HT
     description: Mclimate-HT Technology Limited
+    portal_url:
+
+  - id: d1b0d672-1f65-4957-b276-a4f06c8b546a
+    name: Milesight
+    description: Milesight Technology
+    portal_url:
+
+  - id: 36d2051a-ee48-4d48-b49b-26cf3bc63af8
+    name: Dragino
+    description:  Dragino Technology
     portal_url:

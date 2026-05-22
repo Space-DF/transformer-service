@@ -17,22 +17,10 @@ limitations under the License.
 package main
 
 import (
-	"log"
-
 	"github.com/Space-DF/transformer-service/cmd/transformer/cmd"
-	deviceprofile "github.com/Space-DF/transformer-service/internal/device_profiles"
 	_ "github.com/Space-DF/transformer-service/internal/lns"
 )
 
 func main() {
-	// Create a new component registry and register all device parsers explicitly.
-	registry := deviceprofile.NewComponentRegistry()
-	if err := deviceprofile.RegisterAll(registry); err != nil {
-		log.Fatalf("failed to register device profiles: %v", err)
-	}
-
-	// Set the global registry so existing services can access it via Global().
-	deviceprofile.SetGlobal(registry)
-
 	cmd.Execute()
 }

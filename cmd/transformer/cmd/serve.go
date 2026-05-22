@@ -30,6 +30,7 @@ import (
 
 	"github.com/Space-DF/transformer-service/internal/api"
 	"github.com/Space-DF/transformer-service/internal/config"
+	deviceprofile "github.com/Space-DF/transformer-service/internal/device_profiles"
 	"github.com/Space-DF/transformer-service/internal/mqtt"
 	"github.com/Space-DF/transformer-service/internal/services"
 	"github.com/Space-DF/transformer-service/internal/telemetry"
@@ -65,7 +66,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 		LogDir:        cfg.RawDataLog.LogDir,
 		EnableFileLog: cfg.RawDataLog.EnableFileLog,
 		EnableJSONLog: cfg.RawDataLog.EnableJSONLog,
-		MaxFileSize:   cfg.RawDataLog.MaxFileSize,
 	}
 
 	loggerService, err := services.NewLoggerService(loggerConfig)
@@ -77,8 +77,18 @@ func runServe(cmd *cobra.Command, args []string) error {
 	// Create device profile service
 	deviceProfileService, _ := services.NewDeviceProfileService()
 
+	// Create location cache (in-memory)
+	locationCache := services.NewLocationCache()
+	locationService := services.NewLocationServiceWithCache(locationCache)
+
+	registry := deviceprofile.NewComponentRegistry()
+	if err := deviceprofile.RegisterAll(registry, locationService); err != nil {
+		return fmt.Errorf("failed to register device profiles: %w", err)
+	}
+	deviceprofile.SetGlobal(registry)
+
 	// Create MQTT consumer with event-driven organization discovery
-	consumer := mqtt.NewConsumer(cfg.AMQP, cfg.OrgEvents, loggerService, deviceProfileService)
+	consumer := mqtt.NewConsumer(cfg.AMQP, cfg.OrgEvents, loggerService, deviceProfileService, locationService)
 
 	// Connect to AMQP broker
 	if err := consumer.Connect(); err != nil {
@@ -87,7 +97,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	log.Printf("Connected to AMQP broker: %s", cfg.AMQP.BrokerURL)
 	log.Printf("Consuming from queue: %s with routing key: %s", cfg.AMQP.Queue, cfg.AMQP.RoutingKey)
-	log.Printf("Publishing to topics: %v", cfg.AMQP.OutputTopics)
 	log.Printf("Raw data logging enabled - File: %t, JSON: %t, Dir: %s", cfg.RawDataLog.EnableFileLog, cfg.RawDataLog.EnableJSONLog, cfg.RawDataLog.LogDir)
 
 	// Initialize Echo framework

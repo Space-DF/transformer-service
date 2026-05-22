@@ -23,6 +23,7 @@ import (
 type DeviceProfileService struct {
 	httpClient    *http.Client
 	baseURL       string
+	publicBaseURL string
 	cacheStore    DeviceMappingCache
 	profiles      map[string]*models.DeviceProfile // map[device_type]profile
 	profilesByID  map[string]*models.DeviceProfile // map[profile_id]profile
@@ -38,6 +39,7 @@ func NewDeviceProfileService() (*DeviceProfileService, error) {
 	}
 
 	service.baseURL = strings.TrimSpace(os.Getenv("DEVICE_SERVICE_BASE_URL"))
+	service.publicBaseURL = strings.TrimRight(strings.TrimSpace(os.Getenv("HOST")), "/")
 
 	timeout := 5 * time.Second
 	if raw := strings.TrimSpace(os.Getenv("DEVICE_SERVICE_TIMEOUT_SECONDS")); raw != "" {
@@ -152,9 +154,55 @@ func (dps *DeviceProfileService) GetAllDeviceModels() []models.DeviceModel {
 			ManufacturerName: manufacturerName,
 			DeviceType:       profile.DeviceType,
 			KeyFeature:       profile.KeyFeature,
+			Logo:             dps.resolveLogoURL(profile.Logo),
 		})
 	}
 	return result
+}
+
+// GetDeviceModelByID returns a device model by its ID with manufacturer name resolved.
+func (dps *DeviceProfileService) GetDeviceModelByID(deviceModelID string) *models.DeviceModel {
+	profile, ok := dps.profilesByID[deviceModelID]
+	if !ok {
+		return nil
+	}
+
+	manufacturerName := profile.ManufacturerID
+	if m, ok := dps.manufacturers[profile.ManufacturerID]; ok {
+		manufacturerName = m.Name
+	}
+
+	return &models.DeviceModel{
+		ID:               profile.ID,
+		Name:             profile.Name,
+		ManufacturerID:   profile.ManufacturerID,
+		ManufacturerName: manufacturerName,
+		DeviceType:       profile.DeviceType,
+		KeyFeature:       profile.KeyFeature,
+		Logo:             dps.resolveLogoURL(profile.Logo),
+	}
+}
+
+func (dps *DeviceProfileService) resolveLogoURL(logo string) string {
+	logo = strings.TrimSpace(logo)
+	if logo == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(logo, "http://") || strings.HasPrefix(logo, "https://") {
+		return logo
+	}
+
+	path := logo
+	if !strings.HasPrefix(path, "/") {
+		path = "/static/images/devices/" + strings.TrimLeft(path, "/")
+	}
+
+	if dps.publicBaseURL == "" {
+		return path
+	}
+
+	return dps.publicBaseURL + path
 }
 
 func (dps *DeviceProfileService) GetDeviceMapping(orgSlug, devEUI string) (*models.DeviceMapping, error) {

@@ -21,6 +21,11 @@ type Parser interface {
 	GetSupportedEntityTypes() []string
 }
 
+// TemplateProvider is implemented by parsers that can expose bootstrap entity templates.
+type TemplateProvider interface {
+	GetEntityTemplates(model, devEUI string) []Entity
+}
+
 // RawPayload represents the incoming device data before parsing.
 type RawPayload struct {
 	DeviceEUI string                 `json:"device_eui"`
@@ -45,6 +50,7 @@ type Location struct {
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
 	Altitude  float64 `json:"altitude,omitempty"`
+	Bearing   float64 `json:"bearing,omitempty"`
 }
 
 // ParsedData is the intermediate result of parsing a single device uplink.
@@ -83,6 +89,7 @@ type DeviceInfo struct {
 
 // Entity represents a single device capability or sensor reading.
 type Entity struct {
+	Key         string                 `json:"key,omitempty"`
 	UniqueID    string                 `json:"unique_id"`
 	EntityID    string                 `json:"entity_id"`
 	EntityType  string                 `json:"entity_type"`
@@ -96,3 +103,23 @@ type Entity struct {
 	Enabled     bool                   `json:"enabled"`
 	Timestamp   time.Time              `json:"timestamp"`
 }
+
+type EntityTransformFunc func(value any) (state any, attributes map[string]any, ok bool)
+
+type EntitySkipFunc func(value any) bool
+
+type EntityDef struct {
+	Key         string
+	DomainKey   string
+	Name        string
+	EntityType  string
+	DeviceClass string
+	UnitOfMeas  string
+	Icon        string
+	DisplayType []string
+	Attributes  map[string]interface{}
+	Transform   EntityTransformFunc
+	Skip        EntitySkipFunc
+}
+
+type EntityTemplateDef = EntityDef

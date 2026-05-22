@@ -166,3 +166,43 @@ func (c *Consumer) publishEntityTelemetry(channel *amqp.Channel, data *models.Te
 
 	return nil
 }
+
+func (c *Consumer) publishLNSEvent(tenant *TenantConsumer, event map[string]interface{}, orgSlug string, spaceSlug string, deviceID string) error {
+	if tenant.Channel == nil {
+		return fmt.Errorf("tenant channel is nil")
+	}
+
+	body, err := segmentjson.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal LNS event: %w", err)
+	}
+
+	exchange := tenant.Exchange
+	if exchange == "" {
+		exchange = fmt.Sprintf("%s.exchange", tenant.OrgSlug)
+	}
+
+	if spaceSlug == "" || deviceID == "" {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Cannot publish LNS event: missing spaceSlug or deviceID (space=%s, device=%s), skipping", spaceSlug, deviceID)
+		return nil
+	}
+	routingKey := fmt.Sprintf("tenant.%s.transformed.telemetry.device.location", orgSlug)
+
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing LNS event to routing key: %s", routingKey)
+	if err := tenant.Channel.Publish(
+		exchange,
+		routingKey,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType:  "application/json",
+			Body:         body,
+			Timestamp:    time.Now(),
+			DeliveryMode: amqp.Persistent,
+		},
+	); err != nil {
+		return fmt.Errorf("failed to publish LNS event to %s: %w", routingKey, err)
+	}
+
+	return nil
+}

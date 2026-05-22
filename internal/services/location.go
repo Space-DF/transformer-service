@@ -1,9 +1,12 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"math"
+	"time"
 
+	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
 	"github.com/Space-DF/transformer-service/internal/lns"
 	"github.com/Space-DF/transformer-service/internal/models"
 )
@@ -16,20 +19,39 @@ const (
 )
 
 // LocationService handles device location calculations
-type LocationService struct{}
+type LocationService struct {
+	locationCache *LocationCache
+}
 
 // NewLocationService creates a new location service
 func NewLocationService() *LocationService {
 	return &LocationService{}
 }
 
-// CalculateDeviceLocation calculates device location based on gateway data
-func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{}) (*models.DeviceLocationData, error) {
-	return ls.CalculateDeviceLocationWithLNS(payload, lns.LNSTypeUnknown)
+// NewLocationServiceWithCache creates a new location service with in-memory cache
+func NewLocationServiceWithCache(locationCache *LocationCache) *LocationService {
+	return &LocationService{
+		locationCache: locationCache,
+	}
 }
 
-// CalculateDeviceLocationWithLNS calculates device location using LNS-aware extraction
+// CalculateDeviceLocation calculates device location based on gateway data
+func (ls *LocationService) CalculateDeviceLocation(payload map[string]interface{}) (*models.DeviceLocationData, error) {
+	return ls.CalculateDeviceLocationWithContext(context.Background(), payload)
+}
+
+// CalculateDeviceLocationWithContext calculates device location with caller-provided context.
+func (ls *LocationService) CalculateDeviceLocationWithContext(ctx context.Context, payload map[string]interface{}) (*models.DeviceLocationData, error) {
+	return ls.CalculateDeviceLocationWithLNSContext(ctx, payload, lns.LNSTypeUnknown)
+}
+
+// CalculateDeviceLocationWithLNS calculates device location using LNS-aware extraction.
 func (ls *LocationService) CalculateDeviceLocationWithLNS(payload map[string]interface{}, lnsType lns.LNSType) (*models.DeviceLocationData, error) {
+	return ls.CalculateDeviceLocationWithLNSContext(context.Background(), payload, lnsType)
+}
+
+// CalculateDeviceLocationWithLNSContext calculates device location using caller-provided context.
+func (ls *LocationService) CalculateDeviceLocationWithLNSContext(ctx context.Context, payload map[string]interface{}, lnsType lns.LNSType) (*models.DeviceLocationData, error) {
 	// Get LNS handler
 	handler, err := lns.GetLNSHandler(lnsType)
 	if err != nil {
@@ -70,6 +92,12 @@ func (ls *LocationService) CalculateDeviceLocationWithLNS(payload map[string]int
 		}
 	}
 
+	if len(locations) == 0 {
+		return &models.DeviceLocationData{
+			DevEUI: devEUI,
+		}, nil
+	}
+
 	// Calculate device location based on number of gateways
 	var lat, lon float64
 
@@ -90,11 +118,70 @@ func (ls *LocationService) CalculateDeviceLocationWithLNS(payload map[string]int
 		return nil, err
 	}
 
+	bearingValue, err := ls.ProcessLocation(ctx, devEUI, lat, lon)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process location history: %w", err)
+	}
+
 	return &models.DeviceLocationData{
 		Latitude:  roundToDecimals(lat, 6),
 		Longitude: roundToDecimals(lon, 6),
 		DevEUI:    devEUI,
+		Bearing:   bearingValue,
 	}, nil
+}
+
+func (ls *LocationService) ProcessLocation(ctx context.Context, devEUI string, lat, lon float64) (*float64, error) {
+	if ls.locationCache == nil {
+		return nil, nil
+	}
+
+	if err := common.ValidateCoordinates(lat, lon); err != nil {
+		fmt.Printf("Skipping cache save for device %s: invalid location lat=%.6f lon=%.6f\n", devEUI, lat, lon)
+		return nil, nil
+	}
+
+	// Get cached locations
+	cachedLocations, err := ls.locationCache.GetLatestLocations(ctx, devEUI)
+	if err != nil {
+		fmt.Printf("Failed to get location history: %v\n", err)
+	}
+
+	if len(cachedLocations) > 1 && isSameLocation(cachedLocations[0], lat, lon) {
+		fmt.Printf("Skipping cache save for device %s: location unchanged lat=%.6f lon=%.6f\n", devEUI, lat, lon)
+		b := CalculateBearingFromPoints(cachedLocations[:2])
+		return &b, nil
+	}
+
+	var bearingValue *float64
+	if len(cachedLocations) > 0 {
+		points := []LocationEntry{
+			{
+				Latitude:  lat,
+				Longitude: lon,
+			},
+			cachedLocations[0],
+		}
+		b := CalculateBearingFromPoints(points)
+		bearingValue = &b
+		fmt.Printf("Computed bearing for device %s: %.2f\n", devEUI, b)
+	} else {
+		fmt.Printf("Skipping bearing for device %s: need previous cached location\n", devEUI)
+	}
+
+	entry := LocationEntry{
+		Latitude:  lat,
+		Longitude: lon,
+		Accuracy:  0,
+		Bearing:   bearingValue,
+		Timestamp: time.Now().UnixMilli(),
+	}
+
+	if err := ls.locationCache.SaveLocation(ctx, devEUI, entry); err != nil {
+		fmt.Printf("Failed to save location: %v\n", err)
+	}
+
+	return bearingValue, nil
 }
 
 // findDistance calculates distance based on RSSI and frequency

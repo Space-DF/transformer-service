@@ -4,87 +4,109 @@ device_profiles:
     manufacturer_id: 735c87f8-b9c5-4637-b75e-0327626fb1c1
     device_type: RAK2270
     key_feature: location
+    logo: rak2270.png
 
   - id: 1f851b13-d650-40d3-8e29-02cf9c117713
     name: lorawan
     manufacturer_id: 735c87f8-b9c5-4637-b75e-0327626fb1c1
     device_type: RAK4630
     key_feature: location
+    logo: rak4630.png
 
   - id: 2bbb6138-11e2-4af1-95c6-80f5fc4ec9e8
     name: lorawan
     manufacturer_id: 957e6842-c686-40ae-8b28-bf3ddb1ad141
     device_type: WLBV1
     key_feature: water_depth
+    logo: default.png
 
   - id: b99c3f17-b8f5-4432-bb76-18a1f5732ea6
     name: lorawan
-    manufacturer_id: 735c87f8-b9c5-4637-b75e-0327626fb1c1
+    manufacturer_id: a6d0d038-a0fb-4c5c-ad8a-ba5d3e88b187
     device_type: SENSECAP_T1000
     key_feature: location
+    logo: sensecap_t1000.png
 
   - id: 960b1758-1d15-465a-85d8-d8889ada27da
     name: lorawan
-    manufacturer_id: 735c87f8-b9c5-4637-b75e-0327626fb1c1
+    manufacturer_id: 735c87f8-c686-b6d5-4e2a-0327626fb2c2
     device_type: TBEAM
     key_feature: location
+    logo: tbeam.png
 
   - id: 960b1758-1d15-465a-85d8-9e1d9e1d9e1d
     name: lorawan
-    manufacturer_id: 735c87f8-b9c5-4637-b75e-0327626fb1c1
+    manufacturer_id: a9d79241-8823-4f3c-8905-319be9c2d70d
     device_type: ABEEWAY_INDUSTRIAL_TRACKER
     key_feature: location
+    logo: abeeway_industrial_tracker.png
 
   - id: 7e4b2d19-c3a8-4f56-9e1d-b5a7f8c62e03
     name: lorawan
     manufacturer_id: a3f1c8e7-4b9d-4e2a-b6d5-8c7f3a1e9d42
     device_type: YABBY_EDGE
     key_feature: location
+    logo: yabby_edge.png
 
   - id: c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f
     name: lorawan
     manufacturer_id: b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e
     device_type: R718N17
     key_feature: one_phase_current
+    logo: r718n17.png
 
   - id: 62762a15-1e5e-4db8-b79c-97e0d1ce98e2
     name: lorawan
-    manufacturer_id: a3f1c8e7-4b9d-4e2a-b6d5-8c7f3a1e9d42
+    manufacturer_id: b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e
     device_type: R809AG
     key_feature: switch
+    logo: r809ag.png
 
   - id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
     name: lorawan
-    manufacturer_id: 735c87f8-b9c5-4637-b75e-0327626fb1c1
+    manufacturer_id: 36d2051a-ee48-4d48-b49b-26cf3bc63af8
     device_type: LCC01LB
     key_feature: weight
+    logo: lcc01lb.png
 
   - id: a1b2c3d4-e5f6-4a5b-8c7d-9e0f1a2b3c4d
     name: lorawan
-    manufacturer_id: 6f1a2d24-ae59-4eed-ab31-3e8c836f893a
+    manufacturer_id: d1b0d672-1f65-4957-b276-a4f06c8b546a
     device_type: AM307
     key_feature: indoor_air_quality
+    logo: am307.png
 
   - id: c9cff038-d15c-4edb-8273-ed0923f8b15a
     name: lorawan
     manufacturer_id: a3f1c8e7-4b9d-4e2a-b6d5-8c7f3a1e9d42
     device_type: QUANDIFY_CUBICMETER
     key_feature: water_temp
+    logo: quandify_cubicmeter.png
 
   - id: 8f5c3e20-d4b9-5e67-0f2e-c658f9d78f47
     name: lorawan
     manufacturer_id: 6f1a2d24-ae59-4eed-ab31-3e8c836f893a
     device_type: MCLIMATE_HT
     key_feature: location
+    logo: mclimate_ht.png
     
   - id: 8d7b9aff-a1f2-4f20-a8a3-054e82eef864
     name: lorawan
-    manufacturer_id: a3f1c8e7-4b9d-4e2a-b6d5-8c7f3a1e9d42
+    manufacturer_id: d1b0d672-1f65-4957-b276-a4f06c8b546a
     device_type: CT101
     key_feature: temperature
+    logo: ct101.png
 
   - id: d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70
     name: lorawan
-    manufacturer_id: a3f1c8e7-4b9d-4e2a-b6d5-8c7f3a1e9d42
+    manufacturer_id: 36d2051a-ee48-4d48-b49b-26cf3bc63af8
     device_type: LSN50V2_S31
     key_feature: temperature
+    logo: lsn50v2_s31.png
+
+  - id: e5f6a7b8-c9d0-4e1f-0a2b-3c4d5e6f7a81
+    name: lorawan
+    manufacturer_id: a3f1c8e7-4b9d-4e2a-b6d5-8c7f3a1e9d42
+    device_type: G62
+    key_feature: location
+    logo: g62.png
