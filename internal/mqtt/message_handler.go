@@ -118,6 +118,12 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	logging.Tenant(orgSlug, vhost, "📡", "Processing message from LNS: %s", lnsType)
 
 	var devEUI string = lns.ExtractDevEUI(payload, lnsType)
+	if c.shouldSkipUnpublishedUnassigned(orgSlug, vhost, devEUI) {
+		logging.Tenant(orgSlug, vhost, "⏭️", "Skipping processing for unpublished unassigned device %s", devEUI)
+		span.SetStatus(codes.Ok, "device message skipped: unpublished and unassigned")
+		span.AddEvent("publish_skipped_unpublished_unassigned")
+		return nil
+	}
 
 	eventType := lns.ExtractEventType(payload, lnsType)
 	switch eventType {
@@ -178,14 +184,6 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 		attribute.Int("gateway_count", processingInfo.GatewayCount),
 	)
 	span.AddEvent("device_data_transformed")
-
-	// Skip unpublished devices that are not assigned to a space.
-	if transformedData.SpaceSlug == "" && !transformedData.IsPublished {
-		logging.Tenant(orgSlug, vhost, "⏭️", "Skipping publish for unpublished unassigned device %s", devEUI)
-		span.SetStatus(codes.Ok, "device message skipped: unpublished and unassigned")
-		span.AddEvent("publish_skipped_unpublished_unassigned")
-		return nil
-	}
 
 	locationValid := common.ValidateCoordinates(deviceLocation.Latitude, deviceLocation.Longitude) == nil
 
@@ -321,14 +319,28 @@ func (c *Consumer) handleAlertEvent(ctx context.Context, orgSlug string, vhost s
 	return nil
 }
 
-func (c *Consumer) lookupDeviceForEvent(orgSlug string, vhost string, devEUI string) (deviceID string, spaceSlug string) {
+func (c *Consumer) shouldSkipUnpublishedUnassigned(orgSlug string, vhost string, devEUI string) bool {
+	mapping := c.lookupDeviceMapping(orgSlug, vhost, devEUI)
+	return mapping != nil && mapping.SpaceSlug == "" && !mapping.IsPublished
+}
+
+func (c *Consumer) lookupDeviceMapping(orgSlug string, vhost string, devEUI string) *models.DeviceMapping {
 	if c.deviceProfileService == nil || devEUI == "" {
-		return "", ""
+		return nil
 	}
 
 	mapping, err := c.deviceProfileService.GetDeviceMapping(orgSlug, devEUI)
 	if err != nil {
 		logging.Tenant(orgSlug, vhost, "⚠️", "Could not lookup device %s for LNS event: %v", devEUI, err)
+		return nil
+	}
+
+	return mapping
+}
+
+func (c *Consumer) lookupDeviceForEvent(orgSlug string, vhost string, devEUI string) (deviceID string, spaceSlug string) {
+	mapping := c.lookupDeviceMapping(orgSlug, vhost, devEUI)
+	if mapping == nil {
 		return "", ""
 	}
 
