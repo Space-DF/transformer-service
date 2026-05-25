@@ -179,6 +179,14 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	)
 	span.AddEvent("device_data_transformed")
 
+	// Skip unpublished devices that are not assigned to a space.
+	if transformedData.SpaceSlug == "" && !transformedData.IsPublished {
+		logging.Tenant(orgSlug, vhost, "⏭️", "Skipping publish for unpublished unassigned device %s", devEUI)
+		span.SetStatus(codes.Ok, "device message skipped: unpublished and unassigned")
+		span.AddEvent("publish_skipped_unpublished_unassigned")
+		return nil
+	}
+
 	locationValid := common.ValidateCoordinates(deviceLocation.Latitude, deviceLocation.Longitude) == nil
 
 	// Try to parse sensor entities and publish telemetry payload
