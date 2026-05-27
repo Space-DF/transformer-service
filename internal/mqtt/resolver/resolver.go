@@ -149,14 +149,33 @@ func (r *Resolver) extractGPSFromDeviceParser(ctx context.Context, profile strin
 
 	// Only set coordinates if they exist
 	if parsedData.Location != nil {
-
 		bearing, err := r.locationService.ProcessLocation(
 			ctx, parsedData.DeviceEUI, parsedData.Location.Latitude, parsedData.Location.Longitude,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process location: %w", err)
 		}
-		locationData.Bearing = bearing
+
+		resolvedLocation := common.ResolveLocationBearing(
+			parsedData.Location,
+			func() *common.Location {
+				if bearing == nil {
+					return nil
+				}
+				return &common.Location{
+					Latitude:  parsedData.Location.Latitude,
+					Longitude: parsedData.Location.Longitude,
+					Bearing:   *bearing,
+				}
+			}(),
+			parsedData.SensorData,
+		)
+		if resolvedLocation != nil {
+			locationData.Bearing = &resolvedLocation.Bearing
+		} else {
+			locationData.Bearing = bearing
+		}
+
 		locationData.Latitude = parsedData.Location.Latitude
 		locationData.Longitude = parsedData.Location.Longitude
 	}

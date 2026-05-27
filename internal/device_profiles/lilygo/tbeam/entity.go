@@ -54,10 +54,7 @@ func (p *TBeamComponent) ParseToEntities(orgSlug, model string, payload *common.
 
 	// Use GPS from device payload; fall back to the pre-computed deviceLocation (e.g. gateway
 	// trilateration) when the device has no satellite fix.
-	loc := parsed.Location
-	if loc == nil {
-		loc = deviceLocation
-	}
+	loc := common.ResolveLocationBearing(parsed.Location, deviceLocation, parsed.SensorData)
 
 	if loc != nil {
 		entities = append(entities, common.Entity{
@@ -77,40 +74,32 @@ func (p *TBeamComponent) ParseToEntities(orgSlug, model string, payload *common.
 				"device_model": model,
 				"latitude":     loc.Latitude,
 				"longitude":    loc.Longitude,
+				"bearing":      loc.Bearing,
 			},
 			Enabled:   true,
 			Timestamp: ts,
 		})
 	}
 
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
-	}
-	for _, def := range []sensorDef{
-		{"temperature", "Temperature", "sensor", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
-		{"humidity", "Humidity", "sensor", "humidity", "%", "humidity.svg", []string{"chart", "gauge", "value"}},
-		{"pressure", "Pressure", "sensor", "pressure", "hPa", "pressure.svg", []string{"chart", "gauge", "value"}},
-		{"illuminance", "Illuminance", "sensor", "illuminance", "lx", "illuminance.svg", []string{"chart", "gauge", "value"}},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.key), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       val,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
+	entities = append(entities, common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts)...)
 
 	return entities, nil
+}
+
+func (p *TBeamComponent) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	entities := []common.Entity{
+		common.BuildLocationTemplate("", model, Manufacturer, mdl, devEUI, true, false),
+	}
+	entities = append(entities, common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())...)
+	return entities
+}
+
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "temperature", Name: "Temperature", EntityType: "sensor", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "temperature.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "humidity", Name: "Humidity", EntityType: "sensor", DeviceClass: "humidity", UnitOfMeas: "%", Icon: "humidity.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "pressure", Name: "Pressure", EntityType: "sensor", DeviceClass: "pressure", UnitOfMeas: "hPa", Icon: "pressure.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "illuminance", Name: "Illuminance", EntityType: "sensor", DeviceClass: "illuminance", UnitOfMeas: "lx", Icon: "illuminance.svg", DisplayType: []string{"chart", "gauge", "value"}},
+	}
 }

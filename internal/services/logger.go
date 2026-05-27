@@ -28,7 +28,6 @@ type LoggerConfig struct {
 	LogDir        string `mapstructure:"log_dir" env:"RAW_DATA_LOG_DIR"`
 	EnableFileLog bool   `mapstructure:"enable_file_log" env:"RAW_DATA_ENABLE_FILE_LOG"`
 	EnableJSONLog bool   `mapstructure:"enable_json_log" env:"RAW_DATA_ENABLE_JSON_LOG"`
-	MaxFileSize   int64  `mapstructure:"max_file_size" env:"RAW_DATA_MAX_FILE_SIZE"`
 }
 
 // NewLoggerService creates a new logger service
@@ -37,15 +36,11 @@ func NewLoggerService(config LoggerConfig) (*LoggerService, error) {
 		logDir:        config.LogDir,
 		enableFileLog: config.EnableFileLog,
 		enableJSONLog: config.EnableJSONLog,
-		maxFileSize:   config.MaxFileSize,
 	}
 
 	// Set defaults if not configured
 	if ls.logDir == "" {
 		ls.logDir = "logs/raw_data"
-	}
-	if ls.maxFileSize <= 0 {
-		ls.maxFileSize = 100 * 1024 * 1024 // 100MB default
 	}
 
 	// Create log directory if file logging is enabled
@@ -122,14 +117,11 @@ func (ls *LoggerService) logToFile(entry models.RawDataLog) error {
 	// Add newline for proper JSONL format
 	jsonData = append(jsonData, '\n')
 
-	n, err := ls.currentLogFile.Write(jsonData)
+	_, err = ls.currentLogFile.Write(jsonData)
 	if err != nil {
 		return err
 	}
 
-	ls.currentFileSize += int64(n)
-
-	// Sync to ensure data is written to disk
 	if err := ls.currentLogFile.Sync(); err != nil {
 		return err
 	}
@@ -137,16 +129,14 @@ func (ls *LoggerService) logToFile(entry models.RawDataLog) error {
 	return nil
 }
 
-// rotateLogFile creates a new log file for rotation
-func (ls *LoggerService) rotateLogFile() error {
+// openLogFile opens the single fixed log file
+func (ls *LoggerService) openLogFile() error {
 	// Close current file if exists
 	if ls.currentLogFile != nil {
 		_ = ls.currentLogFile.Close()
 	}
 
-	// Create new log file with timestamp
-	timestamp := time.Now().UTC().Format("20060102_150405")
-	filename := fmt.Sprintf("raw_data_%s.jsonl", timestamp)
+	filename := "raw_data.jsonl"
 	filePath := filepath.Join(ls.logDir, filename)
 
 	// Clean the file path to prevent path traversal attacks
@@ -158,7 +148,6 @@ func (ls *LoggerService) rotateLogFile() error {
 	}
 
 	ls.currentLogFile = file
-	ls.currentFileSize = 0
 
 	return nil
 }

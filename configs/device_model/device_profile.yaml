@@ -18,7 +18,7 @@ device_profiles:
     manufacturer_id: 957e6842-c686-40ae-8b28-bf3ddb1ad141
     device_type: WLBV1
     key_feature: water_depth
-    logo: wlbv1.png
+    logo: default.png
 
   - id: b99c3f17-b8f5-4432-bb76-18a1f5732ea6
     name: lorawan

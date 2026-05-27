@@ -47,44 +47,26 @@ func (p *LCC01LBComponent) ParseToEntities(orgSlug, model string, payload *commo
 	}
 
 	mdl := strings.ToLower(model)
-	var entities []common.Entity
+	return common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts), nil
+}
 
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
+func (p *LCC01LBComponent) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	return common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())
+}
+
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "battery_voltage", DomainKey: "battery_voltage", Name: "Battery Voltage", EntityType: "battery_voltage", DeviceClass: "battery", UnitOfMeas: "V", Icon: "battery_voltage.svg", DisplayType: []string{"chart", "gauge", "value", "slider"}},
+		{Key: "actual_weight_g", DomainKey: "weight", Name: "Actual Weight", EntityType: "weight", DeviceClass: "weight", UnitOfMeas: "g", Icon: "actual_weight.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "weight_reading", DomainKey: "weight_reading", Name: "Weight Reading", EntityType: "weight_reading", DeviceClass: "weight", Icon: "weight_reading.svg", DisplayType: []string{"chart", "value"}},
+		{Key: "weight_state", DomainKey: "weight_state", Name: "Weight State", EntityType: "weight_state", DeviceClass: "enum", Icon: "weight_state.svg", DisplayType: []string{"value"}},
+		{Key: "scale_factor", DomainKey: "scale_factor", Name: "Scale Factor", EntityType: "scale_factor", DeviceClass: "scale_factor", Icon: "scale_factor.svg", DisplayType: []string{"value"}},
+		{Key: "weight_flag", DomainKey: "weight_flag", Name: "Weight Flag", EntityType: "weight_flag", DeviceClass: "weight_flag", Icon: "weight_flag.svg", DisplayType: []string{"value"}},
+		{Key: "mod", DomainKey: "mod", Name: "MOD", EntityType: "mod", Icon: "mod.svg", DisplayType: []string{"value"}},
+		{Key: "sensor_model", DomainKey: "sensor_model", Name: "Sensor Model", EntityType: "sensor_model", Icon: "sensor_model.svg", DisplayType: []string{"value"}},
+		{Key: "firmware_version", DomainKey: "firmware", Name: "Firmware Version", EntityType: "firmware", Icon: "firmware_version.svg", DisplayType: []string{"value"}},
+		{Key: "frequency_band", DomainKey: "freq_band", Name: "Frequency Band", EntityType: "freq_band", Icon: "frequency_band.svg", DisplayType: []string{"value"}},
+		{Key: "sub_band", DomainKey: "sub_band", Name: "Sub Band", EntityType: "sub_band", Icon: "sub_band.svg", DisplayType: []string{"value"}},
 	}
-
-	for _, def := range []sensorDef{
-		{"battery_voltage", "Battery Voltage", "battery_voltage", "battery", "V", "battery_voltage.svg", []string{"chart", "gauge", "value", "slider"}},
-		{"actual_weight_g", "Actual Weight", "weight", "weight", "g", "actual_weight.svg", []string{"chart", "gauge", "value"}},
-		{"weight_reading", "Weight Reading", "weight_reading", "weight", "", "weight_reading.svg", []string{"chart", "value"}},
-		{"weight_state", "Weight State", "weight_state", "enum", "", "weight_state.svg", []string{"value"}},
-		{"scale_factor", "Scale Factor", "scale_factor", "scale_factor", "", "scale_factor.svg", []string{"value"}},
-		{"weight_flag", "Weight Flag", "weight_flag", "weight_flag", "", "weight_flag.svg", []string{"value"}},
-		{"mod", "MOD", "mod", "", "", "mod.svg", []string{"value"}},
-		{"sensor_model", "Sensor Model", "sensor_model", "", "", "sensor_model.svg", []string{"value"}},
-		{"firmware_version", "Firmware Version", "firmware", "", "", "firmware_version.svg", []string{"value"}},
-		{"frequency_band", "Frequency Band", "freq_band", "", "", "frequency_band.svg", []string{"value"}},
-		{"sub_band", "Sub Band", "sub_band", "", "", "sub_band.svg", []string{"value"}},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.entityType), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       val,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
-
-	return entities, nil
 }

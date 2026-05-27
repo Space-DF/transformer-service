@@ -50,43 +50,25 @@ func (p *CubicMeterComponent) ParseToEntities(orgSlug, model string, payload *co
 	}
 
 	mdl := strings.ToLower(model)
-	var entities []common.Entity
+	return common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts), nil
+}
 
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
+func (p *CubicMeterComponent) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	return common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())
+}
+
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "total_volume", DomainKey: "total_volume", Name: "Total Volume", EntityType: "total_volume", DeviceClass: "water", UnitOfMeas: "L", Icon: "total_volume.svg", DisplayType: []string{"chart", "value"}},
+		{Key: "total_heat", DomainKey: "total_heat", Name: "Total Heat", EntityType: "total_heat", DeviceClass: "energy", UnitOfMeas: "kCal", Icon: "total_heat.svg", DisplayType: []string{"chart", "value"}},
+		{Key: "ambient_temperature", DomainKey: "temperature", Name: "Ambient Temperature", EntityType: "temperature", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "ambient_temperature.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "water_temperature_min", DomainKey: "temperature", Name: "Water Temp Min", EntityType: "temperature", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "water_temperature_min.svg", DisplayType: []string{"chart", "value"}},
+		{Key: "water_temperature_max", DomainKey: "temperature", Name: "Water Temp Max", EntityType: "temperature", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "water_temperature_max.svg", DisplayType: []string{"chart", "value"}},
+		{Key: "battery_active", DomainKey: "battery_voltage", Name: "Battery Voltage (Active)", EntityType: "battery_voltage", DeviceClass: "battery_voltage", UnitOfMeas: "mV", Icon: "battery_active.svg", DisplayType: []string{"chart", "gauge", "value", "slider"}},
+		{Key: "battery_recovered", DomainKey: "battery_voltage", Name: "Battery Voltage (Recovered)", EntityType: "battery_voltage", DeviceClass: "battery_voltage", UnitOfMeas: "mV", Icon: "battery_recovered.svg", DisplayType: []string{"chart", "gauge", "value", "slider"}},
+		{Key: "error_code", DomainKey: "error_code", Name: "Error Code", EntityType: "error_code", DeviceClass: "problem", Icon: "data_code.svg", DisplayType: []string{"value"}},
+		{Key: "leak_state", DomainKey: "leak_state", Name: "Leak State", EntityType: "leak_state", DeviceClass: "problem", Icon: "water_depth.svg", DisplayType: []string{"value"}},
+		{Key: "is_sensing", DomainKey: "is_sensing", Name: "Is Sensing", EntityType: "is_sensing", DeviceClass: "problem", Icon: "sensor_model.svg", DisplayType: []string{"value"}},
 	}
-
-	for _, def := range []sensorDef{
-		{"total_volume", "Total Volume", "total_volume", "water", "L", "total_volume.svg", []string{"chart", "value"}},
-		{"total_heat", "Total Heat", "total_heat", "energy", "kCal", "total_heat.svg", []string{"chart", "value"}},
-		{"ambient_temperature", "Ambient Temperature", "temperature", "temperature", "°C", "ambient_temperature.svg", []string{"chart", "gauge", "value"}},
-		{"water_temperature_min", "Water Temp Min", "temperature", "temperature", "°C", "water_temperature_min.svg", []string{"chart", "value"}},
-		{"water_temperature_max", "Water Temp Max", "temperature", "temperature", "°C", "water_temperature_max.svg", []string{"chart", "value"}},
-		{"battery_active", "Battery Voltage (Active)", "battery_voltage", "battery_voltage", "mV", "battery_active.svg", []string{"chart", "gauge", "value", "slider"}},
-		{"battery_recovered", "Battery Voltage (Recovered)", "battery_voltage", "battery_voltage", "mV", "battery_recovered.svg", []string{"chart", "gauge", "value", "slider"}},
-		{"error_code", "Error Code", "error_code", "problem", "", "data_code.svg", []string{"value"}},
-		{"leak_state", "Leak State", "leak_state", "problem", "", "water_depth.svg", []string{"value"}},
-		{"is_sensing", "Is Sensing", "is_sensing", "problem", "", "sensor_model.svg", []string{"value"}},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.entityType), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       val,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
-
-	return entities, nil
 }

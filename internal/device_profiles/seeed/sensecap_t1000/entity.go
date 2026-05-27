@@ -52,10 +52,7 @@ func (p *SenseCapT1000Component) ParseToEntities(orgSlug, model string, payload 
 	mdl := strings.ToLower(model)
 	var entities []common.Entity
 
-	loc := parsed.Location
-	if loc == nil {
-		loc = deviceLocation
-	}
+	loc := common.ResolveLocationBearing(parsed.Location, deviceLocation, parsed.SensorData)
 	if loc != nil {
 		entities = append(entities, common.Entity{
 			UniqueID: common.GenerateUniqueID(model, devEUI, "location"),
@@ -74,45 +71,37 @@ func (p *SenseCapT1000Component) ParseToEntities(orgSlug, model string, payload 
 				"device_model": model,
 				"latitude":     loc.Latitude,
 				"longitude":    loc.Longitude,
+				"bearing":      loc.Bearing,
 			},
 			Enabled:   true,
 			Timestamp: ts,
 		})
 	}
 
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
-	}
-	for _, def := range []sensorDef{
-		{"battery_level", "Battery Level", "battery", "battery", "%", "battery_percent.svg", []string{"chart", "gauge", "value", "slider"}},
-		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
-		{"light", "Light Level", "sensor", "illuminance", "%", "light_level.svg", []string{"chart", "gauge", "value"}},
-		{"motion", "Motion", "binary_sensor", "motion", "", "motion.svg", []string{"value"}},
-		{"shock_event", "Shock Event", "binary_sensor", "vibration", "", "light_shock_event.svg", []string{"value"}},
-		{"sos_alert", "SOS Alert", "binary_sensor", "safety", "", "sos_alert.svg", []string{"value"}},
-		{"temperature_event", "Temperature Event", "binary_sensor", "heat", "", "temperature_event.svg", []string{"value"}},
-		{"light_event", "Light Event", "binary_sensor", "light", "", "light_event.svg", []string{"value"}},
-		{"press_once_event", "Press Once Event", "binary_sensor", "button", "", "press_once_event.svg", []string{"value"}},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.key), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       val,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
+	entities = append(entities, common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts)...)
 
 	return entities, nil
+}
+
+func (p *SenseCapT1000Component) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	entities := []common.Entity{
+		common.BuildLocationTemplate("", model, Manufacturer, mdl, devEUI, true, false),
+	}
+	entities = append(entities, common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())...)
+	return entities
+}
+
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "battery_level", Name: "Battery Level", EntityType: "battery", DeviceClass: "battery", UnitOfMeas: "%", Icon: "battery_percent.svg", DisplayType: []string{"chart", "gauge", "value", "slider"}},
+		{Key: "temperature", Name: "Temperature", EntityType: "temperature", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "temperature.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "light", Name: "Light Level", EntityType: "sensor", DeviceClass: "illuminance", UnitOfMeas: "%", Icon: "light_level.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "motion", Name: "Motion", EntityType: "binary_sensor", DeviceClass: "motion", Icon: "motion.svg", DisplayType: []string{"value"}},
+		{Key: "shock_event", Name: "Shock Event", EntityType: "binary_sensor", DeviceClass: "vibration", Icon: "light_shock_event.svg", DisplayType: []string{"value"}},
+		{Key: "sos_alert", Name: "SOS Alert", EntityType: "binary_sensor", DeviceClass: "safety", Icon: "sos_alert.svg", DisplayType: []string{"value"}},
+		{Key: "temperature_event", Name: "Temperature Event", EntityType: "binary_sensor", DeviceClass: "heat", Icon: "temperature_event.svg", DisplayType: []string{"value"}},
+		{Key: "light_event", Name: "Light Event", EntityType: "binary_sensor", DeviceClass: "light", Icon: "light_event.svg", DisplayType: []string{"value"}},
+		{Key: "press_once_event", Name: "Press Once Event", EntityType: "binary_sensor", DeviceClass: "button", Icon: "press_once_event.svg", DisplayType: []string{"value"}},
+	}
 }

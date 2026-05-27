@@ -52,10 +52,7 @@ func (p *G62Component) ParseToEntities(orgSlug, model string, payload *common.Ra
 	mdl := strings.ToLower(model)
 	var entities []common.Entity
 
-	loc := parsed.Location
-	if loc == nil {
-		loc = deviceLocation
-	}
+	loc := common.ResolveLocationBearing(parsed.Location, deviceLocation, parsed.SensorData)
 	if loc != nil {
 		entities = append(entities, common.Entity{
 			UniqueID: common.GenerateUniqueID(model, devEUI, "location"),
@@ -74,52 +71,44 @@ func (p *G62Component) ParseToEntities(orgSlug, model string, payload *common.Ra
 				"device_model": model,
 				"latitude":     loc.Latitude,
 				"longitude":    loc.Longitude,
+				"bearing":      loc.Bearing,
 			},
 			Enabled:   true,
 			Timestamp: ts,
 		})
 	}
 
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
-	}
-	for _, def := range []sensorDef{
-		{"heading", "Heading", "heading", "", "°", "direction.svg", []string{"value"}},
-		{"speed", "Speed", "speed", "speed", "km/h", "speed.svg", []string{"chart", "gauge", "value"}},
-		{"battery_voltage", "Battery Voltage", "battery", "voltage", "V", "battery_voltage.svg", []string{"chart", "gauge", "value"}},
-		{"external_voltage", "External Voltage", "sensor", "voltage", "V", "external_voltage.svg", []string{"chart", "gauge", "value"}},
-		{"analog_input", "Analog Input", "sensor", "voltage", "V", "analog_input.svg", []string{"chart", "value"}},
-		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
-		{"gps_accuracy", "GPS Accuracy", "sensor", "distance", "m", "gps_accuracy.svg", []string{"value"}},
-		{"trip_type", "Trip Type", "sensor", "", "", "trip_type.svg", []string{"value"}},
-		{"ignition", "Ignition", "binary_sensor", "power", "", "ignition.svg", []string{"value"}},
-		{"dig_in_1", "Digital Input 1", "binary_sensor", "", "", "dig_out.svg", []string{"value"}},
-		{"dig_in_2", "Digital Input 2", "binary_sensor", "", "", "dig_out.svg", []string{"value"}},
-		{"dig_out", "Digital Output", "switch", "", "", "dig_out.svg", []string{"toggle"}},
-		{"odometer", "Odometer", "sensor", "distance", "km", "odometer.svg", []string{"chart", "value"}},
-		{"runtime", "Runtime", "sensor", "duration", "", "runtime.svg", []string{"value"}},
-		{"firmware", "Firmware Version", "sensor", "firmware", "", "firmware.svg", []string{"value"}},
-		{"downlink_ack", "Downlink ACK", "sensor", "status", "", "data_code.svg", []string{"value"}},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.key), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       val,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
+	entities = append(entities, common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts)...)
 
 	return entities, nil
+}
+
+func (p *G62Component) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	entities := []common.Entity{
+		common.BuildLocationTemplate("", model, Manufacturer, mdl, devEUI, true, false),
+	}
+	entities = append(entities, common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())...)
+	return entities
+}
+
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "heading", Name: "Heading", EntityType: "heading", UnitOfMeas: "°", Icon: "direction.svg", DisplayType: []string{"value"}},
+		{Key: "speed", Name: "Speed", EntityType: "speed", DeviceClass: "speed", UnitOfMeas: "km/h", Icon: "speed.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "battery_voltage", Name: "Battery Voltage", EntityType: "battery", DeviceClass: "voltage", UnitOfMeas: "V", Icon: "battery_voltage.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "external_voltage", Name: "External Voltage", EntityType: "sensor", DeviceClass: "voltage", UnitOfMeas: "V", Icon: "external_voltage.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "analog_input", Name: "Analog Input", EntityType: "sensor", DeviceClass: "voltage", UnitOfMeas: "V", Icon: "analog_input.svg", DisplayType: []string{"chart", "value"}},
+		{Key: "temperature", Name: "Temperature", EntityType: "temperature", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "temperature.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "gps_accuracy", Name: "GPS Accuracy", EntityType: "sensor", DeviceClass: "distance", UnitOfMeas: "m", Icon: "gps_accuracy.svg", DisplayType: []string{"value"}},
+		{Key: "trip_type", Name: "Trip Type", EntityType: "sensor", Icon: "trip_type.svg", DisplayType: []string{"value"}},
+		{Key: "ignition", Name: "Ignition", EntityType: "binary_sensor", DeviceClass: "power", Icon: "ignition.svg", DisplayType: []string{"value"}},
+		{Key: "dig_in_1", Name: "Digital Input 1", EntityType: "binary_sensor", Icon: "dig_out.svg", DisplayType: []string{"value"}},
+		{Key: "dig_in_2", Name: "Digital Input 2", EntityType: "binary_sensor", Icon: "dig_out.svg", DisplayType: []string{"value"}},
+		{Key: "dig_out", Name: "Digital Output", EntityType: "switch", Icon: "dig_out.svg", DisplayType: []string{"toggle"}},
+		{Key: "odometer", Name: "Odometer", EntityType: "sensor", DeviceClass: "distance", UnitOfMeas: "km", Icon: "odometer.svg", DisplayType: []string{"chart", "value"}},
+		{Key: "runtime", Name: "Runtime", EntityType: "sensor", DeviceClass: "duration", Icon: "runtime.svg", DisplayType: []string{"value"}},
+		{Key: "firmware", Name: "Firmware Version", EntityType: "sensor", DeviceClass: "firmware", Icon: "firmware.svg", DisplayType: []string{"value"}},
+		{Key: "downlink_ack", Name: "Downlink ACK", EntityType: "sensor", DeviceClass: "status", Icon: "data_code.svg", DisplayType: []string{"value"}},
+	}
 }

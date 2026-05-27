@@ -78,36 +78,27 @@ func (p *MclimateHTComponent) ParseToEntities(orgSlug, model string, payload *co
 		Timestamp:   ts,
 	})
 
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
-	}
-	for _, def := range []sensorDef{
-		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
-		{"humidity", "Humidity", "humidity", "humidity", "%", "humidity.svg", []string{"chart", "gauge", "value"}},
-		{"battery_voltage", "Battery Voltage", "battery_voltage", "battery_voltage", "V", "battery_voltage.svg", []string{"chart", "gauge", "value"}},
-		{"battery", "Battery", "battery", "battery", "%", "battery_percent.svg", []string{"gauge", "value"}},
-		{"occupancy", "Occupancy", "occupancy", "occupancy", "", "occupancy.svg", []string{"value"}},
-		{"pir_trigger_count", "PIR Trigger Count", "pir_trigger_count", "", "", "pir_trigger_count.svg", []string{"value"}},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.key), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       val,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
+	entities = append(entities, common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts)...)
 
 	return entities, nil
+}
+
+func (p *MclimateHTComponent) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	entities := []common.Entity{
+		common.BuildLocationTemplate("", model, Manufacturer, mdl, devEUI, false, true),
+	}
+	entities = append(entities, common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())...)
+	return entities
+}
+
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "temperature", Name: "Temperature", EntityType: "temperature", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "temperature.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "humidity", Name: "Humidity", EntityType: "humidity", DeviceClass: "humidity", UnitOfMeas: "%", Icon: "humidity.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "battery_voltage", Name: "Battery Voltage", EntityType: "battery_voltage", DeviceClass: "battery_voltage", UnitOfMeas: "V", Icon: "battery_voltage.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "battery", Name: "Battery", EntityType: "battery", DeviceClass: "battery", UnitOfMeas: "%", Icon: "battery_percent.svg", DisplayType: []string{"gauge", "value"}},
+		{Key: "occupancy", Name: "Occupancy", EntityType: "occupancy", DeviceClass: "occupancy", Icon: "occupancy.svg", DisplayType: []string{"value"}},
+		{Key: "pir_trigger_count", Name: "PIR Trigger Count", EntityType: "pir_trigger_count", Icon: "pir_trigger_count.svg", DisplayType: []string{"value"}},
+	}
 }

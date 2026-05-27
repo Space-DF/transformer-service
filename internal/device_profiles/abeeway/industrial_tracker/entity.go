@@ -52,10 +52,7 @@ func (p *AbeewayComponent) ParseToEntities(orgSlug, model string, payload *commo
 	mdl := strings.ToLower(model)
 	var entities []common.Entity
 
-	loc := parsed.Location
-	if loc == nil {
-		loc = deviceLocation
-	}
+	loc := common.ResolveLocationBearing(parsed.Location, deviceLocation, parsed.SensorData)
 	if loc != nil {
 		entities = append(entities, common.Entity{
 			UniqueID: common.GenerateUniqueID(model, devEUI, "location"),
@@ -74,43 +71,35 @@ func (p *AbeewayComponent) ParseToEntities(orgSlug, model string, payload *commo
 				"device_model": model,
 				"latitude":     loc.Latitude,
 				"longitude":    loc.Longitude,
+				"bearing":      loc.Bearing,
 			},
 			Enabled:   true,
 			Timestamp: ts,
 		})
 	}
 
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
-	}
-	for _, def := range []sensorDef{
-		{"battery_voltage", "Battery Voltage", "battery", "battery", "V", "battery_voltage.svg", []string{"chart", "gauge", "value"}},
-		{"battery_percent", "Battery Level", "battery", "battery", "%", "battery_percent.svg", []string{"chart", "gauge", "value", "slider"}},
-		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}},
-		{"speed", "Speed", "sensor", "speed", "km/h", "speed.svg", []string{"gauge", "value"}},
-		{"heading", "Heading", "sensor", "heading", "deg", "direction.svg", []string{"value"}},
-		{"sos_alert", "SOS Alert", "binary_sensor", "safety", "", "sos_alert.svg", []string{"value"}},
-		{"motion", "Motion", "binary_sensor", "motion", "", "motion.svg", []string{"value"}},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-		entities = append(entities, common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.key), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       val,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		})
-	}
+	entities = append(entities, common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts)...)
 
 	return entities, nil
+}
+
+func (p *AbeewayComponent) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	entities := []common.Entity{
+		common.BuildLocationTemplate("", model, Manufacturer, mdl, devEUI, true, false),
+	}
+	entities = append(entities, common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())...)
+	return entities
+}
+
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "battery_voltage", Name: "Battery Voltage", EntityType: "battery", DeviceClass: "battery", UnitOfMeas: "V", Icon: "battery_voltage.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "battery_percent", Name: "Battery Level", EntityType: "battery", DeviceClass: "battery", UnitOfMeas: "%", Icon: "battery_percent.svg", DisplayType: []string{"chart", "gauge", "value", "slider"}},
+		{Key: "temperature", Name: "Temperature", EntityType: "temperature", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "temperature.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "speed", Name: "Speed", EntityType: "sensor", DeviceClass: "speed", UnitOfMeas: "km/h", Icon: "speed.svg", DisplayType: []string{"gauge", "value"}},
+		{Key: "heading", Name: "Heading", EntityType: "sensor", DeviceClass: "heading", UnitOfMeas: "deg", Icon: "direction.svg", DisplayType: []string{"value"}},
+		{Key: "sos_alert", Name: "SOS Alert", EntityType: "binary_sensor", DeviceClass: "safety", Icon: "sos_alert.svg", DisplayType: []string{"value"}},
+		{Key: "motion", Name: "Motion", EntityType: "binary_sensor", DeviceClass: "motion", Icon: "motion.svg", DisplayType: []string{"value"}},
+	}
 }

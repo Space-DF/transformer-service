@@ -49,98 +49,7 @@ func (p *CT101Component) ParseToEntities(orgSlug, model string, payload *common.
 	}
 
 	mdl := strings.ToLower(model)
-	var entities []common.Entity
-
-	// Sensor entities using for loop pattern
-	type sensorDef struct {
-		key, name, entityType, devClass, unit, icon string
-		display                                     []string
-		transform                                   func(any) (state any, attributes map[string]any)
-	}
-	for _, def := range []sensorDef{
-		// Simple sensor entities
-		{"current", "Current", "current", "current", "A", "current.svg", []string{"chart", "gauge", "value"}, nil},
-		{"total_current", "Total Current", "total_current", "current", "A", "total_current.svg", []string{"chart", "gauge", "value"}, nil},
-		{"temperature", "Temperature", "temperature", "temperature", "°C", "temperature.svg", []string{"chart", "gauge", "value"}, nil},
-		// Alarm entities with transform
-		{
-			"current_alarm", "Current Alarm", "current_alarm", "problem", "", "current_alarm.svg", []string{"indicator"},
-			func(v any) (any, map[string]any) {
-				val, ok := v.(map[string]any)
-				if !ok {
-					return nil, nil
-				}
-				alarmStatus := "off"
-				if threshold, ok := val["current_threshold_alarm"].(bool); ok && threshold {
-					alarmStatus = "on"
-				} else if overRange, ok := val["current_over_range_alarm"].(bool); ok && overRange {
-					alarmStatus = "on"
-				}
-				return alarmStatus, val
-			},
-		},
-		{
-			"temperature_alarm", "Temperature Alarm", "temperature_alarm", "problem", "", "temperature_alarm.svg", []string{"indicator"},
-			func(v any) (any, map[string]any) {
-				val, ok := v.(string)
-				if !ok {
-					return nil, nil
-				}
-				alarmStatus := "off"
-				if val == "temperature threshold alarm" {
-					alarmStatus = "on"
-				}
-				return alarmStatus, map[string]any{"alarm_type": val}
-			},
-		},
-		// Sensor status entities
-		{"current_sensor_status", "Current Sensor Status", "sensor", "problem", "", "current_sensor_status.svg", []string{"text"}, nil},
-		{"temperature_sensor_status", "Temperature Sensor Status", "sensor", "problem", "", "tempt_sensor_status.svg", []string{"text"}, nil},
-	} {
-		val, ok := parsed.SensorData[def.key]
-		if !ok {
-			continue
-		}
-
-		// Skip empty string values for status sensors
-		if strVal, ok := val.(string); ok && strVal == "" {
-			continue
-		}
-
-		state := val
-		attributes := map[string]any{}
-
-		if def.transform != nil {
-			var attrs map[string]any
-			state, attrs = def.transform(val)
-			if state == nil {
-				continue
-			}
-			if attrs != nil {
-				attributes = attrs
-			}
-		}
-
-		entity := common.Entity{
-			UniqueID:    common.GenerateUniqueID(model, devEUI, def.key),
-			EntityID:    common.GenerateEntityID(common.GetEntityDomain(def.key), orgSlug, Manufacturer, mdl, devEUI, def.key),
-			EntityType:  def.entityType,
-			DeviceClass: def.devClass,
-			Name:        def.name,
-			State:       state,
-			DisplayType: def.display,
-			UnitOfMeas:  def.unit,
-			Icon:        def.icon,
-			Enabled:     true,
-			Timestamp:   ts,
-		}
-
-		if len(attributes) > 0 {
-			entity.Attributes = attributes
-		}
-
-		entities = append(entities, entity)
-	}
+	entities := common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, devEUI, entityDefs(), parsed.SensorData, ts)
 
 	// Add device metadata as attributes to first entity if available
 	if len(entities) > 0 {
@@ -165,4 +74,81 @@ func (p *CT101Component) ParseToEntities(orgSlug, model string, payload *common.
 	}
 
 	return entities, nil
+}
+
+func (p *CT101Component) GetEntityTemplates(model, devEUI string) []common.Entity {
+	mdl := strings.ToLower(model)
+	return common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())
+}
+
+func entityDefs() []common.EntityDef {
+	return []common.EntityDef{
+		{Key: "current", Name: "Current", EntityType: "current", DeviceClass: "current", UnitOfMeas: "A", Icon: "current.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "total_current", Name: "Total Current", EntityType: "total_current", DeviceClass: "current", UnitOfMeas: "A", Icon: "total_current.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "temperature", Name: "Temperature", EntityType: "temperature", DeviceClass: "temperature", UnitOfMeas: "°C", Icon: "temperature.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{
+			Key:         "current_alarm",
+			Name:        "Current Alarm",
+			EntityType:  "current_alarm",
+			DeviceClass: "problem",
+			Icon:        "current_alarm.svg",
+			DisplayType: []string{"indicator"},
+			Transform: func(v any) (any, map[string]any, bool) {
+				val, ok := v.(map[string]any)
+				if !ok {
+					return nil, nil, false
+				}
+				alarmStatus := "off"
+				if threshold, ok := val["current_threshold_alarm"].(bool); ok && threshold {
+					alarmStatus = "on"
+				} else if overRange, ok := val["current_over_range_alarm"].(bool); ok && overRange {
+					alarmStatus = "on"
+				}
+				return alarmStatus, val, true
+			},
+		},
+		{
+			Key:         "temperature_alarm",
+			Name:        "Temperature Alarm",
+			EntityType:  "temperature_alarm",
+			DeviceClass: "problem",
+			Icon:        "temperature_alarm.svg",
+			DisplayType: []string{"indicator"},
+			Transform: func(v any) (any, map[string]any, bool) {
+				val, ok := v.(string)
+				if !ok {
+					return nil, nil, false
+				}
+				alarmStatus := "off"
+				if val == "temperature threshold alarm" {
+					alarmStatus = "on"
+				}
+				return alarmStatus, map[string]any{"alarm_type": val}, true
+			},
+		},
+		{
+			Key:         "current_sensor_status",
+			Name:        "Current Sensor Status",
+			EntityType:  "sensor",
+			DeviceClass: "problem",
+			Icon:        "current_sensor_status.svg",
+			DisplayType: []string{"text"},
+			Skip: func(v any) bool {
+				strVal, ok := v.(string)
+				return ok && strVal == ""
+			},
+		},
+		{
+			Key:         "temperature_sensor_status",
+			Name:        "Temperature Sensor Status",
+			EntityType:  "sensor",
+			DeviceClass: "problem",
+			Icon:        "tempt_sensor_status.svg",
+			DisplayType: []string{"text"},
+			Skip: func(v any) bool {
+				strVal, ok := v.(string)
+				return ok && strVal == ""
+			},
+		},
+	}
 }
