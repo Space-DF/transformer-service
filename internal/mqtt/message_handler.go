@@ -127,6 +127,10 @@ func (c *Consumer) parseMessage(msg amqp.Delivery, tenant *TenantConsumer) (payl
 
 	// Extract DevEUI using LNS-specific logic
 	devEUI = lns.ExtractDevEUI(payload, lnsType)
+	if c.shouldSkipUnpublishedUnassigned(tenant.OrgSlug, tenant.Vhost, devEUI) {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⏭️", "Skipping processing for unpublished unassigned device %s", devEUI)
+		return nil, nil, "", "", resolver.ErrDeviceSkipped
+	}
 
 	return payload, locationPayload, lnsType, devEUI, nil
 }
@@ -182,7 +186,7 @@ func (c *Consumer) processEntities(tenant *TenantConsumer, deviceLocation *model
 }
 
 func (c *Consumer) logAndPublishRaw(tenant *TenantConsumer, payload map[string]interface{}, devEUI string, processingInfo *models.ProcessingInfo) {
-	if c.loggerService == nil {
+	if c.loggerService == nil || processingInfo == nil {
 		return
 	}
 

@@ -103,7 +103,7 @@ func (ls *LoggerService) logToFile(entry models.RawDataLog) error {
 	defer ls.mu.Unlock()
 	// Check if we need to rotate the log file
 	if ls.currentLogFile == nil || ls.currentFileSize >= ls.maxFileSize {
-		if err := ls.rotateLogFile(); err != nil {
+		if err := ls.openLogFile(); err != nil {
 			return err
 		}
 	}
