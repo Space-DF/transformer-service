@@ -96,16 +96,16 @@ func (c *Consumer) handleMessage(ctx context.Context, msg amqp.Delivery, tenant 
 
 	// Transform data to output format and publish to output topic
 	if err := c.transformAndPublish(tenant, deviceLocation, payload, processingInfo); err != nil {
-		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to transform and publish data for device %s: %v", deviceLocation.DevEUI, err)
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to transform and publish data for device %s: %v", devEUI, err)
 		return fmt.Errorf("failed to transform and publish data: %w", err)
 	}
 
 	// process entities and publish telemetry
 	c.processEntities(tenant, deviceLocation, payload, lnsType)
 
-	c.logAndPublishRaw(tenant, payload, deviceLocation.DevEUI, processingInfo)
+	c.logAndPublishRaw(tenant, payload, devEUI, processingInfo)
 
-	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "✅", "Successfully processed device: %s", deviceLocation.DevEUI)
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "✅", "Successfully processed device: %s", devEUI)
 	return nil
 }
 
