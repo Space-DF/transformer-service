@@ -11,11 +11,7 @@ import (
 	"github.com/Space-DF/transformer-service/internal/models"
 	"github.com/Space-DF/transformer-service/internal/mqtt/logging"
 	"github.com/Space-DF/transformer-service/internal/mqtt/resolver"
-	"github.com/Space-DF/transformer-service/internal/telemetry"
 	amqp "github.com/rabbitmq/amqp091-go"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	otellog "go.opentelemetry.io/otel/log"
 )
 
 // processTenantMessages processes messages for a specific tenant
@@ -52,7 +48,7 @@ func (c *Consumer) processTenantMessages(ctx context.Context, tenant *TenantCons
 
 			logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📨", "Received message from routing key: %s", msg.RoutingKey)
 
-			if err := c.handleMessage(msg, tenant); err != nil {
+			if err := c.handleMessage(ctx, msg, tenant); err != nil {
 				logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Error processing message: %v", err)
 				// if !c.config.AutoAck {
 				//    _ = msg.Nack(false, true) // Requeue on error
@@ -69,125 +65,81 @@ func (c *Consumer) processTenantMessages(ctx context.Context, tenant *TenantCons
 }
 
 // handleMessage processes a single MQTT message
-func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) error {
-	ctx := context.Background()
-	orgSlug := tenant.OrgSlug
-	vhost := tenant.Vhost
+func (c *Consumer) handleMessage(ctx context.Context, msg amqp.Delivery, tenant *TenantConsumer) error {
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚙️", "Processing message from topic: %s", msg.RoutingKey)
 
-	// Create a span for the entire message processing
-	tracer := telemetry.GetTracer("transformer-service")
-	ctx, span := tracer.Start(ctx, "process_device_message")
-	defer span.End()
-
-	// Add span attributes
-	span.SetAttributes(
-		attribute.String("tenant", orgSlug),
-		attribute.String("vhost", vhost),
-		attribute.String("routing_key", msg.RoutingKey),
-	)
-
-	logging.Tenant(orgSlug, vhost, "⚙️", "Processing message from topic: %s", msg.RoutingKey)
-
-	var err error
-	var payload map[string]interface{}
-	var locationPayload map[string]interface{}
-
-	// Parse the incoming message
-	payload, locationPayload, err = c.parser.Parse(msg)
+	payload, locationPayload, lnsType, devEUI, err := c.parseMessage(msg, tenant)
 	if err != nil {
-		logging.Tenant(orgSlug, vhost, "❌", "Failed to parse message: %v", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to parse message")
-		telemetry.LogError(ctx, fmt.Sprintf("[%s][VHOST:%s] Failed to parse message from routing key %s", orgSlug, vhost, msg.RoutingKey),
-			otellog.String("tenant", orgSlug),
-			otellog.String("vhost", vhost),
-			otellog.String("routing_key", msg.RoutingKey),
-			otellog.String("error", err.Error()),
-		)
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to parse message: %v", err)
 		return fmt.Errorf("failed to parse message: %w", err)
 	}
 
-	// Extract LNS type from metadata (must be explicitly set by MPA service)
-	lnsType := c.parser.ExtractLNSSource(payload)
+	// If LNS event message, parse and route accordingly
+	handled, err := c.parseAndRouteLNSEventMessage(ctx, tenant, payload, lnsType, devEUI)
 
-	// Log with LNS type for debugging
-	if lnsType == lns.LNSTypeUnknown || lnsType == "" {
-		logging.Tenant(orgSlug, vhost, "⚠️", "Unknown or empty LNS type, using fallback extraction")
+	if err != nil {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to parse and route LNS event message: %v", err)
+		return fmt.Errorf("failed to parse and route LNS event message: %w", err)
 	}
-
-	logging.Tenant(orgSlug, vhost, "📡", "Processing message from LNS: %s", lnsType)
-
-	var devEUI string = lns.ExtractDevEUI(payload, lnsType)
-	if c.shouldSkipUnpublishedUnassigned(orgSlug, vhost, devEUI) {
-		logging.Tenant(orgSlug, vhost, "⏭️", "Skipping processing for unpublished unassigned device %s", devEUI)
-		span.SetStatus(codes.Ok, "device message skipped: unpublished and unassigned")
-		span.AddEvent("publish_skipped_unpublished_unassigned")
+	if handled {
 		return nil
-	}
-
-	eventType := lns.ExtractEventType(payload, lnsType)
-	switch eventType {
-	case lns.EventJoin:
-		return c.handleJoinEvent(ctx, orgSlug, vhost, tenant, payload, lnsType, devEUI)
-	case lns.EventAlert:
-		return c.handleAlertEvent(ctx, orgSlug, vhost, tenant, payload, lnsType, devEUI)
-	case lns.EventStatus, lns.EventAck:
-		logging.Tenant(orgSlug, vhost, "ℹ️", "Received %s event for device %s, skipping processing", eventType, devEUI)
-		return nil
-	case lns.EventUplink, lns.EventUnknown:
 	}
 
 	// Check if device should be skipped
-	deviceLocation, processingInfo, err := c.resolver.Resolve(ctx, orgSlug, vhost, devEUI, payload, locationPayload, lnsType)
-	if errors.Is(err, resolver.ErrDeviceSkipped) {
-		span.AddEvent("device_skipped")
-		telemetry.LogInfo(ctx, fmt.Sprintf("[%s][VHOST:%s] Device %s skipped by resolver (should_skip=true)", orgSlug, vhost, devEUI),
-			otellog.String("tenant", orgSlug),
-			otellog.String("vhost", vhost),
-			otellog.String("device_eui", devEUI),
-		)
-		return nil
-	}
+	deviceLocation, processingInfo, err := c.resolveMessage(ctx, tenant, devEUI, payload, locationPayload, lnsType)
 	if err != nil {
-		logging.Tenant(orgSlug, vhost, "❌", "Failed to resolve device %s: %v", devEUI, err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to resolve device")
-		telemetry.LogError(ctx, fmt.Sprintf("[%s][VHOST:%s] Failed to resolve device %s", orgSlug, vhost, devEUI),
-			otellog.String("tenant", orgSlug),
-			otellog.String("vhost", vhost),
-			otellog.String("device_eui", devEUI),
-			otellog.String("error", err.Error()),
-		)
-		if c.loggerService != nil {
-			_ = c.loggerService.LogRawData(payload, locationPayload, *processingInfo)
+		if errors.Is(err, resolver.ErrDeviceSkipped) {
+			return nil // not an error, just skip
 		}
-		return err
+		return fmt.Errorf("failed to resolve message: %w", err)
 	}
 
-	// Transform data to output format
-	transformedData, err := c.transformService.TransformDeviceData(deviceLocation, processingInfo.GatewayCount, payload)
+	// Transform data to output format and publish to output topic
+	if err := c.transformAndPublish(tenant, deviceLocation, payload, processingInfo); err != nil {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to transform and publish data for device %s: %v", devEUI, err)
+		return fmt.Errorf("failed to transform and publish data: %w", err)
+	}
+
+	// process entities and publish telemetry
+	c.processEntities(tenant, deviceLocation, payload, lnsType)
+
+	c.logAndPublishRaw(tenant, payload, devEUI, processingInfo)
+
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "✅", "Successfully processed device: %s", devEUI)
+	return nil
+}
+
+func (c *Consumer) parseMessage(msg amqp.Delivery, tenant *TenantConsumer) (payload map[string]interface{}, locationPayload map[string]interface{}, lnsType lns.LNSType, devEUI string, err error) {
+	// Parse the incoming message
+	payload, locationPayload, err = c.parser.Parse(msg)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to transform device data")
-		telemetry.LogError(ctx, fmt.Sprintf("[%s][VHOST:%s] Failed to transform data for device %s", orgSlug, vhost, devEUI),
-			otellog.String("tenant", orgSlug),
-			otellog.String("vhost", vhost),
-			otellog.String("device_eui", devEUI),
-			otellog.String("error", err.Error()),
-		)
-		return fmt.Errorf("failed to transform device data: %w", err)
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to parse message: %v", err)
+		return nil, nil, "", "", fmt.Errorf("failed to parse message: %w", err)
 	}
 
-	// Add processing info to span
-	span.SetAttributes(
-		attribute.Bool("location_calculated", processingInfo.LocationCalculated),
-		attribute.Int("gateway_count", processingInfo.GatewayCount),
-	)
-	span.AddEvent("device_data_transformed")
+	// Extract LNS type from metadata
+	lnsType = c.parser.ExtractLNSSource(payload)
+	if lnsType == lns.LNSTypeUnknown || lnsType == "" {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Unknown or empty LNS type, using fallback extraction")
+	}
 
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Processing message from LNS: %s", lnsType)
+
+	// Extract DevEUI using LNS-specific logic
+	devEUI = lns.ExtractDevEUI(payload, lnsType)
+	if c.shouldSkipUnpublishedUnassigned(tenant.OrgSlug, tenant.Vhost, devEUI) {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⏭️", "Skipping processing for unpublished unassigned device %s", devEUI)
+		return nil, nil, "", "", resolver.ErrDeviceSkipped
+	}
+
+	return payload, locationPayload, lnsType, devEUI, nil
+}
+
+func (c *Consumer) processEntities(tenant *TenantConsumer, deviceLocation *models.DeviceLocationData, payload map[string]interface{}, lnsType lns.LNSType) {
+	// Try to parse sensor entities and publish telemetry payload if location valid
+	// otherwise skip entity parsing and just publish transformed data without location entity
 	locationValid := common.ValidateCoordinates(deviceLocation.Latitude, deviceLocation.Longitude) == nil
 
-	// Try to parse sensor entities and publish telemetry payload
 	var entityLocation *common.Location
 	if locationValid {
 		entityLocation = &common.Location{
@@ -198,22 +150,62 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 			entityLocation.Bearing = *deviceLocation.Bearing
 		}
 	} else {
-		logging.Tenant(orgSlug, vhost, "⚠️", "Invalid location for device %s (lat=%f, lon=%f): location entity will be excluded from telemetry", devEUI, deviceLocation.Latitude, deviceLocation.Longitude)
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Invalid location for device %s (lat=%f, lon=%f): location entity will be excluded from telemetry", deviceLocation.DevEUI, deviceLocation.Latitude, deviceLocation.Longitude)
 	}
 
-	if parseResult, mapping, perr := c.parseEntities(orgSlug, devEUI, payload, entityLocation, lnsType); perr == nil && parseResult != nil {
-		logging.Tenant(orgSlug, vhost, "", "Parsed %d telemetry entities for device %s", len(parseResult.Entities), devEUI)
-		if telemetryPayload, terr := c.buildTelemetryPayload(parseResult, orgSlug, mapping); terr == nil {
-			if err := c.publishTelemetry(tenant.Channel, telemetryPayload, tenant); err != nil {
-				logging.Tenant(orgSlug, vhost, "⚠️", "Failed to publish telemetry payload: %v", err)
-			} else {
-				logging.Tenant(orgSlug, vhost, "✅", "Published telemetry payload with %d entities", len(parseResult.Entities))
-			}
-		} else {
-			logging.Tenant(orgSlug, vhost, "⚠️", "Failed to build telemetry payload: %v", terr)
-		}
-	} else if perr != nil {
-		logging.Tenant(orgSlug, vhost, "⚠️", "Failed to parse telemetry entities: %v", perr)
+	parseResult, mapping, perr := c.parseEntities(tenant.OrgSlug, deviceLocation.DevEUI, payload, entityLocation, lnsType)
+	if perr == nil && parseResult != nil {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "", "Parsed %d telemetry entities for device %s", len(parseResult.Entities), deviceLocation.DevEUI)
+	}
+	if perr != nil {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Failed to parse telemetry entities: %v", perr)
+		return
+	}
+	if parseResult == nil {
+		return
+	}
+
+	telemetryPayload, terr := c.buildTelemetryPayload(parseResult, tenant.OrgSlug, mapping)
+	if terr == nil && telemetryPayload != nil {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📊", "Built telemetry payload with %d entities for device %s", len(parseResult.Entities), deviceLocation.DevEUI)
+	}
+	if terr != nil {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Failed to build telemetry payload: %v", terr)
+		return
+	}
+	if telemetryPayload == nil {
+		return
+	}
+
+	err := c.publishTelemetry(tenant.Channel, telemetryPayload, tenant)
+	if err != nil {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Failed to publish telemetry payload: %v", err)
+		return
+	}
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "✅", "Published telemetry payload with %d entities", len(parseResult.Entities))
+}
+
+func (c *Consumer) logAndPublishRaw(tenant *TenantConsumer, payload map[string]interface{}, devEUI string, processingInfo *models.ProcessingInfo) {
+	if c.loggerService == nil || processingInfo == nil {
+		return
+	}
+
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📝", "Logging raw data for device: %s, location calculated: %v", devEUI, processingInfo.LocationCalculated)
+
+	logEntry, logErr := c.loggerService.LogRawData(payload, devEUI, *processingInfo)
+	if err := c.publishRawLog(tenant, logEntry); err != nil {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Failed to publish raw log to telemetry service: %v", err)
+	}
+
+	if logErr != nil {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Failed to log raw data for device %s: %v", devEUI, logErr)
+	}
+}
+
+func (c *Consumer) transformAndPublish(tenant *TenantConsumer, deviceLocation *models.DeviceLocationData, payload map[string]interface{}, processingInfo *models.ProcessingInfo) error {
+	transformedData, err := c.transformService.TransformDeviceData(deviceLocation, processingInfo.GatewayCount, payload)
+	if err != nil {
+		return fmt.Errorf("failed to transform device data: %w", err)
 	}
 
 	processingInfo.LocationResult = &models.LocationResult{
@@ -224,49 +216,58 @@ func (c *Consumer) handleMessage(msg amqp.Delivery, tenant *TenantConsumer) erro
 	}
 
 	// Publish transformed data to output topic
-	logging.Tenant(orgSlug, vhost, "📤", "Publishing transformed data for device %s", deviceLocation.DevEUI)
-	span.AddEvent("publishing_transformed_data")
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📤", "Publishing transformed data for device %s", deviceLocation.DevEUI)
 	if err := c.publishTransformedData(tenant.Channel, transformedData, tenant); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to publish transformed data")
 		return fmt.Errorf("failed to publish transformed data: %w", err)
 	}
 
-	if c.loggerService != nil {
-		logging.Tenant(orgSlug, vhost, "📝", "Logging raw data for device: %s, location calculated: %v", devEUI, processingInfo.LocationCalculated)
-		if logErr := c.loggerService.LogRawData(payload, locationPayload, *processingInfo); logErr != nil {
-			logging.Tenant(orgSlug, vhost, "❌", "Failed to log raw data: %v", logErr)
-			telemetry.LogError(ctx, fmt.Sprintf("[%s][VHOST:%s] Failed to log raw data for device %s", orgSlug, vhost, devEUI),
-				otellog.String("tenant", orgSlug),
-				otellog.String("vhost", vhost),
-				otellog.String("device_eui", devEUI),
-				otellog.String("error", logErr.Error()),
-			)
-		}
-	}
-
-	logging.Tenant(orgSlug, vhost, "✅", "Successfully processed device: %s", deviceLocation.DevEUI)
-	span.SetStatus(codes.Ok, "device message processed successfully")
-	span.AddEvent("processing_completed")
-	telemetry.LogInfo(ctx, fmt.Sprintf("[%s][VHOST:%s] Successfully processed device %s (gateways: %d, location: %v)", orgSlug, vhost, deviceLocation.DevEUI, processingInfo.GatewayCount, processingInfo.LocationCalculated),
-		otellog.String("tenant", orgSlug),
-		otellog.String("vhost", vhost),
-		otellog.String("device_eui", deviceLocation.DevEUI),
-		otellog.Bool("location_calculated", processingInfo.LocationCalculated),
-		otellog.Int("gateway_count", processingInfo.GatewayCount),
-	)
 	return nil
 }
 
-func (c *Consumer) handleJoinEvent(ctx context.Context, orgSlug string, vhost string, tenant *TenantConsumer, payload map[string]interface{}, lnsType lns.LNSType, devEUI string) error {
-	logging.Tenant(orgSlug, vhost, "🔗", "Received join event for device %s from %s", devEUI, lnsType)
+func (c *Consumer) resolveMessage(ctx context.Context, tenant *TenantConsumer, devEUI string, payload map[string]interface{}, locationPayload map[string]interface{}, lnsType lns.LNSType) (*models.DeviceLocationData, *models.ProcessingInfo, error) {
+	deviceLocation, processingInfo, err := c.resolver.Resolve(ctx, tenant.OrgSlug, tenant.Vhost, devEUI, payload, locationPayload, lnsType)
+	if errors.Is(err, resolver.ErrDeviceSkipped) {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⏭️", "Device %s is marked to be skipped, skipping processing", devEUI)
+		return nil, nil, err
+	}
+	if err != nil {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to resolve device %s: %v", devEUI, err)
+		if c.loggerService != nil {
+			c.logAndPublishRaw(tenant, payload, devEUI, processingInfo)
+		}
+		return nil, nil, fmt.Errorf("failed to resolve device: %w", err)
+	}
 
-	deviceID, spaceSlug := c.lookupDeviceForEvent(orgSlug, vhost, devEUI)
+	return deviceLocation, processingInfo, nil
+}
+
+func (c *Consumer) parseAndRouteLNSEventMessage(ctx context.Context, tenant *TenantConsumer, payload map[string]interface{}, lnsType lns.LNSType, devEUI string) (bool, error) {
+	eventType := lns.ExtractEventType(payload, lnsType)
+
+	switch eventType {
+	case lns.EventJoin:
+		return true, c.handleJoinEvent(ctx, tenant, payload, lnsType, devEUI)
+	case lns.EventAlert:
+		return true, c.handleAlertEvent(ctx, tenant, payload, lnsType, devEUI)
+	case lns.EventStatus, lns.EventAck:
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "ℹ️", "Received %s event for device %s, skipping processing", eventType, devEUI)
+		return true, nil
+	case lns.EventUplink, lns.EventUnknown:
+		return false, nil
+	}
+
+	return false, nil
+}
+
+func (c *Consumer) handleJoinEvent(ctx context.Context, tenant *TenantConsumer, payload map[string]interface{}, lnsType lns.LNSType, devEUI string) error {
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "🔗", "Received join event for device %s from %s", devEUI, lnsType)
+
+	deviceID, spaceSlug := c.lookupDeviceForEvent(tenant.OrgSlug, tenant.Vhost, devEUI)
 
 	event := map[string]interface{}{
 		"event_type":    "lns_join",
 		"event_level":   "lns_join",
-		"organization":  orgSlug,
+		"organization":  tenant.OrgSlug,
 		"space_slug":    spaceSlug,
 		"device_id":     deviceID,
 		"title":         fmt.Sprintf("Device joined via %s", lnsType),
@@ -274,30 +275,30 @@ func (c *Consumer) handleJoinEvent(ctx context.Context, orgSlug string, vhost st
 		"source":        string(lnsType),
 	}
 
-	if err := c.publishLNSEvent(tenant, event, orgSlug, spaceSlug, deviceID); err != nil {
-		logging.Tenant(orgSlug, vhost, "❌", "Failed to publish join event for device %s: %v", devEUI, err)
-		return err
+	if err := c.publishLNSEvent(tenant, event, tenant.OrgSlug, spaceSlug, deviceID); err != nil {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to publish join event for device %s: %v", devEUI, err)
+		return fmt.Errorf("failed to publish join event: %w", err)
 	}
 
-	logging.Tenant(orgSlug, vhost, "✅", "Published join event for device %s", devEUI)
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "✅", "Published join event for device %s", devEUI)
 	return nil
 }
 
-func (c *Consumer) handleAlertEvent(ctx context.Context, orgSlug string, vhost string, tenant *TenantConsumer, payload map[string]interface{}, lnsType lns.LNSType, devEUI string) error {
+func (c *Consumer) handleAlertEvent(ctx context.Context, tenant *TenantConsumer, payload map[string]interface{}, lnsType lns.LNSType, devEUI string) error {
 	alert := lns.ExtractAlert(payload, lnsType)
 	if alert == nil {
-		logging.Tenant(orgSlug, vhost, "⚠️", "Alert event detected but no alert extracted for device %s", devEUI)
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Alert event detected but no alert extracted for device %s", devEUI)
 		return nil
 	}
 
-	logging.Tenant(orgSlug, vhost, "🚨", "Received alert from %s for device %s: [%s] %s - %s", lnsType, devEUI, alert.Level, alert.Code, alert.Message)
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "🚨", "Received alert from %s for device %s: [%s] %s - %s", lnsType, devEUI, alert.Level, alert.Code, alert.Message)
 
-	deviceID, spaceSlug := c.lookupDeviceForEvent(orgSlug, vhost, devEUI)
+	deviceID, spaceSlug := c.lookupDeviceForEvent(tenant.OrgSlug, tenant.Vhost, devEUI)
 
 	event := map[string]interface{}{
 		"event_type":    "lns_alert",
 		"event_level":   "lns_alert",
-		"organization":  orgSlug,
+		"organization":  tenant.OrgSlug,
 		"space_slug":    spaceSlug,
 		"device_id":     deviceID,
 		"title":         fmt.Sprintf("[%s] %s: %s", alert.Level, alert.Code, alert.Message),
@@ -310,12 +311,12 @@ func (c *Consumer) handleAlertEvent(ctx context.Context, orgSlug string, vhost s
 		},
 	}
 
-	if err := c.publishLNSEvent(tenant, event, orgSlug, spaceSlug, deviceID); err != nil {
-		logging.Tenant(orgSlug, vhost, "❌", "Failed to publish alert event for device %s: %v", devEUI, err)
+	if err := c.publishLNSEvent(tenant, event, tenant.OrgSlug, spaceSlug, deviceID); err != nil {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to publish alert event for device %s: %v", devEUI, err)
 		return err
 	}
 
-	logging.Tenant(orgSlug, vhost, "✅", "Published alert event for device %s: [%s] %s", devEUI, alert.Level, alert.Code)
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "✅", "Published alert event for device %s: [%s] %s", devEUI, alert.Level, alert.Code)
 	return nil
 }
 

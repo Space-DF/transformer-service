@@ -125,11 +125,6 @@ type RawDataLog struct {
 	ID              string                 `json:"id"`
 	Timestamp       string                 `json:"timestamp"`
 	DeviceEUI       string                 `json:"device_eui,omitempty"`
-	DeviceID        string                 `json:"device_id,omitempty"`
-	DeviceName      string                 `json:"device_name,omitempty"`
-	EventType       string                 `json:"event_type,omitempty"`
-	RawData         string                 `json:"raw_data,omitempty"`
-	DecodedRawData  interface{}            `json:"decoded_raw_data,omitempty"`
 	OriginalPayload map[string]interface{} `json:"original_payload"`
 	ProcessingInfo  ProcessingInfo         `json:"processing_info"`
 }
