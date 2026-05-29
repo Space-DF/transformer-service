@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 )
 
@@ -31,13 +32,17 @@ func DecodePayloadBytes(encoded string) ([]byte, error) {
 
 // GenerateUniqueID creates a simple registry key for an entity.
 func GenerateUniqueID(model, devEUI, entityType string) string {
-	return fmt.Sprintf("%s_%s_%s", model, devEUI, entityType)
+	return fmt.Sprintf("%s_%s_%s", model, normalizeDevEUI(devEUI), entityType)
 }
 
 // GenerateEntityID creates a descriptive entity ID.
 func GenerateEntityID(domain, orgSlug, manufacturer, model, devEUI, entityType string) string {
 	return fmt.Sprintf("%s.%s_%s_%s_%s_%s",
-		domain, orgSlug, manufacturer, model, devEUI, entityType)
+		domain, orgSlug, manufacturer, model, normalizeDevEUI(devEUI), entityType)
+}
+
+func normalizeDevEUI(devEUI string) string {
+	return strings.ToUpper(strings.TrimSpace(devEUI))
 }
 
 // GetEntityDomain returns the HA domain for a given entity type key.
