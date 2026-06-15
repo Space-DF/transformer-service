@@ -118,7 +118,7 @@ func New() (Config, error) {
 func setDefaults(vp *viper.Viper) {
 	vp.SetDefault("server.log_level", "info")
 	vp.SetDefault("amqp.broker_url", "amqp://default:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/")
-	vp.SetDefault("amqp.output_topics", []string{"tenant.*.transformed.device.location", "tenant.*.transformed.telemetry.device.location"})
+	vp.SetDefault("amqp.output_topics", []string{"tenant.*.broker.device.location", "tenant.*.telemetry.device.location"})
 	vp.SetDefault("amqp.consumer_tag", "transformer-service")
 	vp.SetDefault("amqp.prefetch_count", 10)
 	vp.SetDefault("amqp.auto_ack", false)
