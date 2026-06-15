@@ -186,7 +186,7 @@ func (c *Consumer) publishLNSEvent(tenant *TenantConsumer, event map[string]inte
 		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Cannot publish LNS event: missing spaceSlug or deviceID (space=%s, device=%s), skipping", spaceSlug, deviceID)
 		return nil
 	}
-	routingKey := fmt.Sprintf("tenant.%s.telemetry.device.location", orgSlug)
+	routingKey := fmt.Sprintf("tenant.%s.telemetry.device.%s.event", orgSlug, deviceID)
 
 	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing LNS event to routing key: %s", routingKey)
 	if err := tenant.Channel.Publish(
@@ -225,7 +225,7 @@ func (c *Consumer) publishRawLog(tenant *TenantConsumer, logEntry models.RawData
 	// Publish to Telemetry queue and Broker Bridge queue
 	outputTopics := []string{
 		fmt.Sprintf("tenant.%s.telemetry.device.%s.activity_log", tenant.OrgSlug, logEntry.DeviceEUI),
-		fmt.Sprintf("tenant.%s.device.%s.activity_log", tenant.OrgSlug, logEntry.DeviceEUI),
+		fmt.Sprintf("tenant.%s.broker.device.%s.activity_log", tenant.OrgSlug, logEntry.DeviceEUI),
 	}
 
 	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing raw log entry to routing key: %s", outputTopics[0])

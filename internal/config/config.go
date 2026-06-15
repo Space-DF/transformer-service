@@ -123,7 +123,7 @@ func setDefaults(vp *viper.Viper) {
 	vp.SetDefault("amqp.prefetch_count", 10)
 	vp.SetDefault("amqp.auto_ack", false)
 	vp.SetDefault("amqp.allowed_vhosts", "")
-	vp.SetDefault("amqp.entity_bridge_routing_key", "tenant.%s.space.%s.entity.%s.telemetry")
+	vp.SetDefault("amqp.entity_bridge_routing_key", "tenant.%s.broker.space.%s.entity.%s.telemetry")
 
 	// Org events defaults
 	vp.SetDefault("org_events.exchange", "org.events")
