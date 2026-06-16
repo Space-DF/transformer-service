@@ -105,6 +105,11 @@ func buildEntityTemplates(dps *services.DeviceProfileService, deviceModelID stri
 		return nil, err
 	}
 
+	manufacturerName := ""
+	if m, err := dps.GetManufacturerByID(profile.ManufacturerID); err == nil {
+		manufacturerName = m.Name
+	}
+
 	registry := deviceprofile.Global()
 	if registry == nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "device profile registry is not initialized")
@@ -125,15 +130,16 @@ func buildEntityTemplates(dps *services.DeviceProfileService, deviceModelID stri
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "entity template missing key")
 		}
 		templates = append(templates, models.DeviceEntityTemplate{
-			Key:         key,
-			UniqueID:    key,
-			ModelKey:    profile.DeviceType,
-			EntityType:  entity.EntityType,
-			Category:    entity.EntityType,
-			Name:        entity.Name,
+			Key:          key,
+			UniqueID:     key,
+			ModelKey:     profile.DeviceType,
+			EntityType:   entity.EntityType,
+			Category:     entity.EntityType,
+			Name:         entity.Name,
+			Manufacturer: manufacturerName,
 			UnitOfMeas:  entity.UnitOfMeas,
-			Icon:        entity.Icon,
-			DisplayType: entity.DisplayType,
+			Icon:         entity.Icon,
+			DisplayType:  entity.DisplayType,
 		})
 	}
 
