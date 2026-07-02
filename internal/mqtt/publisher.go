@@ -74,7 +74,7 @@ func (c *Consumer) publishTelemetry(channel *amqp.Channel, data *models.Telemetr
 	}
 	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "🔍", "Telemetry payload body: %s", string(body))
 
-	telemetryRoutingKey := fmt.Sprintf("tenant.%s.transformed.telemetry.device.location", tenant.OrgSlug)
+	telemetryRoutingKey := fmt.Sprintf("tenant.%s.telemetry.device.location", tenant.OrgSlug)
 	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing telemetry payload to %s", telemetryRoutingKey)
 
 	if err := channel.PublishWithContext(
@@ -186,7 +186,7 @@ func (c *Consumer) publishLNSEvent(tenant *TenantConsumer, event map[string]inte
 		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Cannot publish LNS event: missing spaceSlug or deviceID (space=%s, device=%s), skipping", spaceSlug, deviceID)
 		return nil
 	}
-	routingKey := fmt.Sprintf("tenant.%s.transformed.telemetry.device.location", orgSlug)
+	routingKey := fmt.Sprintf("tenant.%s.telemetry.device.%s.event", orgSlug, deviceID)
 
 	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing LNS event to routing key: %s", routingKey)
 	if err := tenant.Channel.Publish(
@@ -202,6 +202,49 @@ func (c *Consumer) publishLNSEvent(tenant *TenantConsumer, event map[string]inte
 		},
 	); err != nil {
 		return fmt.Errorf("failed to publish LNS event to %s: %w", routingKey, err)
+	}
+
+	return nil
+}
+
+func (c *Consumer) publishRawLog(tenant *TenantConsumer, logEntry models.RawDataLog) error {
+	if tenant.Channel == nil {
+		return fmt.Errorf("tenant channel is nil")
+	}
+
+	body, err := segmentjson.Marshal(logEntry)
+	if err != nil {
+		return fmt.Errorf("failed to marshal raw log entry: %w", err)
+	}
+
+	exchange := tenant.Exchange
+	if exchange == "" {
+		exchange = fmt.Sprintf("%s.exchange", tenant.OrgSlug)
+	}
+
+	// Publish to Telemetry queue and Broker Bridge queue
+	outputTopics := []string{
+		fmt.Sprintf("tenant.%s.telemetry.device.%s.activity_log", tenant.OrgSlug, logEntry.DeviceEUI),
+		fmt.Sprintf("tenant.%s.broker.device.%s.activity_log", tenant.OrgSlug, logEntry.DeviceEUI),
+	}
+
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing raw log entry to routing key: %s", outputTopics[0])
+
+	for _, routingKey := range outputTopics {
+		if err := tenant.Channel.Publish(
+			exchange,
+			routingKey,
+			false,
+			false,
+			amqp.Publishing{
+				ContentType:  "application/json",
+				Body:         body,
+				Timestamp:    time.Now(),
+				DeliveryMode: amqp.Persistent,
+			},
+		); err != nil {
+			return fmt.Errorf("failed to publish raw log entry to %s: %w", routingKey, err)
+		}
 	}
 
 	return nil

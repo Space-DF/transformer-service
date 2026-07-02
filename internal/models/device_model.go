@@ -13,15 +13,16 @@ type DeviceModel struct {
 
 // DeviceEntityTemplate represents a bootstrap entity definition derived from a device model.
 type DeviceEntityTemplate struct {
-	Key         string   `json:"key"`
-	UniqueID    string   `json:"unique_id"`
-	ModelKey    string   `json:"model_key,omitempty"`
-	EntityType  string   `json:"entity_type"`
-	Category    string   `json:"category"`
-	Name        string   `json:"name"`
-	UnitOfMeas  string   `json:"unit_of_measurement,omitempty"`
-	Icon        string   `json:"icon,omitempty"`
-	DisplayType []string `json:"display_type,omitempty"`
+	Key          string   `json:"key"`
+	UniqueID     string   `json:"unique_id"`
+	ModelKey     string   `json:"model_key,omitempty"`
+	EntityType   string   `json:"entity_type"`
+	Category     string   `json:"category"`
+	Name         string   `json:"name"`
+	Manufacturer string   `json:"manufacturer,omitempty"`
+	UnitOfMeas   string   `json:"unit_of_measurement,omitempty"`
+	Icon         string   `json:"icon,omitempty"`
+	DisplayType  []string `json:"display_type,omitempty"`
 }
 
 // DeviceProfile represents the YAML structure for device profiles
