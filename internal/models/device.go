@@ -148,25 +148,27 @@ type LocationResult struct {
 
 // DeviceLookupResponse represents the payload returned by the device lookup API
 type DeviceLookupResponse struct {
-	ID          string `json:"id"`
-	DeviceID    string `json:"device_id"`
-	DeviceModel string `json:"device_model"`
-	SpaceSlug   string `json:"space_slug"`
-	IsPublished bool   `json:"is_published"`
+	ID            string `json:"id"`
+	DeviceID      string `json:"device_id"`
+	DeviceModel   string `json:"device_model"`
+	SpaceSlug     string `json:"space_slug"`
+	IsDeactivated bool   `json:"is_deactivated"`
+	IsPublished   bool   `json:"is_published"`
 }
 
 // DeviceMapping represents a device EUI to profile mapping
 // DEPRECATED: Use Device instead for new code
 type DeviceMapping struct {
-	Profile      string `json:"device_profile"`
-	Organization string `json:"organization"`
-	DeviceID     string `json:"id"`
-	DeviceName   string `json:"device_name"`
-	Manufacture  string `json:"manufacture"`
-	Description  string `json:"description"`
-	SpaceSlug    string `json:"space_slug"`
-	IsPublished  bool   `json:"is_published"`
-	Skip         bool   `json:"skip,omitempty"`
+	Profile       string `json:"device_profile"`
+	Organization  string `json:"organization"`
+	DeviceID      string `json:"id"`
+	DeviceName    string `json:"device_name"`
+	Manufacture   string `json:"manufacture"`
+	Description   string `json:"description"`
+	SpaceSlug     string `json:"space_slug"`
+	IsPublished   bool   `json:"is_published"`
+	IsDeactivated bool   `json:"is_deactivated"`
+	Skip          bool   `json:"skip,omitempty"`
 }
 
 // DeviceIdentifier represents a single identifier for a device
