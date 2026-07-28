@@ -318,14 +318,15 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 		devEUI, deviceModelID, deviceType, deviceID, deviceName, manufacturerName, spaceSlug, isPublished)
 
 	mapping := models.DeviceMapping{
-		Profile:      deviceType,
-		Organization: orgSlug,
-		DeviceID:     deviceID,
-		DeviceName:   deviceName,
-		Manufacture:  manufacturerName,
-		Description:  description,
-		SpaceSlug:    spaceSlug,
-		IsPublished:  isPublished,
+		Profile:       deviceType,
+		Organization:  orgSlug,
+		DeviceID:      deviceID,
+		DeviceName:    deviceName,
+		Manufacture:   manufacturerName,
+		Description:   description,
+		SpaceSlug:     spaceSlug,
+		IsPublished:   isPublished,
+		IsDeactivated: payload.IsDeactivated,
 	}
 
 	return &mapping, nil
@@ -367,6 +368,15 @@ func (dps *DeviceProfileService) ShouldSkipDevice(orgSlug, devEUI string) (bool,
 		return false, err
 	}
 	return mapping.Skip, nil
+}
+
+// IsDeviceDeactivated checks if a device has been deactivated.
+func (dps *DeviceProfileService) IsDeviceDeactivated(orgSlug, devEUI string) (bool, error) {
+	mapping, err := dps.GetDeviceMapping(orgSlug, devEUI)
+	if err != nil {
+		return false, err
+	}
+	return mapping.IsDeactivated, nil
 }
 
 // Close closes the service and releases resources
