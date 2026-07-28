@@ -15,6 +15,7 @@ import (
 )
 
 var ErrDeviceSkipped = errors.New("device skipped")
+var ErrDeviceDeactivated = errors.New("device is deactivated")
 
 type Resolver struct {
 	locationService      *services.LocationService
@@ -39,12 +40,15 @@ func (r *Resolver) Resolve(ctx context.Context, orgSlug, vhost, devEUI string, p
 	}
 
 	if devEUI != "" && r.deviceProfileService != nil {
-		shouldSkip, skipErr := r.deviceProfileService.ShouldSkipDevice(orgSlug, devEUI)
-		if skipErr != nil {
-			r.logTenant(orgSlug, vhost, "⚠️", "Could not check skip status for device %s: %v", devEUI, skipErr)
-		} else if shouldSkip {
+		if shouldSkip, err := r.deviceProfileService.ShouldSkipDevice(orgSlug, devEUI); err == nil && shouldSkip {
 			r.logTenant(orgSlug, vhost, "⏭️", "Skipping device %s as per configuration", devEUI)
 			return nil, &info, ErrDeviceSkipped
+		}
+		if isDeactivated, err := r.deviceProfileService.IsDeviceDeactivated(orgSlug, devEUI); err == nil && isDeactivated {
+			return &models.DeviceLocationData{
+				DevEUI:       devEUI,
+				Organization: orgSlug,
+			}, &info, ErrDeviceDeactivated
 		}
 	}
 

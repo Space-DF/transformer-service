@@ -85,11 +85,16 @@ func (c *Consumer) handleMessage(ctx context.Context, msg amqp.Delivery, tenant 
 		return nil
 	}
 
-	// Check if device should be skipped
+	// Check if device should be skipped or deactivated
 	deviceLocation, processingInfo, err := c.resolveMessage(ctx, tenant, devEUI, payload, locationPayload, lnsType)
 	if err != nil {
 		if errors.Is(err, resolver.ErrDeviceSkipped) {
-			return nil // not an error, just skip
+			return nil
+		}
+		if errors.Is(err, resolver.ErrDeviceDeactivated) {
+			// Deactivated: publish telemetry only, skip frontend MQTT.
+			c.processEntities(tenant, deviceLocation, payload, lnsType)
+			return nil
 		}
 		return fmt.Errorf("failed to resolve message: %w", err)
 	}
@@ -229,6 +234,9 @@ func (c *Consumer) resolveMessage(ctx context.Context, tenant *TenantConsumer, d
 	if errors.Is(err, resolver.ErrDeviceSkipped) {
 		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⏭️", "Device %s is marked to be skipped, skipping processing", devEUI)
 		return nil, nil, err
+	}
+	if errors.Is(err, resolver.ErrDeviceDeactivated) {
+		return deviceLocation, processingInfo, err
 	}
 	if err != nil {
 		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to resolve device %s: %v", devEUI, err)
