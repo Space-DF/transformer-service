@@ -62,6 +62,7 @@ type TelemetryPayload struct {
 	DeviceEUI    string                 `json:"device_eui"`
 	DeviceID     string                 `json:"device_id,omitempty"`
 	SpaceSlug    string                 `json:"space_slug,omitempty"`
+	IsPublished  bool                   `json:"is_published"`
 	DeviceInfo   TelemetryDeviceInfo    `json:"device_info"`
 	Entities     []TelemetryEntity      `json:"entities"`
 	Timestamp    string                 `json:"timestamp"`
@@ -75,6 +76,7 @@ type EntityTelemetryPayload struct {
 	DeviceEUI    string                 `json:"device_eui"`
 	DeviceID     string                 `json:"device_id,omitempty"`
 	SpaceSlug    string                 `json:"space_slug,omitempty"`
+	IsPublished  bool                   `json:"is_published"`
 	Entity       TelemetryEntity        `json:"entity"`
 	Timestamp    string                 `json:"timestamp"`
 	Source       string                 `json:"source"`

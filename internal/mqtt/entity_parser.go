@@ -53,9 +53,11 @@ func (c *Consumer) buildTelemetryPayload(parseResult *common.ParseResult, orgSlu
 	// Get device identifiers from mapping (prefer mapping over payload)
 	deviceID := "unknown"
 	spaceSlug := ""
+	isPublished := false
 	if mapping != nil {
 		deviceID = mapping.DeviceID
 		spaceSlug = mapping.SpaceSlug
+		isPublished = mapping.IsPublished
 	}
 
 	deviceInfo := models.TelemetryDeviceInfo{
@@ -88,6 +90,7 @@ func (c *Consumer) buildTelemetryPayload(parseResult *common.ParseResult, orgSlu
 		DeviceEUI:    parseResult.DeviceEUI,
 		DeviceID:     deviceID,
 		SpaceSlug:    spaceSlug,
+		IsPublished:  isPublished,
 		DeviceInfo:   deviceInfo,
 		Entities:     telemetryEntities,
 		Timestamp:    time.Now().UTC().Format(time.RFC3339),
