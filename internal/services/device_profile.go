@@ -160,27 +160,43 @@ func (dps *DeviceProfileService) GetAllDeviceModels() []models.DeviceModel {
 	return result
 }
 
-// GetDeviceModelByID returns a device model by its ID with manufacturer name resolved.
-func (dps *DeviceProfileService) GetDeviceModelByID(deviceModelID string) *models.DeviceModel {
-	profile, ok := dps.profilesByID[deviceModelID]
-	if !ok {
-		return nil
+// GetDeviceModelsByIDs returns device models by IDs, preserving first-seen input order.
+func (dps *DeviceProfileService) GetDeviceModelsByIDs(deviceModelIDs []string) []models.DeviceModel {
+	deviceModels := make([]models.DeviceModel, 0, len(deviceModelIDs))
+	seen := make(map[string]struct{}, len(deviceModelIDs))
+
+	for _, deviceModelID := range deviceModelIDs {
+		deviceModelID = strings.TrimSpace(deviceModelID)
+		if deviceModelID == "" {
+			continue
+		}
+		if _, ok := seen[deviceModelID]; ok {
+			continue
+		}
+		seen[deviceModelID] = struct{}{}
+
+		profile, ok := dps.profilesByID[deviceModelID]
+		if !ok {
+			continue
+		}
+
+		manufacturerName := profile.ManufacturerID
+		if m, ok := dps.manufacturers[profile.ManufacturerID]; ok {
+			manufacturerName = m.Name
+		}
+
+		deviceModels = append(deviceModels, models.DeviceModel{
+			ID:               profile.ID,
+			Name:             profile.Name,
+			ManufacturerID:   profile.ManufacturerID,
+			ManufacturerName: manufacturerName,
+			DeviceType:       profile.DeviceType,
+			KeyFeature:       profile.KeyFeature,
+			Logo:             dps.resolveLogoURL(profile.Logo),
+		})
 	}
 
-	manufacturerName := profile.ManufacturerID
-	if m, ok := dps.manufacturers[profile.ManufacturerID]; ok {
-		manufacturerName = m.Name
-	}
-
-	return &models.DeviceModel{
-		ID:               profile.ID,
-		Name:             profile.Name,
-		ManufacturerID:   profile.ManufacturerID,
-		ManufacturerName: manufacturerName,
-		DeviceType:       profile.DeviceType,
-		KeyFeature:       profile.KeyFeature,
-		Logo:             dps.resolveLogoURL(profile.Logo),
-	}
+	return deviceModels
 }
 
 func (dps *DeviceProfileService) resolveLogoURL(logo string) string {
