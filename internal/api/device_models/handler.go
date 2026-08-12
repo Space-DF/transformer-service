@@ -59,21 +59,20 @@ func getDeviceModels(dps *services.DeviceProfileService) echo.HandlerFunc {
 	}
 }
 
-func getDeviceModelByID(dps *services.DeviceProfileService) echo.HandlerFunc {
+func getDeviceModelsByIDs(dps *services.DeviceProfileService) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		deviceModelID := c.Param("device_model_id")
-		if deviceModelID == "" {
+		var request models.DeviceModelsBatchRequest
+		if err := c.Bind(&request); err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{
-				"error": "Device model ID is required",
+				"error": "Invalid request body",
 			})
 		}
-		deviceModel := dps.GetDeviceModelByID(deviceModelID)
-		if deviceModel == nil {
-			return c.JSON(http.StatusNotFound, map[string]string{
-				"error": "Device model not found",
-			})
-		}
-		return c.JSON(http.StatusOK, deviceModel)
+
+		deviceModels := dps.GetDeviceModelsByIDs(request.DeviceModelIDs)
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"count":   len(deviceModels),
+			"results": deviceModels,
+		})
 	}
 }
 
@@ -137,7 +136,7 @@ func buildEntityTemplates(dps *services.DeviceProfileService, deviceModelID stri
 			Category:     entity.EntityType,
 			Name:         entity.Name,
 			Manufacturer: manufacturerName,
-			UnitOfMeas:  entity.UnitOfMeas,
+			UnitOfMeas:   entity.UnitOfMeas,
 			Icon:         entity.Icon,
 			DisplayType:  entity.DisplayType,
 		})

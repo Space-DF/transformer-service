@@ -11,6 +11,11 @@ type DeviceModel struct {
 	Logo             string `json:"logo"`
 }
 
+// DeviceModelsBatchRequest represents a request to fetch multiple device models by ID.
+type DeviceModelsBatchRequest struct {
+	DeviceModelIDs []string `json:"device_model_ids"`
+}
+
 // DeviceEntityTemplate represents a bootstrap entity definition derived from a device model.
 type DeviceEntityTemplate struct {
 	Key          string   `json:"key"`
