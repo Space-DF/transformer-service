@@ -21,6 +21,7 @@ import (
 	"github.com/Space-DF/transformer-service/internal/device_profiles/rakwireless/rak4630"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/rakwireless/rak7200"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/seeed/sensecap_t1000"
+	"github.com/Space-DF/transformer-service/internal/device_profiles/seeed/sensecap_t1000e"
 	"github.com/Space-DF/transformer-service/internal/services"
 )
 
@@ -50,6 +51,7 @@ func RegisterAll(r *Component, locationService *services.LocationService) error 
 		{rak4630.Model, rak4630.Manufacturer, rak4630.NewRAK4630Component()},
 		{rak7200.Model, rak7200.Manufacturer, rak7200.NewRAK7200Component()},
 		{sensecap_t1000.Model, sensecap_t1000.Manufacturer, sensecap_t1000.NewSenseCapT1000Component()},
+		{sensecap_t1000e.Model, sensecap_t1000e.Manufacturer, sensecap_t1000e.NewSenseCapT1000EComponent()},
 		{tbeam.Model, tbeam.Manufacturer, tbeam.NewTBeamComponent()},
 		{wlbv1.Model, wlbv1.Manufacturer, wlbv1.NewWLBV1Component()},
 		{yabby_edge.Model, yabby_edge.Manufacturer, yabby_edge.NewYabbyEdgeComponent()},

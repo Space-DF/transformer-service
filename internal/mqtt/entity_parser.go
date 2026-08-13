@@ -54,10 +54,12 @@ func (c *Consumer) buildTelemetryPayload(parseResult *common.ParseResult, orgSlu
 	deviceID := "unknown"
 	spaceSlug := ""
 	isPublished := false
+	isDeactivated := false
 	if mapping != nil {
 		deviceID = mapping.DeviceID
 		spaceSlug = mapping.SpaceSlug
 		isPublished = mapping.IsPublished
+		isDeactivated = mapping.IsDeactivated
 	}
 
 	deviceInfo := models.TelemetryDeviceInfo{
@@ -86,14 +88,15 @@ func (c *Consumer) buildTelemetryPayload(parseResult *common.ParseResult, orgSlu
 	}
 
 	return &models.TelemetryPayload{
-		Organization: orgSlug,
-		DeviceEUI:    parseResult.DeviceEUI,
-		DeviceID:     deviceID,
-		SpaceSlug:    spaceSlug,
-		IsPublished:  isPublished,
-		DeviceInfo:   deviceInfo,
-		Entities:     telemetryEntities,
-		Timestamp:    time.Now().UTC().Format(time.RFC3339),
-		Source:       "transformer-service",
+		Organization:  orgSlug,
+		DeviceEUI:     parseResult.DeviceEUI,
+		DeviceID:      deviceID,
+		SpaceSlug:     spaceSlug,
+		IsPublished:   isPublished,
+		IsDeactivated: isDeactivated,
+		DeviceInfo:    deviceInfo,
+		Entities:      telemetryEntities,
+		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+		Source:        "transformer-service",
 	}, nil
 }
