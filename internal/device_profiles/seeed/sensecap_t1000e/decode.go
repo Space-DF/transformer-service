@@ -227,17 +227,14 @@ func isNull(b []byte) bool {
 }
 
 func signedBE(b []byte) float64 {
-	if len(b) == 0 {
+	switch len(b) {
+	case 1:
+		return float64(int8(b[0]))
+	case 2:
+		return float64(common.I16BE(b, 0))
+	case 4:
+		return float64(common.I32BE(b, 0))
+	default:
 		return 0
 	}
-
-	var value int64
-	for _, v := range b {
-		value = (value << 8) | int64(v)
-	}
-	signBit := int64(1) << uint(len(b)*8-1)
-	if value&signBit != 0 {
-		value -= int64(1) << uint(len(b)*8)
-	}
-	return float64(value)
 }
