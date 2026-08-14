@@ -130,6 +130,7 @@ func (c *Consumer) publishEntityTelemetry(channel *amqp.Channel, data *models.Te
 			DeviceEUI:    data.DeviceEUI,
 			DeviceID:     data.DeviceID,
 			SpaceSlug:    spaceSlug,
+			IsPublished:  data.IsPublished,
 			Entity:       entity,
 			Timestamp:    data.Timestamp,
 			Source:       data.Source,
