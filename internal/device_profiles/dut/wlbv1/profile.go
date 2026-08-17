@@ -1,9 +1,5 @@
 package wlbv1
 
-import (
-	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
-)
-
 const (
 	Model        = "WLBV1"
 	Manufacturer = "dut"
@@ -19,11 +15,3 @@ func (p *WLBV1Component) GetSupportedPorts() []int { return []int{1, 2, 3, 4, 5}
 func (p *WLBV1Component) GetSupportedEntityTypes() []string {
 	return []string{"location", "battery", "water_depth"}
 }
-
-var _ interface {
-	SupportsGPS() bool
-	GetSupportedPorts() []int
-	GetSupportedEntityTypes() []string
-	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
-	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*WLBV1Component)(nil)

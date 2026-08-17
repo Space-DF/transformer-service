@@ -1,9 +1,5 @@
 package ct101
 
-import (
-	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
-)
-
 const (
 	Model        = "CT101"
 	Manufacturer = "milesight"
@@ -23,11 +19,3 @@ func (p *CT101Component) GetSupportedEntityTypes() []string {
 		"current_sensor_status", "temperature_sensor_status",
 	}
 }
-
-var _ interface {
-	SupportsGPS() bool
-	GetSupportedPorts() []int
-	GetSupportedEntityTypes() []string
-	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
-	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*CT101Component)(nil)

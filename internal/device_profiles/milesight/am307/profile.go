@@ -1,9 +1,5 @@
 package am307
 
-import (
-	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
-)
-
 const (
 	Model        = "AM307"
 	Manufacturer = "milesight"
@@ -33,11 +29,3 @@ func (p *AM307Component) GetSupportedEntityTypes() []string {
 		"pressure",
 	}
 }
-
-var _ interface {
-	SupportsGPS() bool
-	GetSupportedPorts() []int
-	GetSupportedEntityTypes() []string
-	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
-	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*AM307Component)(nil)

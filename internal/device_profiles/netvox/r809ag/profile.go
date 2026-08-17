@@ -1,9 +1,5 @@
 package r809ag
 
-import (
-	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
-)
-
 const (
 	Model        = "R809AG"
 	Manufacturer = "netvox"
@@ -26,11 +22,3 @@ func (p *R809AGComponent) GetSupportedEntityTypes() []string {
 		"overcurrent_alarm", "dash_current_alarm", "power_off_alarm",
 	}
 }
-
-var _ interface {
-	SupportsGPS() bool
-	GetSupportedPorts() []int
-	GetSupportedEntityTypes() []string
-	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
-	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*R809AGComponent)(nil)
