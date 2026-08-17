@@ -1,7 +1,5 @@
 package cubicmeter
 
-import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
-
 const (
 	Model        = "QUANDIFY_CUBICMETER"
 	Manufacturer = "quandify"
@@ -28,11 +26,3 @@ func (p *CubicMeterComponent) GetSupportedEntityTypes() []string {
 		"is_sensing",
 	}
 }
-
-var _ interface {
-	SupportsGPS() bool
-	GetSupportedPorts() []int
-	GetSupportedEntityTypes() []string
-	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
-	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*CubicMeterComponent)(nil)

@@ -1,9 +1,5 @@
 package sensecap_t1000
 
-import (
-	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
-)
-
 const (
 	Model        = "SENSECAP_T1000"
 	Manufacturer = "seeed"
@@ -23,11 +19,3 @@ func (p *SenseCapT1000Component) GetSupportedEntityTypes() []string {
 		"temperature_event", "light_event", "press_once_event",
 	}
 }
-
-var _ interface {
-	SupportsGPS() bool
-	GetSupportedPorts() []int
-	GetSupportedEntityTypes() []string
-	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
-	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*SenseCapT1000Component)(nil)

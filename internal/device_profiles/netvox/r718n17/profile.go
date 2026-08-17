@@ -1,9 +1,5 @@
 package r718n17
 
-import (
-	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
-)
-
 const (
 	Model        = "R718N17"
 	Manufacturer = "netvox"
@@ -34,11 +30,3 @@ func (p *NetvoxR718N17Component) GetSupportedEntityTypes() []string {
 		"date_code",
 	}
 }
-
-var _ interface {
-	SupportsGPS() bool
-	GetSupportedPorts() []int
-	GetSupportedEntityTypes() []string
-	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
-	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*NetvoxR718N17Component)(nil)

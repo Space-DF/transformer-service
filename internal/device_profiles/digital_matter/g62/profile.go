@@ -1,9 +1,5 @@
 package g62
 
-import (
-	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
-)
-
 const (
 	Model        = "G62"
 	Manufacturer = "digitalmatter"
@@ -28,11 +24,3 @@ func (p *G62Component) GetSupportedEntityTypes() []string {
 		"odometer", "runtime", "firmware", "downlink_ack",
 	}
 }
-
-var _ interface {
-	SupportsGPS() bool
-	GetSupportedPorts() []int
-	GetSupportedEntityTypes() []string
-	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
-	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*G62Component)(nil)

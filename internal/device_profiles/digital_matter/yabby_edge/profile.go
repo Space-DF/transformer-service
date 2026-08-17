@@ -1,9 +1,5 @@
 package yabby_edge
 
-import (
-	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
-)
-
 const (
 	Model        = "YABBY_EDGE"
 	Manufacturer = "digitalmatter"
@@ -29,11 +25,3 @@ func (p *YabbyEdgeComponent) GetSupportedEntityTypes() []string {
 		"firmware", "battery_stats", "downlink_ack", "connect",
 	}
 }
-
-var _ interface {
-	SupportsGPS() bool
-	GetSupportedPorts() []int
-	GetSupportedEntityTypes() []string
-	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
-	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*YabbyEdgeComponent)(nil)

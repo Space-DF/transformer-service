@@ -1,9 +1,5 @@
 package rak7200
 
-import (
-	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
-)
-
 const (
 	Model        = "RAK7200"
 	Manufacturer = "rakwireless"
@@ -19,11 +15,3 @@ func (p *RAK7200Component) GetSupportedPorts() []int { return []int{2, 3, 4, 5} 
 func (p *RAK7200Component) GetSupportedEntityTypes() []string {
 	return []string{"location", "battery", "temperature"}
 }
-
-var _ interface {
-	SupportsGPS() bool
-	GetSupportedPorts() []int
-	GetSupportedEntityTypes() []string
-	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
-	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*RAK7200Component)(nil)
