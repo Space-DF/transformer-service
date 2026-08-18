@@ -6,8 +6,6 @@ import (
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
 )
 
-const coordScale = 1000000.0
-
 type frame struct {
 	id   byte
 	data []byte
@@ -164,8 +162,8 @@ func parseLocation(b []byte, off int, loc **common.Location) {
 		return
 	}
 
-	lon := signedBE(b[off:off+4]) / coordScale
-	lat := signedBE(b[off+4:off+8]) / coordScale
+	lon := signedBE(b[off:off+4]) / common.CoordinateScale1e6
+	lat := signedBE(b[off+4:off+8]) / common.CoordinateScale1e6
 	if common.ValidateCoordinates(lat, lon) == nil {
 		*loc = &common.Location{Latitude: lat, Longitude: lon}
 	}
