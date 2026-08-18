@@ -4,8 +4,6 @@ import (
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
 )
 
-const coordScale = 10000000.0
-
 // Decode extracts sensor readings and location from an Abeeway Industrial Tracker uplink.
 // Binary protocol: 4-byte header (msgType, status, battery, temp) + message-specific data.
 func Decode(payload *common.RawPayload) (map[string]interface{}, *common.Location) {
@@ -57,8 +55,8 @@ func parseGPSPosition(data []byte, sensors map[string]interface{}, loc **common.
 		if len(data) >= 17 {
 			latOff, lonOff = 2, 6
 		}
-		lat := float64(common.I32BE(data, latOff)) / coordScale
-		lon := float64(common.I32BE(data, lonOff)) / coordScale
+		lat := float64(common.I32BE(data, latOff)) / common.CoordinateScale1e7
+		lon := float64(common.I32BE(data, lonOff)) / common.CoordinateScale1e7
 		if (lat != 0 || lon != 0) && common.ValidateCoordinates(lat, lon) == nil {
 			*loc = &common.Location{Latitude: lat, Longitude: lon}
 		}
@@ -70,8 +68,8 @@ func parseGPSPosition(data []byte, sensors map[string]interface{}, loc **common.
 	case (posType == 0x07 || posType == 0x09) && len(data) >= 13:
 		posStatus := data[1]
 		if (posStatus & 0x01) != 0 {
-			lat := float64(common.I32BE(data, 2)) / coordScale
-			lon := float64(common.I32BE(data, 6)) / coordScale
+			lat := float64(common.I32BE(data, 2)) / common.CoordinateScale1e7
+			lon := float64(common.I32BE(data, 6)) / common.CoordinateScale1e7
 			if (lat != 0 || lon != 0) && common.ValidateCoordinates(lat, lon) == nil {
 				*loc = &common.Location{Latitude: lat, Longitude: lon}
 			}

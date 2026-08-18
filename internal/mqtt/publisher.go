@@ -126,15 +126,16 @@ func (c *Consumer) publishEntityTelemetry(channel *amqp.Channel, data *models.Te
 		}
 
 		entityPayload := models.EntityTelemetryPayload{
-			Organization: data.Organization,
-			DeviceEUI:    data.DeviceEUI,
-			DeviceID:     data.DeviceID,
-			SpaceSlug:    spaceSlug,
-			IsPublished:  data.IsPublished,
-			Entity:       entity,
-			Timestamp:    data.Timestamp,
-			Source:       data.Source,
-			Metadata:     data.Metadata,
+			Organization:  data.Organization,
+			DeviceEUI:     data.DeviceEUI,
+			DeviceID:      data.DeviceID,
+			SpaceSlug:     spaceSlug,
+			IsPublished:   data.IsPublished,
+			IsDeactivated: data.IsDeactivated,
+			Entity:        entity,
+			Timestamp:     data.Timestamp,
+			Source:        data.Source,
+			Metadata:      data.Metadata,
 		}
 
 		body, err := segmentjson.Marshal(entityPayload)

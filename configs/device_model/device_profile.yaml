@@ -27,6 +27,13 @@ device_profiles:
     key_feature: location
     logo: sensecap_t1000.png
 
+  - id: 8e8d5f5e-3ab5-4d47-87d7-970c63b6f6c3
+    name: lorawan
+    manufacturer_id: a6d0d038-a0fb-4c5c-ad8a-ba5d3e88b187
+    device_type: SENSECAP_T1000E
+    key_feature: location
+    logo: sensecap_t1000.png
+
   - id: 960b1758-1d15-465a-85d8-d8889ada27da
     name: lorawan
     manufacturer_id: 735c87f8-c686-b6d5-4e2a-0327626fb2c2
