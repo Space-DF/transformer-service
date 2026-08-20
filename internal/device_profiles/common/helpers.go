@@ -117,16 +117,18 @@ func ResolveLocationBearing(parsedLocation, deviceLocation *Location, sensorData
 	resolved := *source
 
 	if heading, ok := extractBearingValue(sensorData, "heading"); ok {
-		resolved.Bearing = normalizeBearing(heading)
+		bearing := normalizeBearing(heading)
+		resolved.Bearing = &bearing
 		return &resolved
 	}
 
 	if bearing, ok := extractBearingValue(sensorData, "bearing"); ok {
-		resolved.Bearing = normalizeBearing(bearing)
+		normalized := normalizeBearing(bearing)
+		resolved.Bearing = &normalized
 		return &resolved
 	}
 
-	if deviceLocation != nil {
+	if deviceLocation != nil && deviceLocation.Bearing != nil {
 		resolved.Bearing = deviceLocation.Bearing
 	}
 
@@ -158,6 +160,20 @@ func normalizeBearing(value float64) float64 {
 	}
 	return normalized
 
+}
+
+func BuildLocationAttributes(source string, gpsCapable bool, model string, loc *Location) map[string]interface{} {
+	attrs := map[string]interface{}{
+		"source":       source,
+		"gps_capable":  gpsCapable,
+		"device_model": model,
+		"latitude":     loc.Latitude,
+		"longitude":    loc.Longitude,
+	}
+	if loc.Bearing != nil {
+		attrs["bearing"] = *loc.Bearing
+	}
+	return attrs
 }
 
 func BuildLocationTemplate(orgSlug, model, manufacturer, modelKey, devEUI string, gpsCapable bool, requiresCalculation bool) Entity {

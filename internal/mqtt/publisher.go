@@ -62,8 +62,10 @@ func (c *Consumer) publishTransformedData(channel *amqp.Channel, data *models.Tr
 	return nil
 }
 
-// publishTelemetry publishes telemetry payloads (entities) to the telemetry queue
-func (c *Consumer) publishTelemetry(channel *amqp.Channel, data *models.TelemetryPayload, tenant *TenantConsumer) error {
+// publishTelemetry publishes telemetry payloads (entities) to the telemetry queue.
+// Broker entity fan-out is optional because inactive devices should still be
+// stored by telemetry-service without being forwarded to MQTT subscribers.
+func (c *Consumer) publishTelemetry(channel *amqp.Channel, data *models.TelemetryPayload, tenant *TenantConsumer, publishToBroker bool) error {
 	if channel == nil {
 		return fmt.Errorf("tenant channel is nil")
 	}
@@ -91,6 +93,11 @@ func (c *Consumer) publishTelemetry(channel *amqp.Channel, data *models.Telemetr
 		},
 	); err != nil {
 		return err
+	}
+
+	if !publishToBroker {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⏭️", "Skipping broker entity telemetry for inactive device %s", data.DeviceEUI)
+		return nil
 	}
 
 	return c.publishEntityTelemetry(channel, data, tenant)
@@ -209,7 +216,7 @@ func (c *Consumer) publishLNSEvent(tenant *TenantConsumer, event map[string]inte
 	return nil
 }
 
-func (c *Consumer) publishRawLog(tenant *TenantConsumer, logEntry models.RawDataLog) error {
+func (c *Consumer) publishRawLog(tenant *TenantConsumer, logEntry models.RawDataLog, publishToBroker bool) error {
 	if tenant.Channel == nil {
 		return fmt.Errorf("tenant channel is nil")
 	}
@@ -224,10 +231,13 @@ func (c *Consumer) publishRawLog(tenant *TenantConsumer, logEntry models.RawData
 		exchange = fmt.Sprintf("%s.exchange", tenant.OrgSlug)
 	}
 
-	// Publish to Telemetry queue and Broker Bridge queue
 	outputTopics := []string{
 		fmt.Sprintf("tenant.%s.telemetry.device.%s.activity_log", tenant.OrgSlug, logEntry.DeviceEUI),
-		fmt.Sprintf("tenant.%s.broker.device.%s.activity_log", tenant.OrgSlug, logEntry.DeviceEUI),
+	}
+	if publishToBroker {
+		outputTopics = append(outputTopics, fmt.Sprintf("tenant.%s.broker.device.%s.activity_log", tenant.OrgSlug, logEntry.DeviceEUI))
+	} else {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⏭️", "Skipping broker activity log for device %s", logEntry.DeviceEUI)
 	}
 
 	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📡", "Publishing raw log entry to routing key: %s", outputTopics[0])
