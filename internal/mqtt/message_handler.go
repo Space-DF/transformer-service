@@ -87,27 +87,38 @@ func (c *Consumer) handleMessage(ctx context.Context, msg amqp.Delivery, tenant 
 
 	// Check if device should be skipped or deactivated
 	deviceLocation, processingInfo, err := c.resolveMessage(ctx, tenant, devEUI, payload, locationPayload, lnsType)
+	deviceDeactivated := false
 	if err != nil {
 		if errors.Is(err, resolver.ErrDeviceSkipped) {
 			return nil
 		}
 		if errors.Is(err, resolver.ErrDeviceDeactivated) {
-			logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⏭️", "Device %s is deactivated, skipping broker and telemetry publishing", devEUI)
-			return nil
+			deviceDeactivated = true
+			logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⏭️", "Device %s is deactivated, skipping broker publishing", devEUI)
+		} else {
+			return fmt.Errorf("failed to resolve message: %w", err)
 		}
-		return fmt.Errorf("failed to resolve message: %w", err)
 	}
 
-	// Transform data to output format and publish to output topic
-	if err := c.transformAndPublish(tenant, deviceLocation, payload, processingInfo); err != nil {
-		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to transform and publish data for device %s: %v", devEUI, err)
-		return fmt.Errorf("failed to transform and publish data: %w", err)
+	publishDeviceToBroker := !deviceDeactivated
+	if mapping := c.lookupDeviceMapping(tenant.OrgSlug, tenant.Vhost, devEUI); mapping != nil {
+		publishDeviceToBroker = !mapping.IsDeactivated
 	}
 
-	// process entities and publish telemetry
+	if publishDeviceToBroker {
+		// Transform data to output format and publish to output topic
+		if err := c.transformAndPublish(tenant, deviceLocation, payload, processingInfo); err != nil {
+			logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to transform and publish data for device %s: %v", devEUI, err)
+			return fmt.Errorf("failed to transform and publish data: %w", err)
+		}
+	} else {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⏭️", "Skipping transformed broker publishing for device %s", devEUI)
+	}
+
+	// Always store telemetry entities; broker fan-out is suppressed for inactive devices inside publishTelemetry.
 	c.processEntities(tenant, deviceLocation, payload, lnsType)
 
-	c.logAndPublishRaw(tenant, payload, devEUI, processingInfo)
+	c.logAndPublishRaw(tenant, payload, devEUI, processingInfo, publishDeviceToBroker)
 
 	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "✅", "Successfully processed device: %s", devEUI)
 	return nil
@@ -149,9 +160,7 @@ func (c *Consumer) processEntities(tenant *TenantConsumer, deviceLocation *model
 		entityLocation = &common.Location{
 			Latitude:  deviceLocation.Latitude,
 			Longitude: deviceLocation.Longitude,
-		}
-		if deviceLocation.Bearing != nil {
-			entityLocation.Bearing = *deviceLocation.Bearing
+			Bearing:   deviceLocation.Bearing,
 		}
 	} else {
 		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Invalid location for device %s (lat=%f, lon=%f): location entity will be excluded from telemetry", deviceLocation.DevEUI, deviceLocation.Latitude, deviceLocation.Longitude)
@@ -181,7 +190,8 @@ func (c *Consumer) processEntities(tenant *TenantConsumer, deviceLocation *model
 		return
 	}
 
-	err := c.publishTelemetry(tenant.Channel, telemetryPayload, tenant)
+	publishToBroker := !telemetryPayload.IsDeactivated
+	err := c.publishTelemetry(tenant.Channel, telemetryPayload, tenant, publishToBroker)
 	if err != nil {
 		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Failed to publish telemetry payload: %v", err)
 		return
@@ -189,7 +199,7 @@ func (c *Consumer) processEntities(tenant *TenantConsumer, deviceLocation *model
 	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "✅", "Published telemetry payload with %d entities", len(parseResult.Entities))
 }
 
-func (c *Consumer) logAndPublishRaw(tenant *TenantConsumer, payload map[string]interface{}, devEUI string, processingInfo *models.ProcessingInfo) {
+func (c *Consumer) logAndPublishRaw(tenant *TenantConsumer, payload map[string]interface{}, devEUI string, processingInfo *models.ProcessingInfo, publishToBroker bool) {
 	if c.loggerService == nil || processingInfo == nil {
 		return
 	}
@@ -197,7 +207,7 @@ func (c *Consumer) logAndPublishRaw(tenant *TenantConsumer, payload map[string]i
 	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "📝", "Logging raw data for device: %s, location calculated: %v", devEUI, processingInfo.LocationCalculated)
 
 	logEntry, logErr := c.loggerService.LogRawData(payload, devEUI, *processingInfo)
-	if err := c.publishRawLog(tenant, logEntry); err != nil {
+	if err := c.publishRawLog(tenant, logEntry, publishToBroker); err != nil {
 		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Failed to publish raw log to telemetry service: %v", err)
 	}
 
@@ -240,7 +250,11 @@ func (c *Consumer) resolveMessage(ctx context.Context, tenant *TenantConsumer, d
 	if err != nil {
 		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to resolve device %s: %v", devEUI, err)
 		if c.loggerService != nil {
-			c.logAndPublishRaw(tenant, payload, devEUI, processingInfo)
+			publishToBroker := true
+			if mapping := c.lookupDeviceMapping(tenant.OrgSlug, tenant.Vhost, devEUI); mapping != nil {
+				publishToBroker = !mapping.IsDeactivated
+			}
+			c.logAndPublishRaw(tenant, payload, devEUI, processingInfo, publishToBroker)
 		}
 		return nil, nil, fmt.Errorf("failed to resolve device: %w", err)
 	}
