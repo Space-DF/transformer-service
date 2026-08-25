@@ -48,3 +48,8 @@ manufacturers:
     name: Dragino
     description:  Dragino Technology
     portal_url:
+
+  - id: 8b180c5f-21e1-4a7d-a7fa-90193fc60bb5
+    name: DFRobot
+    description: DFRobot
+    portal_url:

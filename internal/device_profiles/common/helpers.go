@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -33,6 +34,27 @@ func DecodePayloadBytes(encoded string) ([]byte, error) {
 		return decoded, nil
 	}
 	return nil, fmt.Errorf("failed to decode payload as base64")
+}
+
+// NumericValue converts common decoded JSON numeric values to float64.
+func NumericValue(value interface{}) (float64, bool) {
+	switch v := value.(type) {
+	case float64:
+		return v, true
+	case float32:
+		return float64(v), true
+	case int:
+		return float64(v), true
+	case int32:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	case string:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
 }
 
 // GenerateUniqueID creates a simple registry key for an entity.
