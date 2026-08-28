@@ -6,8 +6,6 @@ import (
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
 )
 
-const coordScale = 10000000.0
-
 // Decode extracts sensor readings and location from a SenseCAP T1000 uplink.
 // Binary Seeed custom protocol with packet ID routing.
 func Decode(payload *common.RawPayload) (map[string]interface{}, *common.Location) {
@@ -109,13 +107,13 @@ func parseEventStatus(es uint32, out map[string]interface{}) {
 func parseGNSSCoords(b []byte, off int, loc **common.Location) {
 	rawLat := common.I32BE(b, off)
 	rawLon := common.I32BE(b, off+4)
-	lat := float64(rawLat) / coordScale
-	lon := float64(rawLon) / coordScale
+	lat := float64(rawLat) / common.CoordinateScale1e7
+	lon := float64(rawLon) / common.CoordinateScale1e7
 
 	// Auto-swap if coordinates appear reversed.
 	if math.Abs(lat) > 90 || math.Abs(lon) > 180 {
-		sLat := float64(rawLon) / coordScale
-		sLon := float64(rawLat) / coordScale
+		sLat := float64(rawLon) / common.CoordinateScale1e7
+		sLon := float64(rawLat) / common.CoordinateScale1e7
 		if math.Abs(sLat) <= 90 && math.Abs(sLon) <= 180 {
 			lat, lon = sLat, sLon
 		}

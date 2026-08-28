@@ -92,8 +92,7 @@ func (c *Consumer) handleMessage(ctx context.Context, msg amqp.Delivery, tenant 
 			return nil
 		}
 		if errors.Is(err, resolver.ErrDeviceDeactivated) {
-			// Deactivated: publish telemetry only, skip frontend MQTT.
-			c.processEntities(tenant, deviceLocation, payload, lnsType)
+			logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⏭️", "Device %s is deactivated, skipping broker and telemetry publishing", devEUI)
 			return nil
 		}
 		return fmt.Errorf("failed to resolve message: %w", err)
@@ -251,6 +250,10 @@ func (c *Consumer) resolveMessage(ctx context.Context, tenant *TenantConsumer, d
 
 func (c *Consumer) parseAndRouteLNSEventMessage(ctx context.Context, tenant *TenantConsumer, payload map[string]interface{}, lnsType lns.LNSType, devEUI string) (bool, error) {
 	eventType := lns.ExtractEventType(payload, lnsType)
+	if (eventType == lns.EventJoin || eventType == lns.EventAlert) && c.isDeviceDeactivatedForEvent(tenant.OrgSlug, tenant.Vhost, devEUI) {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⏭️", "Device %s is deactivated, skipping %s event publishing", devEUI, eventType)
+		return true, nil
+	}
 
 	switch eventType {
 	case lns.EventJoin:
@@ -354,4 +357,9 @@ func (c *Consumer) lookupDeviceForEvent(orgSlug string, vhost string, devEUI str
 	}
 
 	return mapping.DeviceID, mapping.SpaceSlug
+}
+
+func (c *Consumer) isDeviceDeactivatedForEvent(orgSlug string, vhost string, devEUI string) bool {
+	mapping := c.lookupDeviceMapping(orgSlug, vhost, devEUI)
+	return mapping != nil && mapping.IsDeactivated
 }

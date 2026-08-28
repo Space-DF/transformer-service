@@ -1,9 +1,5 @@
 package industrial_tracker
 
-import (
-	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
-)
-
 const (
 	Model        = "ABEEWAY_INDUSTRIAL_TRACKER"
 	Manufacturer = "abeeway"
@@ -22,12 +18,3 @@ func (p *AbeewayComponent) GetSupportedEntityTypes() []string {
 		"temperature", "speed", "heading", "sos_alert", "motion",
 	}
 }
-
-// Ensure AbeewayComponent satisfies the common.DeviceComponent-compatible interface at compile time.
-var _ interface {
-	SupportsGPS() bool
-	GetSupportedPorts() []int
-	GetSupportedEntityTypes() []string
-	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
-	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*AbeewayComponent)(nil)

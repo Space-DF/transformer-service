@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+const (
+	CoordinateScale1e6 = 1000000.0
+	CoordinateScale1e7 = 10000000.0
+)
+
 // ValidateCoordinates checks that lat/lon are within valid ranges and not null-island.
 func ValidateCoordinates(lat, lon float64) error {
 	if math.Abs(lat) > 90 || math.Abs(lon) > 180 {

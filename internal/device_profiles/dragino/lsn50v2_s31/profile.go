@@ -1,9 +1,5 @@
 package lsn50v2_s31
 
-import (
-	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
-)
-
 const (
 	Model        = "LSN50V2_S31"
 	Manufacturer = "dragino"
@@ -35,11 +31,3 @@ func (p *LSN50v2S31Component) GetSupportedEntityTypes() []string {
 		"tdc_sec",
 	}
 }
-
-var _ interface {
-	SupportsGPS() bool
-	GetSupportedPorts() []int
-	GetSupportedEntityTypes() []string
-	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
-	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*LSN50v2S31Component)(nil)

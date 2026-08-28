@@ -1,9 +1,5 @@
 package ht
 
-import (
-	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
-)
-
 const (
 	Model        = "MCLIMATE_HT"
 	Manufacturer = "mclimate"
@@ -26,11 +22,3 @@ func (p *MclimateHTComponent) GetSupportedEntityTypes() []string {
 		"pir_trigger_count",
 	}
 }
-
-var _ interface {
-	SupportsGPS() bool
-	GetSupportedPorts() []int
-	GetSupportedEntityTypes() []string
-	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
-	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*MclimateHTComponent)(nil)

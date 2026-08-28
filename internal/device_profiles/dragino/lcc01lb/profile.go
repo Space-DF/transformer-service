@@ -1,7 +1,5 @@
 package lcc01lb
 
-import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
-
 const (
 	Model        = "LCC01LB"
 	Manufacturer = "dragino"
@@ -32,11 +30,3 @@ func (p *LCC01LBComponent) GetSupportedEntityTypes() []string {
 		"sub_band",
 	}
 }
-
-var _ interface {
-	SupportsGPS() bool
-	GetSupportedPorts() []int
-	GetSupportedEntityTypes() []string
-	ParsePayload(*common.RawPayload) (*common.ParsedData, error)
-	ParseToEntities(string, string, *common.RawPayload, *common.Location) ([]common.Entity, error)
-} = (*LCC01LBComponent)(nil)
