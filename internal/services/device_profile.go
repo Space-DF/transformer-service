@@ -229,6 +229,31 @@ func (dps *DeviceProfileService) GetDeviceMapping(orgSlug, devEUI string) (*mode
 	return dps.getMapping(orgSlug, devEUI)
 }
 
+func (dps *DeviceProfileService) GetAPIDeviceMapping(orgSlug, serialNumber string) (*models.DeviceMapping, error) {
+	serialNumber = strings.TrimSpace(serialNumber)
+	if serialNumber == "" {
+		return nil, fmt.Errorf("serial_number is required")
+	}
+
+	version := 1
+	cacheKey := fmt.Sprintf(":%d:%s:api:%s", version, orgSlug, serialNumber)
+	if mapping, ok := dps.getFromCache(cacheKey); ok {
+		return mapping, nil
+	}
+
+	if dps.baseURL == "" {
+		return nil, fmt.Errorf("api device mapping for %s not found", serialNumber)
+	}
+
+	mapping, err := dps.lookupViaDeviceService(orgSlug, serialNumber, "api")
+	if err != nil {
+		return nil, err
+	}
+
+	dps.saveToCache(cacheKey, *mapping)
+	return mapping, nil
+}
+
 // Get mapping device
 func (dps *DeviceProfileService) getMapping(orgSlug, devEUI string) (*models.DeviceMapping, error) {
 	version := 1
@@ -245,7 +270,7 @@ func (dps *DeviceProfileService) getMapping(orgSlug, devEUI string) (*models.Dev
 	}
 
 	// Call API to get mapping device with 2 params: orgSlug and devEUI
-	mapping, err := dps.lookupViaDeviceService(orgSlug, devEUI)
+	mapping, err := dps.lookupViaDeviceService(orgSlug, devEUI, "lorawan")
 	if err != nil {
 		return nil, err
 	}
@@ -256,12 +281,16 @@ func (dps *DeviceProfileService) getMapping(orgSlug, devEUI string) (*models.Dev
 	return mapping, nil
 }
 
-// API calling to look up device
-func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) (*models.DeviceMapping, error) {
-	endpoint := fmt.Sprintf("%s/devices/%s/internal",
-		strings.TrimRight(dps.baseURL, "/"),
-		url.QueryEscape(devEUI),
-	)
+// API calling to look up LoRaWAN and API devices.
+func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, identifier, identifierType string) (*models.DeviceMapping, error) {
+	baseURL := strings.TrimRight(dps.baseURL, "/")
+	endpoint := fmt.Sprintf("%s/devices/%s/internal", baseURL, url.QueryEscape(identifier))
+	if identifierType == "api" {
+		query := url.Values{}
+		query.Set("search", identifier)
+		query.Set("limit", "20")
+		endpoint = fmt.Sprintf("%s/devices?%s", baseURL, query.Encode())
+	}
 
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -274,11 +303,11 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("device service response: status=%s, headers=%v", resp.Status, resp.Header)
+	log.Printf("device service response: type=%s, status=%s, headers=%v", identifierType, resp.Status, resp.Header)
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("device mapping for %s not found", devEUI)
+		return nil, fmt.Errorf("%s device mapping for %s not found", identifierType, identifier)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -287,14 +316,44 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 	}
 
 	var payload models.DeviceLookupResponse
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return nil, err
+	if identifierType == "api" {
+		if err := decodeAPIDeviceLookupResponse(resp.Body, identifier, &payload); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			return nil, err
+		}
 	}
 
+	return dps.mappingFromLookupResponse(orgSlug, identifier, payload)
+}
+
+func decodeAPIDeviceLookupResponse(body io.Reader, serialNumber string, target *models.DeviceLookupResponse) error {
+	var listPayload models.DeviceListLookupResponse
+	if err := json.NewDecoder(body).Decode(&listPayload); err != nil {
+		return err
+	}
+
+	for _, device := range listPayload.Results {
+		candidate := ""
+		if device.APIDevice != nil {
+			candidate = strings.TrimSpace(device.APIDevice.SerialNumber)
+		}
+		if candidate == serialNumber {
+			*target = device
+			return nil
+		}
+	}
+
+	return fmt.Errorf("api device mapping for %s not found", serialNumber)
+}
+
+func (dps *DeviceProfileService) mappingFromLookupResponse(orgSlug, identifier string, payload models.DeviceLookupResponse) (*models.DeviceMapping, error) {
 	// Look up device profile from YAML using device_model UUID
 	deviceModelID := strings.TrimSpace(payload.DeviceModel)
 	if deviceModelID == "" {
-		return nil, fmt.Errorf("device mapping payload missing device_model for %s", devEUI)
+		return nil, fmt.Errorf("device mapping payload missing device_model for %s", identifier)
 	}
 
 	// Get device profile from YAML by profile ID
@@ -320,7 +379,7 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 
 	deviceID := strings.TrimSpace(payload.ID)
 	if deviceID == "" {
-		deviceID = "unknown-" + devEUI
+		deviceID = "unknown-" + identifier
 	}
 
 	if deviceName == "" {
@@ -330,8 +389,8 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, devEUI string) 
 	spaceSlug := strings.TrimSpace(payload.SpaceSlug)
 	isPublished := payload.IsPublished
 
-	log.Printf("device mapping lookup: dev_eui=%s, device_model=%s, profile=%s, device_id=%s, device_name=%s, manufacture=%s, space_slug=%s, is_published=%v",
-		devEUI, deviceModelID, deviceType, deviceID, deviceName, manufacturerName, spaceSlug, isPublished)
+	log.Printf("device mapping lookup: identifier=%s, device_model=%s, profile=%s, device_id=%s, device_name=%s, manufacture=%s, space_slug=%s, is_published=%v",
+		identifier, deviceModelID, deviceType, deviceID, deviceName, manufacturerName, spaceSlug, isPublished)
 
 	mapping := models.DeviceMapping{
 		Profile:       deviceType,
