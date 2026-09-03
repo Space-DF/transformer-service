@@ -5,6 +5,7 @@ import (
 
 	"github.com/Space-DF/transformer-service/internal/device_profiles/abeeway/industrial_tracker"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
+	"github.com/Space-DF/transformer-service/internal/device_profiles/dfrobot/sen0313"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/digital_matter/g62"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/digital_matter/yabby_edge"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/dragino/lcc01lb"
@@ -43,6 +44,7 @@ func RegisterAll(r *Component, locationService *services.LocationService) error 
 		{r809ag.Model, r809ag.Manufacturer, r809ag.NewR809AGComponent()},
 		{lcc01lb.Model, lcc01lb.Manufacturer, lcc01lb.NewLCC01LBComponent()},
 		{lsn50v2_s31.Model, lsn50v2_s31.Manufacturer, lsn50v2_s31.NewLSN50v2S31Component()},
+		{sen0313.Model, sen0313.Manufacturer, sen0313.NewSEN0313Component()},
 		{am307.Model, am307.Manufacturer, am307.NewAM307Component()},
 		{cubicmeter.Model, cubicmeter.Manufacturer, cubicmeter.NewCubicMeterComponent()},
 		{ct101.Model, ct101.Manufacturer, ct101.NewCT101Component()},
