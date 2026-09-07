@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -280,20 +279,6 @@ func stringFromMap(values map[string]interface{}, key string) string {
 		return value
 	}
 	return ""
-}
-
-func boolFromMap(values map[string]interface{}, key string) bool {
-	if values == nil {
-		return false
-	}
-	if value, ok := values[key].(bool); ok {
-		return value
-	}
-	if value, ok := values[key].(string); ok {
-		parsed, _ := strconv.ParseBool(value)
-		return parsed
-	}
-	return false
 }
 
 func firstNonEmpty(values ...string) string {
