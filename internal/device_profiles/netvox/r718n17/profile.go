@@ -1,5 +1,7 @@
 package r718n17
 
+import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
+
 const (
 	Model        = "R718N17"
 	Manufacturer = "netvox"
@@ -10,6 +12,10 @@ const (
 type NetvoxR718N17Component struct{}
 
 func NewNetvoxR718N17Component() *NetvoxR718N17Component { return &NetvoxR718N17Component{} }
+
+func Register(r common.ParserRegistry) error {
+	return common.RegisterParser(r, Model, Manufacturer, NewNetvoxR718N17Component())
+}
 
 func (p *NetvoxR718N17Component) SupportsGPS() bool        { return false }
 func (p *NetvoxR718N17Component) GetSupportedPorts() []int { return []int{6, 7} }

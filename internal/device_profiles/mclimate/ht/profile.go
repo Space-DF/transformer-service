@@ -1,5 +1,7 @@
 package ht
 
+import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
+
 const (
 	Model        = "MCLIMATE_HT"
 	Manufacturer = "mclimate"
@@ -9,6 +11,10 @@ const (
 type MclimateHTComponent struct{}
 
 func NewMclimateHTComponent() *MclimateHTComponent { return &MclimateHTComponent{} }
+
+func Register(r common.ParserRegistry) error {
+	return common.RegisterParser(r, Model, Manufacturer, NewMclimateHTComponent())
+}
 
 func (p *MclimateHTComponent) SupportsGPS() bool        { return false }
 func (p *MclimateHTComponent) GetSupportedPorts() []int { return []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10} }

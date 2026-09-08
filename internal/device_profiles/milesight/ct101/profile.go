@@ -1,5 +1,7 @@
 package ct101
 
+import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
+
 const (
 	Model        = "CT101"
 	Manufacturer = "milesight"
@@ -9,6 +11,10 @@ const (
 type CT101Component struct{}
 
 func NewCT101Component() *CT101Component { return &CT101Component{} }
+
+func Register(r common.ParserRegistry) error {
+	return common.RegisterParser(r, Model, Manufacturer, NewCT101Component())
+}
 
 func (p *CT101Component) SupportsGPS() bool        { return false }
 func (p *CT101Component) GetSupportedPorts() []int { return []int{2} }

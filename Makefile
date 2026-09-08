@@ -9,7 +9,7 @@ BINARY_NAME=transformer
 BINARY_UNIX=$(BINARY_NAME)_unix
 
 # Build targets
-.PHONY: all build clean test deps run docker-build docker-run
+.PHONY: all build clean test deps run docker-build docker-run generate
 
 # Default target
 all: test build
@@ -31,6 +31,10 @@ clean:
 # Run tests
 test:
 	$(GOTEST) -v ./...
+
+# Generate checked-in source files
+generate:
+	$(GOCMD) generate ./...
 
 # Download dependencies
 deps:

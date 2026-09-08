@@ -1,5 +1,7 @@
 package sensecap_t1000e
 
+import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
+
 const (
 	Model        = "SENSECAP_T1000E"
 	Manufacturer = "seeed"
@@ -9,6 +11,10 @@ const (
 type SenseCapT1000EComponent struct{}
 
 func NewSenseCapT1000EComponent() *SenseCapT1000EComponent { return &SenseCapT1000EComponent{} }
+
+func Register(r common.ParserRegistry) error {
+	return common.RegisterParser(r, Model, Manufacturer, NewSenseCapT1000EComponent())
+}
 
 func (p *SenseCapT1000EComponent) SupportsGPS() bool        { return true }
 func (p *SenseCapT1000EComponent) GetSupportedPorts() []int { return []int{1, 5} }

@@ -1,5 +1,7 @@
 package cubicmeter
 
+import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
+
 const (
 	Model        = "QUANDIFY_CUBICMETER"
 	Manufacturer = "quandify"
@@ -10,6 +12,10 @@ const (
 type CubicMeterComponent struct{}
 
 func NewCubicMeterComponent() *CubicMeterComponent { return &CubicMeterComponent{} }
+
+func Register(r common.ParserRegistry) error {
+	return common.RegisterParser(r, Model, Manufacturer, NewCubicMeterComponent())
+}
 
 func (p *CubicMeterComponent) SupportsGPS() bool        { return false }
 func (p *CubicMeterComponent) GetSupportedPorts() []int { return []int{1, 6} }
