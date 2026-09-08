@@ -5,6 +5,7 @@ package deviceprofile
 import (
 	"github.com/Space-DF/transformer-service/internal/device_profiles/abeeway/industrial_tracker"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
+	"github.com/Space-DF/transformer-service/internal/device_profiles/dfrobot/sen0313"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/digital_matter/g62"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/digital_matter/yabby_edge"
 	"github.com/Space-DF/transformer-service/internal/device_profiles/dragino/lcc01lb"
@@ -26,6 +27,7 @@ import (
 
 var generatedRegistrars = []func(common.ParserRegistry) error{
 	industrial_tracker.Register,
+	sen0313.Register,
 	g62.Register,
 	yabby_edge.Register,
 	lcc01lb.Register,
