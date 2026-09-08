@@ -129,6 +129,10 @@ func (c *Consumer) parseMessage(msg amqp.Delivery, tenant *TenantConsumer) (payl
 		return nil, nil, "", "", fmt.Errorf("failed to parse message: %w", err)
 	}
 
+	if c.isAPIMessage(payload) {
+		return payload, locationPayload, "", "", nil
+	}
+
 	// Extract LNS type from metadata
 	lnsType = c.parser.ExtractLNSSource(payload)
 	if lnsType == lns.LNSTypeUnknown || lnsType == "" {
