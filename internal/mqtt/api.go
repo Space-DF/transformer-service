@@ -1,6 +1,7 @@
 package mqtt
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	device_profiles "github.com/Space-DF/transformer-service/internal/device_profiles"
+	"github.com/Space-DF/transformer-service/internal/device_profiles/common"
 	"github.com/Space-DF/transformer-service/internal/models"
 	"github.com/Space-DF/transformer-service/internal/mqtt/logging"
 	segmentjson "github.com/segmentio/encoding/json"
@@ -72,34 +75,42 @@ func (c *Consumer) handleAPIMessage(tenant *TenantConsumer, payload map[string]i
 	}
 
 	timestamp := apiMessageTimestamp(message.Metadata)
-	entities := buildAPIEntities(tenant.OrgSlug, message.SerialNumber, rawBytes, timestamp)
-	if len(entities) == 0 {
-		return fmt.Errorf("api payload produced no telemetry entities")
+	telemetryPayload, err := c.buildAPIProfileTelemetryPayload(tenant.OrgSlug, mapping, message, timestamp)
+	if err != nil {
+		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "⚠️", "Failed to parse API message with device profile %s: %v", mapping.Profile, err)
 	}
 
-	telemetryPayload := &models.TelemetryPayload{
-		Organization:  tenant.OrgSlug,
-		DeviceEUI:     message.SerialNumber,
-		DeviceID:      mapping.DeviceID,
-		SpaceSlug:     mapping.SpaceSlug,
-		IsPublished:   mapping.IsPublished,
-		IsDeactivated: mapping.IsDeactivated,
-		DeviceInfo: models.TelemetryDeviceInfo{
-			Identifiers:  []string{message.SerialNumber},
-			Name:         firstNonEmpty(mapping.DeviceName, message.SerialNumber),
-			Manufacturer: firstNonEmpty(mapping.Manufacture, "api"),
-			Model:        firstNonEmpty(mapping.Profile, "api"),
-			ModelID:      firstNonEmpty(mapping.Profile, "api"),
-		},
-		Entities:  entities,
-		Timestamp: timestamp,
-		Source:    "transformer-service",
-		Metadata: map[string]interface{}{
-			"api_source":         "api",
-			"serial_number":      message.SerialNumber,
-			"raw_payload_base64": message.Payload,
-			"raw_payload_hex":    hex.EncodeToString(rawBytes),
-		},
+	if telemetryPayload == nil {
+		entities := buildAPIEntities(tenant.OrgSlug, message.SerialNumber, rawBytes, timestamp)
+		if len(entities) == 0 {
+			return fmt.Errorf("api payload produced no telemetry entities")
+		}
+
+		telemetryPayload = &models.TelemetryPayload{
+			Organization:  tenant.OrgSlug,
+			DeviceEUI:     message.SerialNumber,
+			DeviceID:      mapping.DeviceID,
+			SpaceSlug:     mapping.SpaceSlug,
+			IsPublished:   mapping.IsPublished,
+			IsDeactivated: mapping.IsDeactivated,
+			DeviceInfo: models.TelemetryDeviceInfo{
+				Identifiers:  []string{message.SerialNumber},
+				Name:         firstNonEmpty(mapping.DeviceName, message.SerialNumber),
+				Manufacturer: firstNonEmpty(mapping.Manufacture, "api"),
+				Model:        firstNonEmpty(mapping.Profile, "api"),
+				ModelID:      firstNonEmpty(mapping.Profile, "api"),
+			},
+			Entities:  entities,
+			Timestamp: timestamp,
+			Source:    "transformer-service",
+		}
+	}
+
+	telemetryPayload.Metadata = map[string]interface{}{
+		"api_source":         "api",
+		"serial_number":      message.SerialNumber,
+		"raw_payload_base64": message.Payload,
+		"raw_payload_hex":    hex.EncodeToString(rawBytes),
 	}
 
 	for key, value := range message.Metadata {
@@ -110,8 +121,60 @@ func (c *Consumer) handleAPIMessage(tenant *TenantConsumer, payload map[string]i
 		return fmt.Errorf("failed to publish api telemetry: %w", err)
 	}
 
-	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "✅", "Processed API message for serial number %s with %d entities", message.SerialNumber, len(entities))
+	logging.Tenant(tenant.OrgSlug, tenant.Vhost, "✅", "Processed API message for serial number %s with %d entities", message.SerialNumber, len(telemetryPayload.Entities))
 	return nil
+}
+
+func (c *Consumer) buildAPIProfileTelemetryPayload(orgSlug string, mapping *models.DeviceMapping, message *apiPayload, timestamp string) (*models.TelemetryPayload, error) {
+	if mapping == nil || strings.TrimSpace(mapping.Profile) == "" {
+		return nil, nil
+	}
+
+	deviceType := common.DeviceType(strings.ToUpper(mapping.Profile))
+	raw := &common.RawPayload{
+		DeviceEUI: message.SerialNumber,
+		Data:      message.Payload,
+		Timestamp: time.Now().UTC(),
+		Metadata: map[string]interface{}{
+			"serial_number": message.SerialNumber,
+			"payload":       message.Payload,
+		},
+	}
+	if parsedAt, err := time.Parse(time.RFC3339, timestamp); err == nil {
+		raw.Timestamp = parsedAt
+	}
+	for key, value := range message.Metadata {
+		raw.Metadata[key] = value
+	}
+
+	comp := device_profiles.Global()
+	if comp == nil {
+		registry := device_profiles.NewComponentRegistry()
+		if err := device_profiles.RegisterAll(registry, c.locationService); err != nil {
+			return nil, fmt.Errorf("failed to initialize device profile registry: %w", err)
+		}
+		device_profiles.SetGlobal(registry)
+		comp = registry
+	}
+	if !comp.CanHandle(deviceType, raw) {
+		return nil, nil
+	}
+
+	parseResult, err := comp.ParseToEntities(context.Background(), orgSlug, mapping.Profile, deviceType, raw, nil)
+	if err != nil {
+		return nil, err
+	}
+	if parseResult == nil || len(parseResult.Entities) == 0 {
+		return nil, fmt.Errorf("device profile produced no entities")
+	}
+
+	telemetryPayload, err := c.buildTelemetryPayload(parseResult, orgSlug, mapping)
+	if err != nil {
+		return nil, err
+	}
+	telemetryPayload.Timestamp = timestamp
+	telemetryPayload.Source = "transformer-service"
+	return telemetryPayload, nil
 }
 
 func extractAPIPayload(payload map[string]interface{}) (*apiPayload, error) {
