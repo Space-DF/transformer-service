@@ -8,11 +8,13 @@ import (
 )
 
 const (
-	frameHeader byte = 0xff
-	frameLen         = 4
+	defaultDistanceCM = 300.0
+	frameHeader       = 0xff
+	frameLen          = 4
 )
 
-// Decode extracts the latest valid SEN0313 UART distance frame.
+// Decode extracts the latest valid SEN0313 UART distance frame and converts it
+// to water depth using a default 3m installation distance.
 //
 // Frame format:
 //
@@ -23,8 +25,8 @@ const (
 func Decode(payload *common.RawPayload) map[string]interface{} {
 	sensors := make(map[string]interface{})
 
-	if distanceCM, ok := decodeJSONPayload(payload); ok {
-		sensors["distance"] = distanceCM
+	if waterDepthCM, ok := decodeJSONPayload(payload); ok {
+		sensors["water_depth"] = waterDepthCM
 		return sensors
 	}
 
@@ -33,8 +35,8 @@ func Decode(payload *common.RawPayload) map[string]interface{} {
 		return sensors
 	}
 
-	if distanceCM, ok := decodeJSONBytes(b); ok {
-		sensors["distance"] = distanceCM
+	if waterDepthCM, ok := decodeJSONBytes(b); ok {
+		sensors["water_depth"] = waterDepthCM
 		return sensors
 	}
 
@@ -54,7 +56,7 @@ func Decode(payload *common.RawPayload) map[string]interface{} {
 		return sensors
 	}
 
-	sensors["distance"] = float64(latestDistanceMM) / 10.0
+	sensors["water_depth"] = defaultDistanceCM - float64(latestDistanceMM)/10.0
 	return sensors
 }
 
@@ -65,15 +67,15 @@ func decodeJSONPayload(payload *common.RawPayload) (float64, bool) {
 
 	for _, key := range []string{"decoded_payload", "decoded_raw_data", "decoded_data"} {
 		if decoded, ok := payload.Metadata[key].(map[string]interface{}); ok {
-			if distanceCM, ok := extractDistanceCM(decoded); ok {
-				return distanceCM, true
+			if waterDepthCM, ok := extractWaterDepthCM(decoded); ok {
+				return waterDepthCM, true
 			}
 		}
 	}
 
 	if decoded, ok := payload.Metadata["data"].(map[string]interface{}); ok {
-		if distanceCM, ok := extractDistanceCM(decoded); ok {
-			return distanceCM, true
+		if waterDepthCM, ok := extractWaterDepthCM(decoded); ok {
+			return waterDepthCM, true
 		}
 	}
 
@@ -98,12 +100,15 @@ func decodeJSONString(data string) (float64, bool) {
 		return 0, false
 	}
 
-	return extractDistanceCM(decoded)
+	return extractWaterDepthCM(decoded)
 }
 
-func extractDistanceCM(decoded map[string]interface{}) (float64, bool) {
+func extractWaterDepthCM(decoded map[string]interface{}) (float64, bool) {
+	if waterDepth, ok := common.NumericValue(decoded["water_depth"]); ok {
+		return waterDepth, true
+	}
 	if distance, ok := common.NumericValue(decoded["distance"]); ok {
-		return distance, true
+		return defaultDistanceCM - distance, true
 	}
 	return 0, false
 }

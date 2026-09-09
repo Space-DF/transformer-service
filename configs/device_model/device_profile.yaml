@@ -115,7 +115,7 @@ device_profiles:
     name: uart
     manufacturer_id: 8b180c5f-21e1-4a7d-a7fa-90193fc60bb5
     device_type: SEN0313
-    key_feature: distance
+    key_feature: water_depth
     logo: default.png
 
   - id: e5f6a7b8-c9d0-4e1f-0a2b-3c4d5e6f7a81

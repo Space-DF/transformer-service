@@ -285,12 +285,6 @@ func (dps *DeviceProfileService) getMapping(orgSlug, devEUI string) (*models.Dev
 func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, identifier, identifierType string) (*models.DeviceMapping, error) {
 	baseURL := strings.TrimRight(dps.baseURL, "/")
 	endpoint := fmt.Sprintf("%s/devices/%s/internal", baseURL, url.QueryEscape(identifier))
-	if identifierType == "api" {
-		query := url.Values{}
-		query.Set("search", identifier)
-		query.Set("limit", "20")
-		endpoint = fmt.Sprintf("%s/devices?%s", baseURL, query.Encode())
-	}
 
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -316,37 +310,11 @@ func (dps *DeviceProfileService) lookupViaDeviceService(orgSlug, identifier, ide
 	}
 
 	var payload models.DeviceLookupResponse
-	if identifierType == "api" {
-		if err := decodeAPIDeviceLookupResponse(resp.Body, identifier, &payload); err != nil {
-			return nil, err
-		}
-	} else {
-		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-			return nil, err
-		}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
 	}
 
 	return dps.mappingFromLookupResponse(orgSlug, identifier, payload)
-}
-
-func decodeAPIDeviceLookupResponse(body io.Reader, serialNumber string, target *models.DeviceLookupResponse) error {
-	var listPayload models.DeviceListLookupResponse
-	if err := json.NewDecoder(body).Decode(&listPayload); err != nil {
-		return err
-	}
-
-	for _, device := range listPayload.Results {
-		candidate := ""
-		if device.APIDevice != nil {
-			candidate = strings.TrimSpace(device.APIDevice.SerialNumber)
-		}
-		if candidate == serialNumber {
-			*target = device
-			return nil
-		}
-	}
-
-	return fmt.Errorf("api device mapping for %s not found", serialNumber)
 }
 
 func (dps *DeviceProfileService) mappingFromLookupResponse(orgSlug, identifier string, payload models.DeviceLookupResponse) (*models.DeviceMapping, error) {
