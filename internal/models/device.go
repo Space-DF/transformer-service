@@ -165,10 +165,6 @@ type APIDeviceLookupResponse struct {
 	SerialNumber string `json:"serial_number"`
 }
 
-type DeviceListLookupResponse struct {
-	Results []DeviceLookupResponse `json:"results"`
-}
-
 // DeviceMapping represents a device EUI to profile mapping
 // DEPRECATED: Use Device instead for new code
 type DeviceMapping struct {

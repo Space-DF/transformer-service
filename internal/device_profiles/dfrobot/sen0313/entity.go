@@ -51,7 +51,7 @@ func (p *SEN0313Component) GetEntityTemplates(model, devEUI string) []common.Ent
 
 func entityDefs() []common.EntityDef {
 	return []common.EntityDef{
-		{Key: "distance", DomainKey: "distance", Name: "Distance", EntityType: "distance", DeviceClass: "distance", UnitOfMeas: "cm", Icon: "water_depth.svg", DisplayType: []string{"chart", "gauge", "value"}},
+		{Key: "water_depth", DomainKey: "water_depth", Name: "Water Depth", EntityType: "water_depth", DeviceClass: "distance", UnitOfMeas: "cm", Icon: "water_depth.svg", DisplayType: []string{"chart", "gauge", "value"}},
 	}
 }
 
