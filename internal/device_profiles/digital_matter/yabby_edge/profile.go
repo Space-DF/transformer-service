@@ -1,5 +1,7 @@
 package yabby_edge
 
+import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
+
 const (
 	Model        = "YABBY_EDGE"
 	Manufacturer = "digitalmatter"
@@ -9,6 +11,10 @@ const (
 type YabbyEdgeComponent struct{}
 
 func NewYabbyEdgeComponent() *YabbyEdgeComponent { return &YabbyEdgeComponent{} }
+
+func Register(r common.ParserRegistry) error {
+	return common.RegisterParser(r, Model, Manufacturer, NewYabbyEdgeComponent())
+}
 
 func (p *YabbyEdgeComponent) SupportsGPS() bool { return true }
 func (p *YabbyEdgeComponent) GetSupportedPorts() []int {

@@ -1,5 +1,7 @@
 package rak7200
 
+import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
+
 const (
 	Model        = "RAK7200"
 	Manufacturer = "rakwireless"
@@ -9,6 +11,10 @@ const (
 type RAK7200Component struct{}
 
 func NewRAK7200Component() *RAK7200Component { return &RAK7200Component{} }
+
+func Register(r common.ParserRegistry) error {
+	return common.RegisterParser(r, Model, Manufacturer, NewRAK7200Component())
+}
 
 func (p *RAK7200Component) SupportsGPS() bool        { return true }
 func (p *RAK7200Component) GetSupportedPorts() []int { return []int{2, 3, 4, 5} }

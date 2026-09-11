@@ -1,5 +1,7 @@
 package g62
 
+import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
+
 const (
 	Model        = "G62"
 	Manufacturer = "digitalmatter"
@@ -8,6 +10,10 @@ const (
 type G62Component struct{}
 
 func NewG62Component() *G62Component { return &G62Component{} }
+
+func Register(r common.ParserRegistry) error {
+	return common.RegisterParser(r, Model, Manufacturer, NewG62Component())
+}
 
 func (p *G62Component) SupportsGPS() bool { return true }
 

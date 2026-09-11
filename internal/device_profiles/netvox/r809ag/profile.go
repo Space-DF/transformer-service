@@ -1,5 +1,7 @@
 package r809ag
 
+import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
+
 const (
 	Model        = "R809AG"
 	Manufacturer = "netvox"
@@ -13,6 +15,10 @@ const (
 type R809AGComponent struct{}
 
 func NewR809AGComponent() *R809AGComponent { return &R809AGComponent{} }
+
+func Register(r common.ParserRegistry) error {
+	return common.RegisterParser(r, Model, Manufacturer, NewR809AGComponent())
+}
 
 func (p *R809AGComponent) SupportsGPS() bool        { return false }
 func (p *R809AGComponent) GetSupportedPorts() []int { return []int{6, 7} }

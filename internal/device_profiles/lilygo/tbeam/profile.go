@@ -1,5 +1,7 @@
 package tbeam
 
+import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
+
 const (
 	Model        = "TBEAM"
 	Manufacturer = "lilygo"
@@ -9,6 +11,10 @@ const (
 type TBeamComponent struct{}
 
 func NewTBeamComponent() *TBeamComponent { return &TBeamComponent{} }
+
+func Register(r common.ParserRegistry) error {
+	return common.RegisterParser(r, Model, Manufacturer, NewTBeamComponent())
+}
 
 func (p *TBeamComponent) SupportsGPS() bool        { return true }
 func (p *TBeamComponent) GetSupportedPorts() []int { return []int{1, 2, 5} }

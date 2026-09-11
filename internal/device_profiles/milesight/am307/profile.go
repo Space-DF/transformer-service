@@ -1,5 +1,7 @@
 package am307
 
+import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
+
 const (
 	Model        = "AM307"
 	Manufacturer = "milesight"
@@ -11,6 +13,10 @@ const (
 type AM307Component struct{}
 
 func NewAM307Component() *AM307Component { return &AM307Component{} }
+
+func Register(r common.ParserRegistry) error {
+	return common.RegisterParser(r, Model, Manufacturer, NewAM307Component())
+}
 
 func (p *AM307Component) SupportsGPS() bool        { return false }
 func (p *AM307Component) GetSupportedPorts() []int { return []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10} }

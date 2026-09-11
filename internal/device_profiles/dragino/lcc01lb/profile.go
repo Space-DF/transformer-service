@@ -1,5 +1,7 @@
 package lcc01lb
 
+import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
+
 const (
 	Model        = "LCC01LB"
 	Manufacturer = "dragino"
@@ -12,6 +14,10 @@ const (
 type LCC01LBComponent struct{}
 
 func NewLCC01LBComponent() *LCC01LBComponent { return &LCC01LBComponent{} }
+
+func Register(r common.ParserRegistry) error {
+	return common.RegisterParser(r, Model, Manufacturer, NewLCC01LBComponent())
+}
 
 func (p *LCC01LBComponent) SupportsGPS() bool        { return false }
 func (p *LCC01LBComponent) GetSupportedPorts() []int { return []int{2, 5} }

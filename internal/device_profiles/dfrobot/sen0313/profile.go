@@ -1,5 +1,7 @@
 package sen0313
 
+import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
+
 const (
 	Model        = "SEN0313"
 	Manufacturer = "dfrobot"
@@ -9,6 +11,10 @@ const (
 type SEN0313Component struct{}
 
 func NewSEN0313Component() *SEN0313Component { return &SEN0313Component{} }
+
+func Register(r common.ParserRegistry) error {
+	return common.RegisterParser(r, Model, Manufacturer, NewSEN0313Component())
+}
 
 func (p *SEN0313Component) SupportsGPS() bool        { return false }
 func (p *SEN0313Component) GetSupportedPorts() []int { return nil }

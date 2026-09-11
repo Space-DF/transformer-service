@@ -18,6 +18,15 @@ jobs:
         with:
           go-version-file: "go.mod"
 
+      - name: Verify generated files
+        run: |
+          go generate ./...
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --short
+            git diff
+            exit 1
+          fi
+
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:

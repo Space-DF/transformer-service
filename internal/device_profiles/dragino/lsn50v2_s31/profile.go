@@ -1,5 +1,7 @@
 package lsn50v2_s31
 
+import "github.com/Space-DF/transformer-service/internal/device_profiles/common"
+
 const (
 	Model        = "LSN50V2_S31"
 	Manufacturer = "dragino"
@@ -10,6 +12,10 @@ const (
 type LSN50v2S31Component struct{}
 
 func NewLSN50v2S31Component() *LSN50v2S31Component { return &LSN50v2S31Component{} }
+
+func Register(r common.ParserRegistry) error {
+	return common.RegisterParser(r, Model, Manufacturer, NewLSN50v2S31Component())
+}
 
 func (p *LSN50v2S31Component) SupportsGPS() bool        { return false }
 func (p *LSN50v2S31Component) GetSupportedPorts() []int { return []int{2, 3, 5} }
