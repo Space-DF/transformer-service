@@ -47,10 +47,10 @@ type GatewayInfo struct {
 
 // Location represents geographical coordinates.
 type Location struct {
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-	Altitude  float64 `json:"altitude,omitempty"`
-	Bearing   float64 `json:"bearing,omitempty"`
+	Latitude  float64  `json:"latitude"`
+	Longitude float64  `json:"longitude"`
+	Altitude  float64  `json:"altitude,omitempty"`
+	Bearing   *float64 `json:"bearing,omitempty"`
 }
 
 // ParsedData is the intermediate result of parsing a single device uplink.

@@ -65,16 +65,9 @@ func (p *WLBV1Component) ParseToEntities(orgSlug, model string, payload *common.
 			Name:        "Location",
 			State:       "home",
 			DisplayType: []string{"map"},
-			Attributes: map[string]interface{}{
-				"source":       common.LocationSource(parsed.Location),
-				"gps_capable":  true,
-				"device_model": model,
-				"latitude":     loc.Latitude,
-				"longitude":    loc.Longitude,
-				"bearing":      loc.Bearing,
-			},
-			Enabled:   true,
-			Timestamp: ts,
+			Attributes:  common.BuildLocationAttributes(common.LocationSource(parsed.Location), true, model, loc),
+			Enabled:     true,
+			Timestamp:   ts,
 		})
 	}
 

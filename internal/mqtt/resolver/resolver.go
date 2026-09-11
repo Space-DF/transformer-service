@@ -45,10 +45,7 @@ func (r *Resolver) Resolve(ctx context.Context, orgSlug, vhost, devEUI string, p
 			return nil, &info, ErrDeviceSkipped
 		}
 		if isDeactivated, err := r.deviceProfileService.IsDeviceDeactivated(orgSlug, devEUI); err == nil && isDeactivated {
-			return &models.DeviceLocationData{
-				DevEUI:       devEUI,
-				Organization: orgSlug,
-			}, &info, ErrDeviceDeactivated
+			r.logTenant(orgSlug, vhost, "⏭️", "Device %s is deactivated; processing telemetry storage only", devEUI)
 		}
 	}
 
@@ -169,13 +166,13 @@ func (r *Resolver) extractGPSFromDeviceParser(ctx context.Context, profile strin
 				return &common.Location{
 					Latitude:  parsedData.Location.Latitude,
 					Longitude: parsedData.Location.Longitude,
-					Bearing:   *bearing,
+					Bearing:   bearing,
 				}
 			}(),
 			parsedData.SensorData,
 		)
 		if resolvedLocation != nil {
-			locationData.Bearing = &resolvedLocation.Bearing
+			locationData.Bearing = resolvedLocation.Bearing
 		} else {
 			locationData.Bearing = bearing
 		}
