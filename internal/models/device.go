@@ -152,12 +152,17 @@ type LocationResult struct {
 
 // DeviceLookupResponse represents the payload returned by the device lookup API
 type DeviceLookupResponse struct {
-	ID            string `json:"id"`
-	DeviceID      string `json:"device_id"`
-	DeviceModel   string `json:"device_model"`
-	SpaceSlug     string `json:"space_slug"`
-	IsDeactivated bool   `json:"is_deactivated"`
-	IsPublished   bool   `json:"is_published"`
+	ID            string                   `json:"id"`
+	DeviceID      string                   `json:"device_id"`
+	APIDevice     *APIDeviceLookupResponse `json:"api_device,omitempty"`
+	DeviceModel   string                   `json:"device_model"`
+	SpaceSlug     string                   `json:"space_slug"`
+	IsDeactivated bool                     `json:"is_deactivated"`
+	IsPublished   bool                     `json:"is_published"`
+}
+
+type APIDeviceLookupResponse struct {
+	SerialNumber string `json:"serial_number"`
 }
 
 // DeviceMapping represents a device EUI to profile mapping

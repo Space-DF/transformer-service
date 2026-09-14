@@ -74,6 +74,14 @@ func (c *Consumer) handleMessage(ctx context.Context, msg amqp.Delivery, tenant 
 		return fmt.Errorf("failed to parse message: %w", err)
 	}
 
+	if c.isAPIMessage(payload) {
+		if err := c.handleAPIMessage(tenant, payload); err != nil {
+			logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to process API message: %v", err)
+			return fmt.Errorf("failed to process API message: %w", err)
+		}
+		return nil
+	}
+
 	// If LNS event message, parse and route accordingly
 	handled, err := c.parseAndRouteLNSEventMessage(ctx, tenant, payload, lnsType, devEUI)
 
@@ -119,6 +127,10 @@ func (c *Consumer) parseMessage(msg amqp.Delivery, tenant *TenantConsumer) (payl
 	if err != nil {
 		logging.Tenant(tenant.OrgSlug, tenant.Vhost, "❌", "Failed to parse message: %v", err)
 		return nil, nil, "", "", fmt.Errorf("failed to parse message: %w", err)
+	}
+
+	if c.isAPIMessage(payload) {
+		return payload, locationPayload, "", "", nil
 	}
 
 	// Extract LNS type from metadata
