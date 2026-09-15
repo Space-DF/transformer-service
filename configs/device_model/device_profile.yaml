@@ -112,7 +112,7 @@ device_profiles:
     logo: lsn50v2_s31.png
 
   - id: 28eea8d8-9a75-4cbd-82f8-b855902a6f24
-    name: uart
+    name: api
     manufacturer_id: 8b180c5f-21e1-4a7d-a7fa-90193fc60bb5
     device_type: SEN0313
     key_feature: water_depth

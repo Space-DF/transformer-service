@@ -18,19 +18,19 @@ func getDeviceModels(dps *services.DeviceProfileService) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		deviceModels := dps.GetAllDeviceModels()
 
-		// Filter by search query (limit length to prevent abuse)
-		search := strings.TrimSpace(strings.ToLower(c.QueryParam("search")))
-		const maxSearchLen = 100
-		if len(search) > maxSearchLen {
-			search = search[:maxSearchLen]
-		}
-		if search != "" {
-			filtered := make([]models.DeviceModel, 0)
+		search := normalizedQueryParam(c, "search")
+		name := normalizedQueryParam(c, "name")
+		if search != "" || name != "" {
+			filtered := make([]models.DeviceModel, 0, len(deviceModels))
 			for _, dm := range deviceModels {
-				if strings.Contains(strings.ToLower(dm.Name), search) ||
-					strings.Contains(strings.ToLower(dm.DeviceType), search) {
-					filtered = append(filtered, dm)
+				modelName := strings.ToLower(dm.Name)
+				if name != "" && modelName != name {
+					continue
 				}
+				if search != "" && !strings.Contains(strings.ToLower(dm.DeviceType), search) {
+					continue
+				}
+				filtered = append(filtered, dm)
 			}
 			deviceModels = filtered
 		}
@@ -48,6 +48,9 @@ func getDeviceModels(dps *services.DeviceProfileService) echo.HandlerFunc {
 		if search != "" {
 			extra.Set("search", search)
 		}
+		if name != "" {
+			extra.Set("name", name)
+		}
 		next, previous := common.Paginate(total, p, common.BuildBaseURL(c), extra)
 
 		return c.JSON(http.StatusOK, common.PaginatedResponse{
@@ -57,6 +60,16 @@ func getDeviceModels(dps *services.DeviceProfileService) echo.HandlerFunc {
 			Results:  deviceModels[start:end],
 		})
 	}
+}
+
+func normalizedQueryParam(c echo.Context, key string) string {
+	const maxQueryParamLen = 100
+
+	value := strings.TrimSpace(strings.ToLower(c.QueryParam(key)))
+	if len(value) > maxQueryParamLen {
+		return value[:maxQueryParamLen]
+	}
+	return value
 }
 
 func getDeviceModelsByIDs(dps *services.DeviceProfileService) echo.HandlerFunc {
