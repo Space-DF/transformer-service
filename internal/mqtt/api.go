@@ -160,7 +160,7 @@ func (c *Consumer) buildAPIProfileTelemetryPayload(orgSlug string, mapping *mode
 		return nil, nil
 	}
 
-	parseResult, err := comp.ParseToEntities(context.Background(), orgSlug, mapping.Profile, deviceType, raw, nil)
+	parseResult, err := comp.ParseToEntities(context.Background(), orgSlug, mapping.Profile, deviceType, raw, mappingLocation(mapping))
 	if err != nil {
 		return nil, err
 	}
@@ -175,6 +175,24 @@ func (c *Consumer) buildAPIProfileTelemetryPayload(orgSlug string, mapping *mode
 	telemetryPayload.Timestamp = timestamp
 	telemetryPayload.Source = "transformer-service"
 	return telemetryPayload, nil
+}
+
+func mappingLocation(mapping *models.DeviceMapping) *common.Location {
+	if mapping == nil || mapping.Location == nil {
+		return nil
+	}
+	if err := common.ValidateCoordinates(mapping.Location.Latitude, mapping.Location.Longitude); err != nil {
+		return nil
+	}
+
+	location := &common.Location{
+		Latitude:  mapping.Location.Latitude,
+		Longitude: mapping.Location.Longitude,
+	}
+	if mapping.Location.Bearing != nil {
+		location.Bearing = *mapping.Location.Bearing
+	}
+	return location
 }
 
 func extractAPIPayload(payload map[string]interface{}) (*apiPayload, error) {

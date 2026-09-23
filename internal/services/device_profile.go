@@ -238,7 +238,9 @@ func (dps *DeviceProfileService) GetAPIDeviceMapping(orgSlug, serialNumber strin
 	version := 1
 	cacheKey := fmt.Sprintf(":%d:%s:api:%s", version, orgSlug, serialNumber)
 	if mapping, ok := dps.getFromCache(cacheKey); ok {
-		return mapping, nil
+		if hasDeviceMappingLocation(mapping) {
+			return mapping, nil
+		}
 	}
 
 	if dps.baseURL == "" {
@@ -252,6 +254,12 @@ func (dps *DeviceProfileService) GetAPIDeviceMapping(orgSlug, serialNumber strin
 
 	dps.saveToCache(cacheKey, *mapping)
 	return mapping, nil
+}
+
+func hasDeviceMappingLocation(mapping *models.DeviceMapping) bool {
+	return mapping != nil &&
+		mapping.Location != nil &&
+		(mapping.Location.Latitude != 0 || mapping.Location.Longitude != 0)
 }
 
 // Get mapping device
