@@ -24,7 +24,7 @@ func (p *SEN0313Component) ParsePayload(payload *common.RawPayload) (*common.Par
 	}, nil
 }
 
-func (p *SEN0313Component) ParseToEntities(orgSlug, model string, payload *common.RawPayload, _ *common.Location) ([]common.Entity, error) {
+func (p *SEN0313Component) ParseToEntities(orgSlug, model string, payload *common.RawPayload, deviceLocation *common.Location) ([]common.Entity, error) {
 	deviceID := extractDeviceID(payload)
 	if deviceID == "" {
 		return nil, fmt.Errorf("device identifier is required")
@@ -41,12 +41,45 @@ func (p *SEN0313Component) ParseToEntities(orgSlug, model string, payload *commo
 	}
 
 	mdl := strings.ToLower(model)
-	return common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, deviceID, entityDefs(), parsed.SensorData, ts), nil
+	entities := make([]common.Entity, 0, len(entityDefs())+1)
+
+	loc := common.ResolveLocationBearing(nil, deviceLocation, parsed.SensorData)
+	if loc != nil {
+		entities = append(entities, common.Entity{
+			UniqueID: common.GenerateUniqueID(model, deviceID, "location"),
+			EntityID: common.GenerateEntityID(
+				common.GetEntityDomain("location"),
+				orgSlug, Manufacturer, mdl, deviceID, "location",
+			),
+			EntityType:  "location",
+			DeviceClass: "location",
+			Name:        "Location",
+			State:       "home",
+			DisplayType: []string{"map"},
+			Attributes: map[string]interface{}{
+				"source":       "device_default",
+				"gps_capable":  false,
+				"device_model": model,
+				"latitude":     loc.Latitude,
+				"longitude":    loc.Longitude,
+				"bearing":      loc.Bearing,
+			},
+			Enabled:   true,
+			Timestamp: ts,
+		})
+	}
+
+	entities = append(entities, common.BuildEntitiesFromState(orgSlug, model, Manufacturer, mdl, deviceID, entityDefs(), parsed.SensorData, ts)...)
+	return entities, nil
 }
 
 func (p *SEN0313Component) GetEntityTemplates(model, devEUI string) []common.Entity {
 	mdl := strings.ToLower(model)
-	return common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())
+	entities := []common.Entity{
+		common.BuildLocationTemplate("", model, Manufacturer, mdl, devEUI, false, false),
+	}
+	entities = append(entities, common.BuildEntityTemplates("", model, Manufacturer, mdl, devEUI, entityDefs())...)
+	return entities
 }
 
 func entityDefs() []common.EntityDef {
