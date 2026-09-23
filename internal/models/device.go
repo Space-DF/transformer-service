@@ -157,6 +157,7 @@ type DeviceLookupResponse struct {
 	APIDevice     *APIDeviceLookupResponse `json:"api_device,omitempty"`
 	DeviceModel   string                   `json:"device_model"`
 	SpaceSlug     string                   `json:"space_slug"`
+	Location      *LocationCoordinates     `json:"location,omitempty"`
 	IsDeactivated bool                     `json:"is_deactivated"`
 	IsPublished   bool                     `json:"is_published"`
 }
@@ -168,16 +169,17 @@ type APIDeviceLookupResponse struct {
 // DeviceMapping represents a device EUI to profile mapping
 // DEPRECATED: Use Device instead for new code
 type DeviceMapping struct {
-	Profile       string `json:"device_profile"`
-	Organization  string `json:"organization"`
-	DeviceID      string `json:"id"`
-	DeviceName    string `json:"device_name"`
-	Manufacture   string `json:"manufacture"`
-	Description   string `json:"description"`
-	SpaceSlug     string `json:"space_slug"`
-	IsPublished   bool   `json:"is_published"`
-	IsDeactivated bool   `json:"is_deactivated"`
-	Skip          bool   `json:"skip,omitempty"`
+	Profile       string               `json:"device_profile"`
+	Organization  string               `json:"organization"`
+	DeviceID      string               `json:"id"`
+	DeviceName    string               `json:"device_name"`
+	Manufacture   string               `json:"manufacture"`
+	Description   string               `json:"description"`
+	SpaceSlug     string               `json:"space_slug"`
+	IsPublished   bool                 `json:"is_published"`
+	IsDeactivated bool                 `json:"is_deactivated"`
+	Location      *LocationCoordinates `json:"location,omitempty"`
+	Skip          bool                 `json:"skip,omitempty"`
 }
 
 // DeviceIdentifier represents a single identifier for a device
@@ -215,8 +217,9 @@ type Device struct {
 	HasGPS             bool     `json:"has_gps,omitempty"`
 
 	// Organization and space (SpaceDF specific)
-	Organization string `json:"organization"`
-	SpaceSlug    string `json:"space_slug,omitempty"`
+	Organization string               `json:"organization"`
+	SpaceSlug    string               `json:"space_slug,omitempty"`
+	Location     *LocationCoordinates `json:"location,omitempty"`
 
 	// Status and control
 	IsPublished bool   `json:"is_published"`
@@ -341,6 +344,7 @@ func (d *Device) ToDeviceMapping() DeviceMapping {
 		Description:  d.Description,
 		SpaceSlug:    d.SpaceSlug,
 		IsPublished:  d.IsPublished,
+		Location:     d.Location,
 		Skip:         d.Skip,
 	}
 }

@@ -13,5 +13,5 @@ func NewSEN0311Component() *SEN0311Component { return &SEN0311Component{} }
 func (p *SEN0311Component) SupportsGPS() bool        { return false }
 func (p *SEN0311Component) GetSupportedPorts() []int { return nil }
 func (p *SEN0311Component) GetSupportedEntityTypes() []string {
-	return []string{"water_depth"}
+	return []string{"location", "water_depth"}
 }

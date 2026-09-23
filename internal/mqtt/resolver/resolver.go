@@ -53,10 +53,12 @@ func (r *Resolver) Resolve(ctx context.Context, orgSlug, vhost, devEUI string, p
 	}
 
 	var deviceLocation *models.DeviceLocationData
+	var mapping *models.DeviceMapping
 	var err error
 
 	if devEUI != "" && r.deviceProfileService != nil {
-		mapping, mappingErr := r.deviceProfileService.GetDeviceMapping(orgSlug, devEUI)
+		var mappingErr error
+		mapping, mappingErr = r.deviceProfileService.GetDeviceMapping(orgSlug, devEUI)
 		if mappingErr != nil {
 			r.logTenant(orgSlug, vhost, "⚠️", "Could not get device mapping for %s: %v. Proceeding with location calculation.", devEUI, mappingErr)
 		}
@@ -98,6 +100,14 @@ func (r *Resolver) Resolve(ctx context.Context, orgSlug, vhost, devEUI string, p
 		deviceLocation, err = r.locationService.CalculateDeviceLocationWithLNSContext(ctx, locationPayload, r.getLNSType(lnsType...))
 	}
 
+	if !hasValidLocation(deviceLocation) {
+		if fallback := deviceLocationFromMapping(mapping, devEUI, orgSlug); fallback != nil {
+			r.logTenant(orgSlug, vhost, "📍", "Using default device location for %s from device-service", devEUI)
+			deviceLocation = fallback
+			err = nil
+		}
+	}
+
 	if deviceLocation != nil && deviceLocation.Organization == "" {
 		deviceLocation.Organization = orgSlug
 	}
@@ -113,6 +123,35 @@ func (r *Resolver) Resolve(ctx context.Context, orgSlug, vhost, devEUI string, p
 	}
 
 	return deviceLocation, &info, nil
+}
+
+func hasValidLocation(location *models.DeviceLocationData) bool {
+	return location != nil && common.ValidateCoordinates(location.Latitude, location.Longitude) == nil
+}
+
+func deviceLocationFromMapping(mapping *models.DeviceMapping, devEUI, orgSlug string) *models.DeviceLocationData {
+	if mapping == nil || mapping.Location == nil {
+		return nil
+	}
+	if common.ValidateCoordinates(mapping.Location.Latitude, mapping.Location.Longitude) != nil {
+		return nil
+	}
+
+	location := &models.DeviceLocationData{
+		Latitude:     mapping.Location.Latitude,
+		Longitude:    mapping.Location.Longitude,
+		DevEUI:       devEUI,
+		Organization: orgSlug,
+		Manufacture:  mapping.Manufacture,
+	}
+	if mapping.Organization != "" {
+		location.Organization = mapping.Organization
+	}
+	if mapping.Location.Bearing != nil {
+		location.Bearing = mapping.Location.Bearing
+	}
+
+	return location
 }
 
 // extractGPSFromDeviceParser extracts GPS coordinates using component-based parser

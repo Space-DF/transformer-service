@@ -370,6 +370,7 @@ func (dps *DeviceProfileService) mappingFromLookupResponse(orgSlug, identifier s
 		SpaceSlug:     spaceSlug,
 		IsPublished:   isPublished,
 		IsDeactivated: payload.IsDeactivated,
+		Location:      payload.Location,
 	}
 
 	return &mapping, nil
